@@ -7,8 +7,9 @@ Preparacion entorno: Es imprescindible que tengas el driver de dokan instalado.
 El entorno esta preparado para la versión release en arquitecturas x64, basta con "build solution"
 
 Ejecución del programa:
->securemirror.exe /r <Ruta que queremos reflejar> /l <Letra o carpeta vacia sobre la que ejecutar dokan>
-TODO
+securemirror.exe /r "Ruta que queremos reflejar" /l "Letra o carpeta vacia sobre la que ejecutar dokan"
+
+...
 
 
 ### Posibles errores
