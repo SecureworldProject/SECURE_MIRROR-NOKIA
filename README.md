@@ -12,4 +12,4 @@ TODO
 
 ### Posibles errores
 1. Errores de compilacion o de linkado: Estos errores se pueden dar si no tienes la carpeta Dokan_Files, con las cabeceras de las dlls necesarias y el fichero dokan1.lib necesario para el linkado
-2. _CRT_SECURE_NO_WARNINGS : Este error ser puede ser resuelto en propiedades del proyecto (todas las configuraciones) --> C/C++ --> Preprocessor --> Proeprocessor Definitions y aquí añadir _CRT_SECURE_NO_WARNINGS
+2. _CRT_SECURE_NO_WARNINGS : Este error ser puede ser resuelto en propiedades del proyecto (todas las configuraciones) --> C/C++ --> Preprocessor --> Preprocessor Definitions y aquí añadir _CRT_SECURE_NO_WARNINGS
