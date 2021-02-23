@@ -42,6 +42,7 @@ THE SOFTWARE.
 #include <inttypes.h>
 //includes propios
 #include "config.h"
+#include "context.h"
 
 //#define WIN10_ENABLE_LONG_PATH
 #ifdef WIN10_ENABLE_LONG_PATH
@@ -1888,7 +1889,10 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   //Se lee el json de configuración (contexto)
   //SecureLog("Bienvenido SecureLog==============================\n");
   //DbgPrint("Bienvenido SecureLog==============================\n");
-  read_json();
+  printf("Bienvenido a SecureWorld\n");
+    //loadContext();
+  struct Context ctx = load_Context();
+  printf("cosa %s\n",ctx.folders[0]->path);
 
   
   status = DokanMain(&dokanOptions, &dokanOperations);

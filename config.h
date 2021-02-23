@@ -14,6 +14,8 @@ Nokia Febrero 2021
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "context.h"
+
 
 static void print_depth_shift(int depth);
 
@@ -25,4 +27,32 @@ static void process_array(json_value* value, int depth);
 
 static void process_value(json_value* value, int depth);
 
-int read_json();
+static void processProtections(int index, json_value* value, int depth);
+
+static void processFolder(int index, json_value* value, int depth);
+
+static void processFolders(json_value* value, int depth);
+
+static void processParentalControl(json_value* value, int depth);
+
+static void processSyncFolders(json_value* value, int depth);
+
+static void processTableTuple(int table_index, int row_index, json_value* value, int depth);
+
+static void processOperativeTables(json_value* value, int depth);
+
+static void processApp(int index, json_value* value, int depth);
+
+static void processApps(json_value* value, int depth);
+
+static void processChallenge(int group_index, int challenge_index, json_value* value, int depth);
+
+static void processChallengeEqGroup(int index, json_value* value, int depth);
+
+static void processChallengeEqGroups(json_value* value, int depth);
+
+static void processContext(json_value* value, int depth);
+
+int loadContext();
+
+struct Context load_Context();
