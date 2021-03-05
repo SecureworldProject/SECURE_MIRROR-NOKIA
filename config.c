@@ -14,6 +14,8 @@ Nokia Febrero 2021
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdio.h>
+//#include <windows.h>
+
 #include <stdlib.h>
 #include "context.h"
 #include <string.h>
@@ -416,9 +418,10 @@ static void processApp(int index, json_value* value, int depth) {
         }
         if (strcmp(value->u.object.values[i].name, "AppType") == 0) {
             app_type_str = value->u.object.values[i].value->u.string.ptr;
-            if (strcmp(app_type_str, "BROWSER")) app_type = BROWSER;
-            else if (strcmp(app_type_str, "MAILER")) app_type = MAILER;
-            else if (strcmp(app_type_str, "BLOCKED")) app_type = BLOCKED;
+            if (strcmp(app_type_str, "BROWSER")==0) app_type = BROWSER;
+            else if (strcmp(app_type_str, "MAILER") == 0) app_type = MAILER;
+            else if (strcmp(app_type_str, "BLOCKED") == 0) app_type = BLOCKED;
+            else if (strcmp(app_type_str, "ANY") == 0) app_type = ANY;
             context.app[index]->app_type = app_type;
         }
     }
@@ -613,15 +616,17 @@ struct Context load_Context() {
         exit(1);
     }
 
-    fp = fopen(filename, "rt");
+    fp = fopen(filename, "rb");//read en modo binario, de lo contrario da problemas fread porque no retorna
     if (fp == NULL) {
         fprintf(stderr, "Unable to open %s\n", filename);
         fclose(fp);
         free(file_contents);
         //return 1;
+        exit(1);
     }
-    if (fread(file_contents, file_size, 1, fp) != 1) {
+    if (fread(file_contents, file_size, 1, fp) !=1) {
         fprintf(stderr, "Unable t read content of %s\n", filename);
+        fprintf(stderr, "size %d\n", file_size);
         fclose(fp);
         free(file_contents);
         //return 1;

@@ -61,6 +61,11 @@
 		"AppPath": "C:/program files/chrome", 
 		"AppName": "test.exe",
 		"AppType": "MAILER"
+		},
+		{
+		"AppPath": "C:/program files/cosa/", 
+		"AppName": "cosa.exe",
+		"AppType": "ANY"
 		}
 	],
 

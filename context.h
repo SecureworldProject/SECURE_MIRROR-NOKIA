@@ -58,8 +58,10 @@ struct TableTuple {
 enum AppType {
 	BROWSER,
 	MAILER,
-	BLOCKED
+	BLOCKED,
+	ANY
 };
+//const char* APP_TYPE_STRINGS[] = { "BROWSER", "MAILER", "BLOCKED","ANY" };
 
 enum Operation {
 	NOTHING,
