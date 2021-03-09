@@ -20,7 +20,6 @@ Nokia Febrero 2021
 #include "context.h"
 #include <string.h>
 
-struct Context context;
 
 static void print_depth_shift(int depth) {
     int j;
@@ -433,7 +432,7 @@ static void processApps(json_value* value, int depth) {
     int i, num_apps;
     json_value* app_value;
     num_apps = value->u.array.length;
-    context.app = malloc(num_apps * sizeof(struct App));
+    context.app = malloc(num_apps * sizeof(struct App*));
     for (i = 0;i < num_apps;i++) {
         app_value = value->u.array.values[i];
         processApp(i, app_value, depth + 1);
@@ -515,11 +514,11 @@ static void processContext(json_value* value, int depth) {
     printf("Hay %d campos principales\n", num_main_fields);
     for (int i = 0;i < num_main_fields;i++) {
         printf("Nombre: %s\n", value->u.object.values[i].name);
-        if (strcmp(value->u.object.values[i].name, "Folders") == 0) processFolders(value->u.object.values[i].value, depth + 1);
-        else if (strcmp(value->u.object.values[i].name, "ParentalControl") == 0)  processParentalControl(value->u.object.values[i].value, depth + 1);
-        else if (strcmp(value->u.object.values[i].name, "SyncFolders") == 0)  processSyncFolders(value->u.object.values[i].value, depth + 1);
-        else if (strcmp(value->u.object.values[i].name, "OperativeTables") == 0)  processOperativeTables(value->u.object.values[i].value, depth + 1);
-        else if (strcmp(value->u.object.values[i].name, "Apps") == 0)  processApps(value->u.object.values[i].value, depth + 1);
+        if (strcmp(value->u.object.values[i].name, "Folders") == 0)                 processFolders(value->u.object.values[i].value, depth + 1);
+        else if (strcmp(value->u.object.values[i].name, "ParentalControl") == 0)    processParentalControl(value->u.object.values[i].value, depth + 1);
+        else if (strcmp(value->u.object.values[i].name, "SyncFolders") == 0)        processSyncFolders(value->u.object.values[i].value, depth + 1);
+        else if (strcmp(value->u.object.values[i].name, "OperativeTables") == 0)    processOperativeTables(value->u.object.values[i].value, depth + 1);
+        else if (strcmp(value->u.object.values[i].name, "Apps") == 0)               processApps(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "ChallengeEqGroups") == 0)  processChallengeEqGroups(value->u.object.values[i].value, depth + 1);
         else printf("El nombre %s por ahora no esta registrado y no se va a procesar.\n", value->u.object.values[i].name);
     }
@@ -642,6 +641,7 @@ struct Context load_Context() {
     //Parseo del contenido del json
     json = (json_char*)file_contents;
 
+    // Validacion sintaxis
     value = json_parse(json, file_size);
 
     if (value == NULL) {
@@ -652,8 +652,9 @@ struct Context load_Context() {
 
     //process_value(value, 0);
     processContext(value, 0);
-    json_value_free(value);
+    //json_value_free(value);     // Esto hay que tener cuidado, porque puede liberar todos los punteros internos
     free(file_contents);
+
     //return 0;
     return context;
 }

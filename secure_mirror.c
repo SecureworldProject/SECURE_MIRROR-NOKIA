@@ -655,6 +655,17 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
  
   //==========================================================
   //Capturo el proceso que realiza la peticion
+  // Init an App struct
+  struct App app;
+  app.app_name = malloc(MAX_PATH * sizeof(char));
+  app.app_name[0] = '\0';
+  app.app_path = malloc(MAX_PATH * sizeof(char));
+  app.app_path[0] = '\0';
+  app.app_type = ANY;
+
+  getApp(&app, DokanFileInfo, context);
+  preLogic(12, app);
+
   int chrome = 0;
   HANDLE hProcess;
   CHAR nameProc[MAX_PATH];
@@ -697,6 +708,9 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
       free(Buffer2);
   if (opened)
     CloseHandle(handle);
+
+  postLogic(11515, app);
+  // falta free de app ///////////////////////////////
 
   return STATUS_SUCCESS;
 }
@@ -1860,13 +1874,13 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   dokanOptions.Options |= DOKAN_OPTION_ALT_STREAM;
 
   ZeroMemory(&dokanOperations, sizeof(DOKAN_OPERATIONS));
-  dokanOperations.ZwCreateFile = MirrorCreateFile;
+  dokanOperations.ZwCreateFile = MirrorCreateFile;                  // Will be modified
   dokanOperations.Cleanup = MirrorCleanup;
   dokanOperations.CloseFile = MirrorCloseFile;
-  dokanOperations.ReadFile = MirrorReadFile;
-  dokanOperations.WriteFile = MirrorWriteFile;
+  dokanOperations.ReadFile = MirrorReadFile;                        // Will be modified
+  dokanOperations.WriteFile = MirrorWriteFile;                      // Will be modified
   dokanOperations.FlushFileBuffers = MirrorFlushFileBuffers;
-  dokanOperations.GetFileInformation = MirrorGetFileInformation;
+  dokanOperations.GetFileInformation = MirrorGetFileInformation;    // Will be modified parental control??
   dokanOperations.FindFiles = MirrorFindFiles;
   dokanOperations.FindFilesWithPattern = NULL;
   dokanOperations.SetFileAttributes = MirrorSetFileAttributes;
@@ -1880,7 +1894,7 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   dokanOperations.UnlockFile = MirrorUnlockFile;
   dokanOperations.GetFileSecurity = MirrorGetFileSecurity;
   dokanOperations.SetFileSecurity = MirrorSetFileSecurity;
-  dokanOperations.GetDiskFreeSpace = MirrorDokanGetDiskFreeSpace; 
+  dokanOperations.GetDiskFreeSpace = MirrorDokanGetDiskFreeSpace;
   dokanOperations.GetVolumeInformation = MirrorGetVolumeInformation;
   dokanOperations.Unmounted = MirrorUnmounted;
   dokanOperations.FindStreams = MirrorFindStreams;
@@ -1892,7 +1906,9 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   printf("Bienvenido a SecureWorld\n");
     //loadContext();
   struct Context ctx = load_Context();
-  printf("cosa %s\n",ctx.folders[0]->path);
+  //printf("cosa %s\n",ctx.folders[0]->path);
+  printContext(ctx);
+
 
   
   status = DokanMain(&dokanOptions, &dokanOperations);
