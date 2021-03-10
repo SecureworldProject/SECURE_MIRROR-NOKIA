@@ -14,12 +14,14 @@ Nokia Febrero 2021
 
 
 
+/////  FUNCTION HEADERS  /////
 void preLogic(int num, struct App app);
 void postLogic(int num, struct App app);
 void getApp(struct App* app, PDOKAN_FILE_INFO dokan_file_info, struct Context ctx);
 
 
 
+/////  FUNCTION IMPLEMENTATIONS  /////
 void preLogic(int num, struct App app) {
 	PRINT("HELLO!!  %d \n", num);
 }
@@ -60,19 +62,19 @@ void getApp(struct App * app, PDOKAN_FILE_INFO dokan_file_info, struct Context c
 		strcpy(app->app_name, tmp_str + 1);
 
 		// For every app in the list check if the path is the same
-		for (int i = 0; !match_found && i < _msize(ctx.app) / sizeof(struct App*); i++) {
-			if (strcmp(ctx.app[i]->app_path, app->app_path) == 0) {
+		for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
+			if (strcmp(ctx.apps[i]->app_path, app->app_path) == 0) {
 				match_found = TRUE;
-				app->app_type = ctx.app[i]->app_type;
+				app->app_type = ctx.apps[i]->app_type;
 				break;
 			}
 		}
 
 		// For every app in the list check if the name is the same
-		for (int i = 0; !match_found && i < _msize(ctx.app) / sizeof(struct App*); i++) {
-			if (strcmp(ctx.app[i]->app_name, app->app_name) == 0) {
+		for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
+			if (strcmp(ctx.apps[i]->app_name, app->app_name) == 0) {
 				match_found = TRUE;
-				app->app_type = ctx.app[i]->app_type;
+				app->app_type = ctx.apps[i]->app_type;
 				break;
 			}
 		}

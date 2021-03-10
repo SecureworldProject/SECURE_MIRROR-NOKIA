@@ -27,7 +27,7 @@ static void process_array(json_value* value, int depth);
 
 static void process_value(json_value* value, int depth);
 
-static void processProtections(int index, json_value* value, int depth);
+static void processProtection(int index, json_value* value, int depth);
 
 static void processFolder(int index, json_value* value, int depth);
 
@@ -55,4 +55,4 @@ static void processContext(json_value* value, int depth);
 
 int loadContext();
 
-struct Context load_Context();
+void load_Context();

@@ -1905,9 +1905,9 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   //DbgPrint("Bienvenido SecureLog==============================\n");
   printf("Bienvenido a SecureWorld\n");
     //loadContext();
-  struct Context ctx = load_Context();
+  load_Context();
   //printf("cosa %s\n",ctx.folders[0]->path);
-  printContext(ctx);
+  printContext(context);
 
 
   
