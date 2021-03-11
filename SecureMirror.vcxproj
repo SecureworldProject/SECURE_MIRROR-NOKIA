@@ -152,6 +152,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="config.c" />
+    <ClCompile Include="context.c" />
     <ClCompile Include="keymaker.c" />
     <ClCompile Include="logic.c" />
     <ClCompile Include="secure_mirror.c" />

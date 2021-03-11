@@ -1,4 +1,5 @@
-{"Folders": [
+{
+	"Folders": [
 		{
 			"Path": "C:/Users/Juan/Desktop",
 			"MountPoint": "M",
@@ -23,89 +24,89 @@
 
 	"ParentalControl": [
 		{
-		"Folder": "C:/Users/Pepito/playboy_files/",
-		"Users": ["Pepito", "Admin"],
-		"ChallengeEqGroups": ["Group2"]
+			"Folder": "C:/Users/Pepito/playboy_files/",
+			"Users": ["Pepito", "Admin"],
+			"ChallengeEqGroups": ["Group2"]
 		}
 	],
 
 	"SyncFolders": [
 		"C:/Users/Pepito/Google Drive/",
-		"C:/Users/Pepito/OneDrive/",
+		"C:/Users/Pepito/OneDrive/"
 	],
 
 	"OperativeTables": {
 		"Table1": [
 			{
-			"AppType": "BROWSER",
-			"Disk": "M",
-			"READ": "CIPHER",
-			"WRITE": "NOTHING"
+				"AppType": "BROWSER",
+				"Disk": "M",
+				"READ": "CIPHER",
+				"WRITE": "NOTHING"
 			},
 			{
-			"AppType": "MAILER",
-			"Disk": "K",
-			"READ": "DECIPHER",
-			"WRITE": "MARK"
+				"AppType": "MAILER",
+				"Disk": "K",
+				"READ": "DECIPHER",
+				"WRITE": "MARK"
 			}
 		]
 	},
 
 	"Apps": [
 		{
-		"AppPath": "C:/program files/chrome", 
-		"AppName": "chrome.exe",
-		"AppType": "BROWSER"
+			"AppPath": "C:/program files/chrome", 
+			"AppName": "chrome.exe",
+			"AppType": "BROWSER"
 		},
 		{
-		"AppPath": "C:/program files/chrome", 
-		"AppName": "test.exe",
-		"AppType": "MAILER"
+			"AppPath": "C:/program files/chrome", 
+			"AppName": "test.exe",
+			"AppType": "MAILER"
 		},
 		{
-		"AppPath": "C:/program files/cosa/", 
-		"AppName": "cosa.exe",
-		"AppType": "ANY"
+			"AppPath": "C:/program files/cosa/", 
+			"AppName": "cosa.exe",
+			"AppType": "ANY"
 		}
 	],
 
 	"ChallengeEqGroups":
 	{
 		"Group1": {
-		"SubKey": "hola",
-		"Expires": "20210909145232",
-		"ChallengeList": [
-			{
-			"ID": "ch1",
-			"Description": "Da igual",
-			"Props": "one=1,two=2",
-			"Requirements": "camara, micro"
-			},
-			{
-			"ID": "ch2",
-			"Description": "no hace nada",
-			"Props": "one=1,two=2",
-			"Requirements": "nada"
-			}
-		]
+			"SubKey": "hola",
+			"Expires": "20210909145232",
+			"ChallengeList": [
+				{
+					"ID": "ch1",
+					"Description": "Da igual",
+					"Props": "one=1,two=2",
+					"Requirements": "camara, micro"
+				},
+				{
+					"ID": "ch2",
+					"Description": "no hace nada",
+					"Props": "one=1,two=2",
+					"Requirements": "nada"
+				}
+			]
 		},
 		"Group2": {
-		"SubKey": "adios",
-		"Expires": "20210909145232",
-		"ChallengeList": [
-			{
-			"ID": "ch4",
-			"Description": "nada",
-			"Props": "nada=0",
-			"Requirements": "nada"
-			},
-			{
-			"ID": "ch25",
-			"Description": "nada",
-			"Props": "nada=1",
-			"Requirements": "todos"
-			}
-		]
+			"SubKey": "adios",
+			"Expires": "20210909145232",
+			"ChallengeList": [
+				{
+					"ID": "ch4",
+					"Description": "nada",
+					"Props": "nada=0",
+					"Requirements": "nada"
+				},
+				{
+					"ID": "ch25",
+					"Description": "nada",
+					"Props": "nada=1",
+					"Requirements": "todos"
+				}
+			]
 		}
 	}
 }

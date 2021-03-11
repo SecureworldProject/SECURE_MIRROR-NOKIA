@@ -27,6 +27,9 @@
     <ClCompile Include="keymaker.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="context.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">

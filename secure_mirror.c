@@ -663,7 +663,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
   app.app_path[0] = '\0';
   app.app_type = ANY;
 
-  getApp(&app, DokanFileInfo, context);
+  getApp(&app, DokanFileInfo);
   preLogic(12, app);
 
   int chrome = 0;
@@ -1907,7 +1907,7 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
     //loadContext();
   load_Context();
   //printf("cosa %s\n",ctx.folders[0]->path);
-  printContext(context);
+  printContext();
 
 
   
