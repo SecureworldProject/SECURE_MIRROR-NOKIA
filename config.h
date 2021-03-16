@@ -53,6 +53,6 @@ static void processChallengeEqGroups(json_value* value, int depth);
 
 static void processContext(json_value* value, int depth);
 
-//int loadContextOLD();
-
 void loadContext();
+
+void translateIdsToPointers();

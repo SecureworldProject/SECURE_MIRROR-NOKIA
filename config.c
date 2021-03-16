@@ -36,10 +36,10 @@ static void process_object(json_value* value, int depth) {
         return;
     }
     length = value->u.object.length;
-    //printf("Longitud del objeto %d\n",length);
+
     for (x = 0; x < length; x++) {
         print_depth_shift(depth);
-        printf("object[%d].name = %s\n", x, value->u.object.values[x].name);
+        //printf("object[%d].name = %s\n", x, value->u.object.values[x].name);
         process_value(value->u.object.values[x].value, depth + 1);
     }
 }
@@ -51,7 +51,6 @@ static void process_array(json_value* value, int depth) {
     }
     length = value->u.array.length;
     //printf("Longitud del array %d\n", length);
-    printf("array\n");
     for (x = 0; x < length; x++) {
         process_value(value->u.array.values[x], depth);
     }
@@ -91,82 +90,11 @@ static void process_value(json_value* value, int depth) {
     }
 }
 
-/*static void processFolder_old(int index,json_value* value, int depth) {
-    //cada value es un elemento del array, es decir un diccionario
-    int dict_length, x, protection_length, i;
-    char* path;
-    char* mount_point;
-    enum Driver driver;
-    char* driver_str;
-    json_value* protection_value;
-    struct Protection protection;
-    char* op_table = "";
-    char** challenge_group_ids = NULL;
-    char* cipher = "";
-
-    dict_length = value->u.object.length;
-    //printf("Longitud del objeto %d\n",length);
-    for (x = 0; x < dict_length; x++) {
-        print_depth_shift(depth);
-        //printf("object[%d].name = %s\n", x, value->u.object.values[x].name);
-        if (strcmp(value->u.object.values[x].name, "Path") == 0) {
-            //printf("He pillado el path: %s\n", value->u.object.values[x].value->u.string.ptr);
-            path = value->u.object.values[x].value->u.string.ptr;
-            ctx.folders[index].path = path;
-        }
-        else if (strcmp(value->u.object.values[x].name, "MountPoint") == 0) {
-            //printf("He pillado el MOUNTPOINT: %s\n", value->u.object.values[x].value->u.string.ptr);
-            mount_point = value->u.object.values[x].value->u.string.ptr;
-            ctx.folders[index].mount_point = mount_point;
-        }
-        else if (strcmp(value->u.object.values[x].name, "Driver") == 0) {
-            //printf("He pillado el driver: %s\n", value->u.object.values[x].value->u.string.ptr);
-            driver_str = value->u.object.values[x].value->u.string.ptr; //Deberia ser el enum y es string
-            if (strcmp(driver_str, "WinFSP") == 0) driver = WINFSP;
-            else driver = DOKAN; //Todo lo que no sea WinFSP bien escrito es Dokan
-            ctx.folders[index].driver = driver;
-        }
-        /*else if (strcmp(value->u.object.values[x].name, "Protections") == 0) {
-            //Ojo protection es un structure, hay que meterse mas a fondo en el json
-            protection_length = value->u.object.values[x].value->u.object.length;
-            protection_value = value->u.object.values[x].value;
-            printf("Protection tiene %d, \n", protection_length);
-            for (i = 0;i < protection_length;i++) {
-            //OJO EL FALLO ESTA AL PILLAR EL VALOR NO EN EL PROTECTION NI EN NADA DE ESO
-                if (strcmp(protection_value->u.object.values[x].name, "OpTable") == 0) {
-                    op_table = protection_value->u.object.values[x].value->u.string.ptr;
-                    printf("optable %s\n", op_table);
-                    //protection.op_table = op_table;
-                }
-                else if (strcmp(protection_value->u.object.values[x].name, "Cipher") == 0) {
-                    cipher = protection_value->u.object.values[x].value->u.string.ptr;
-                    //protection.cipher = cipher;
-                }
-            }
-            //challenge_group_ids = ;
-            //protection.op_table = op_table;
-            //protection.challenge_group_ids = challenge_group_ids;
-            //protection.cipher = cipher;
-            ctx.folders[index].protection->op_table = op_table;
-            ctx.folders[index].protection->challenge_group_ids = NULL;
-            ctx.folders[index].protection->cipher = cipher;
-
-        }*//*
-    }
-    printf("La carpeta %d tiene\n", index);
-    printf("        path %s\n", ctx.folders[index].path);
-    printf("        mount point %s\n", ctx.folders[index].mount_point);
-    printf("        driver %d\n", ctx.folders[index].driver);
-    //printf("        protection.optable %s\n", ctx.folders[index].protection->op_table);
-    //printf("        protection.cipher %s\n", ctx.folders[index].protection->cipher);
-}*/
-
 static void processProtection(int index, json_value* value, int depth) {
     int dict_length, x, num_groups;
 
     dict_length = value->u.object.length;
     for (x = 0; x < dict_length; x++) {
-        print_depth_shift(depth);
 
         if (strcmp(value->u.object.values[x].name, "OpTable") == 0) {
             // This will be a OpTable pointer but for now it will hold the id, so force it as char pointer
@@ -180,14 +108,14 @@ static void processProtection(int index, json_value* value, int depth) {
             //Este objeto es un array
             num_groups = value->u.object.values[x].value->u.array.length;
             if (num_groups <= 0) {          // Fixes warning C6386 (Visual Studio bug)
-                ctx.folders[index]->protection->challenge_group_ids = NULL;
+                ctx.folders[index]->protection->challenge_groups = NULL;
             } else {
-                ctx.folders[index]->protection->challenge_group_ids = (char**) malloc(num_groups * sizeof(char*));   // Allocate space for all pointers to char
-                if (ctx.folders[index]->protection->challenge_group_ids) {
+                ctx.folders[index]->protection->challenge_groups = (char**) malloc(num_groups * sizeof(char*));   // Allocate space for all pointers to char
+                if (ctx.folders[index]->protection->challenge_groups) {
                     for (int i = 0; i < num_groups; i++) {
-                        ctx.folders[index]->protection->challenge_group_ids[i] = (char*) malloc(sizeof(char) * ((value->u.object.values[x].value->u.array.values[i]->u.string.length) + 1));
-                        if (ctx.folders[index]->protection->challenge_group_ids[i]) {
-                            strcpy(ctx.folders[index]->protection->challenge_group_ids[i], value->u.object.values[x].value->u.array.values[i]->u.string.ptr);
+                        ctx.folders[index]->protection->challenge_groups[i] = (char*) malloc(sizeof(char) * ((value->u.object.values[x].value->u.array.values[i]->u.string.length) + 1));
+                        if (ctx.folders[index]->protection->challenge_groups[i]) {
+                            strcpy(ctx.folders[index]->protection->challenge_groups[i], value->u.object.values[x].value->u.array.values[i]->u.string.ptr);
                         } // else --> The pointer is null because it was not possible to allocate memory
                     }
                 } // else --> The pointer is null because it was not possible to allocate memory
@@ -212,10 +140,8 @@ static void processFolder(int index, json_value* value, int depth) {
     json_value* protection_value;
 
     dict_length = value->u.object.length;
-    //printf("Longitud del objeto %d\n",length);
     for (x = 0; x < dict_length; x++) {
-        print_depth_shift(depth);
-        //printf("object[%d].name = %s\n", x, value->u.object.values[x].name);
+
         if (strcmp(value->u.object.values[x].name, "Path") == 0) {
             ctx.folders[index]->path = (char*)malloc(sizeof(char) * ((value->u.object.values[x].value->u.string.length)+1));
             if (ctx.folders[index]->path) {
@@ -255,9 +181,7 @@ static void processFolders(json_value* value, int depth) {
     int in_folder_length = 0;
     int in_folder_pos = 0;
 
-    printf("Procesando el Folder\n");
     array_length = value->u.array.length;
-    printf("Hay %d carpetas\n", array_length);
     if (array_length <= 0) {        // Fixes warning C6386 (Visual Studio bug)
         ctx.folders = NULL;
     } else {
@@ -315,13 +239,13 @@ static void processParentalControl(json_value* value, int depth) {
                         ctx.parental[i].users = NULL;
                     } else {
                         // This will be a ChallengeEquivalenceGroup pointer pointer but for now it will hold ids, so force it to char pointer pointer
-                        ctx.parental[i].challenge_group_ids = (char**)malloc(users_array_length * sizeof(char*));
-                        if (ctx.parental[i].challenge_group_ids) {
+                        ctx.parental[i].challenge_groups = (char**)malloc(users_array_length * sizeof(char*));
+                        if (ctx.parental[i].challenge_groups) {
                             for (int k = 0; k < users_array_length; k++) {
                                 // This will be a ChallengeEquivalenceGroup pointer but for now it will hold is, so force it to char pointer
-                                ctx.parental[i].challenge_group_ids[k] = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));
-                                if (ctx.parental[i].challenge_group_ids[k]) {
-                                    strcpy(ctx.parental[i].challenge_group_ids[k], array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr);
+                                ctx.parental[i].challenge_groups[k] = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));
+                                if (ctx.parental[i].challenge_groups[k]) {
+                                    strcpy(ctx.parental[i].challenge_groups[k], array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr);
                                 } // else --> The pointer is null because it was not possible to allocate memory
                             }
                         } // else --> The pointer is null because it was not possible to allocate memory
@@ -358,7 +282,6 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
     enum Operation op = NOTHING;
 
     num_elems = value->u.object.length;
-    printf("La fila %d tiene %d elementos\n", row_index, num_elems);
 
     ctx.tables[table_index]->tuples[row_index] = (struct Tuple*)malloc(sizeof(struct Tuple));
     if (ctx.tables[table_index]->tuples[row_index]) {
@@ -385,7 +308,6 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
 
             if (strcmp(value->u.object.values[i].name, "READ") == 0) {
                 op_str = value->u.object.values[i].value->u.string.ptr;
-                printf("op read es: %s\n", op_str);
                 if (strcmp(op_str, "NOTHING") == 0)         op = NOTHING;
                 else if (strcmp(op_str, "CIPHER") == 0)     op = CIPHER;
                 else if (strcmp(op_str, "DECIPHER") == 0)   op = DECIPHER;
@@ -402,7 +324,6 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
 
             if (strcmp(value->u.object.values[i].name, "WRITE") == 0) {
                 op_str = value->u.object.values[i].value->u.string.ptr;
-                printf("op write es: %s\n", op_str);
                 if (strcmp(op_str, "NOTHING") == 0)         op = NOTHING;
                 else if (strcmp(op_str, "CIPHER") == 0)     op = CIPHER;
                 else if (strcmp(op_str, "DECIPHER") == 0)   op = DECIPHER;
@@ -418,13 +339,6 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
             }
         }
     } // else --> The pointer is null because it was not possible to allocate memory
-
-    printf("The Tuple %d contained: AppType: %d - Disk: %s - ActionRead: %d - ActionWrite: %d \n",
-        row_index,
-        ctx.tables[table_index]->tuples[row_index]->app_type,
-        ctx.tables[table_index]->tuples[row_index]->disk,
-        ctx.tables[table_index]->tuples[row_index]->on_read,
-        ctx.tables[table_index]->tuples[row_index]->on_write);
 }
 
 static void processOperativeTables(json_value* value, int depth) {
@@ -503,7 +417,6 @@ static void processApp(int index, json_value* value, int depth) {
                 ctx.apps[index]->type = type;
             }
         }
-        printf("La app %d, tiene path: %s, name: %s, y tipo: %d que es %s\n", index, ctx.apps[index]->path, ctx.apps[index]->name, ctx.apps[index]->type, app_type_str);
     } // else --> The pointer is null because it was not possible to allocate memory
 }
 
@@ -549,7 +462,6 @@ static void processChallenge(int group_index, int challenge_index, json_value* v
                 } // else --> The pointer is null because it was not possible to allocate memory
             }
         }
-        printf("El challenge %d del grupo %d tiene ID: %s y Props: %s\n", challenge_index, group_index, ctx.groups[group_index]->challenges[challenge_index]->id, ctx.groups[group_index]->challenges[challenge_index]->properties);
     }
 }
 
@@ -569,10 +481,7 @@ static void processChallengeEqGroup(int index, json_value* value, int depth) {
         }
 
         else if (strcmp(value->u.object.values[i].name, "Expires") == 0) {
-            ctx.groups[index]->expires = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
-            if (ctx.groups[index]->expires) {
-                strcpy(ctx.groups[index]->expires, value->u.object.values[i].value->u.string.ptr);
-            } // else --> The pointer is null because it was not possible to allocate memory
+            ctx.groups[index]->expires = (time_t)0;         // Subkey expired in 1970
         }
 
         else if (strcmp(value->u.object.values[i].name, "ChallengeList") == 0) {
@@ -590,7 +499,6 @@ static void processChallengeEqGroup(int index, json_value* value, int depth) {
             }
         }
     }
-    printf("El grupo de equivalencia %d: expires= %s, subkey= %s y %d challenges\n",index, ctx.groups[index]->expires, ctx.groups[index]->subkey, num_challenges);
 }
 
 static void processChallengeEqGroups(json_value* value, int depth) {
@@ -626,81 +534,19 @@ static void processChallengeEqGroups(json_value* value, int depth) {
 **/
 static void processContext(json_value* value, int depth) {
     int num_main_fields;
-    printf("Processing config.json and filling context\n");
+    printf("\nProcessing config.json and filling context...\n");
     num_main_fields = value->u.object.length;
     for (int i = 0;i < num_main_fields;i++) {
-        printf("Nombre: %s\n", value->u.object.values[i].name);
         if (strcmp(value->u.object.values[i].name, "Folders") == 0)                 processFolders(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "ParentalControl") == 0)    processParentalControl(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "SyncFolders") == 0)        processSyncFolders(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "OperativeTables") == 0)    processOperativeTables(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "Apps") == 0)               processApps(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "ChallengeEqGroups") == 0)  processChallengeEqGroups(value->u.object.values[i].value, depth + 1);
-        else printf("El nombre %s por ahora no esta registrado y no se va a procesar.\n", value->u.object.values[i].name);
+        else printf("WARINING: the field '%s' included in config.json is not registered and will not be processed.\n", value->u.object.values[i].name);
     }
+    printf("Processing completed\n");
 }
-
-/*int loadContextOLD() {
-
-    char* filename;
-    FILE* fp;
-    struct stat filestatus;
-    int file_size;
-    char* file_contents;
-    json_char* json;
-    json_value* value;
-
-    //Carga del fichero json y lectura del contenido
-    filename = "../../config.json";
-
-    if (stat(filename, &filestatus) != 0) {
-        fprintf(stderr, "File %s not found\n", filename);
-        return 1;
-    }
-    file_size = filestatus.st_size;
-    file_contents = (char*)malloc(filestatus.st_size);
-    if (file_contents == NULL) {
-        fprintf(stderr, "Memory error: unable to allocate %d bytes\n", file_size);
-        return 1;
-    }
-
-    fp = fopen(filename, "rt");
-    if (fp == NULL) {
-        fprintf(stderr, "Unable to open %s\n", filename);
-        fclose(fp);
-        free(file_contents);
-        return 1;
-    }
-    if (fread(file_contents, file_size, 1, fp) != 1) {
-        fprintf(stderr, "Unable t read content of %s\n", filename);
-        fclose(fp);
-        free(file_contents);
-        return 1;
-    }
-    fclose(fp);
-
-    //printf("%s\n", file_contents);
-
-    //printf("--------------------------------\n\n");
-    //--------------
-
-    //Parseo del contenido del json
-    json = (json_char*)file_contents;
-
-    value = json_parse(json, file_size);
-
-    if (value == NULL) {
-        fprintf(stderr, "Unable to parse data\n");
-        free(file_contents);
-        exit(1);
-    }
-
-    //process_value(value, 0);
-    processContext(value, 0);
-    json_value_free(value);
-    free(file_contents);
-    return 0;
-}*/
 
 /**
 * Loads, reads and processes the config.json filling the global ctx variable. 
@@ -766,6 +612,9 @@ void loadContext() {
     json_value_free(value);     // This frees all the internal pointers. Be sure to have copied the data and not just pointed to it.
     free(file_contents);
 
+    // Translate strings ids to pointers
+    translateIdsToPointers();
+
     return;
 }
 
@@ -782,47 +631,50 @@ void loadContext() {
 void translateIdsToPointers() {
     void* tmp_ptr;
 
-    PRINT("CLEANING: Folders  -->  Protection\n");
+    printf("\nTranslating ids to pointers where possible...\n");
+
+    //PRINT("Translating ids to pointers: Folders  -->  Protection\n");
     for (int i = 0; i < _msize(ctx.folders) / sizeof(struct Folder*); i++) {
 
         // Fix ids from:    Folders  -->  Protection  -->  OpTable
-        PRINT1("CLEANING: Folders  -->  Protection  -->  OpTable\n");
+        //PRINT1("Translating ids to pointers: Folders  -->  Protection  -->  OpTable\n");
 
-        PRINT1("ID before changes: %s\n", (char*)ctx.folders[i]->protection->op_table);
+        //PRINT1("ID before changes: %s\n", (char*)ctx.folders[i]->protection->op_table);
         // Get true pointer
         tmp_ptr = getOpTableById((char*)ctx.folders[i]->protection->op_table);
         // Free the char* of the ID
         free(ctx.folders[i]->protection->op_table);
         // Assign the true pointer
         ctx.folders[i]->protection->op_table = tmp_ptr;
-        PRINT1("ID after changes: %s\n", ctx.folders[i]->protection->op_table->id);
+        //PRINT1("ID after changes: %s\n", ctx.folders[i]->protection->op_table->id);
 
         // Fix ids from:    Folders  -->  Protection  -->  ChallengeEqGroups
-        PRINT1("CLEANING: Folders  -->  Protection  -->  ChallengeEqGroups: \n");
-        for (int j = 0; j < _msize(ctx.folders[i]->protection->challenge_group_ids) / sizeof(char*); j++) {
+        //PRINT1("Translating ids to pointers: Folders  -->  Protection  -->  ChallengeEqGroups: \n");
+        for (int j = 0; j < _msize(ctx.folders[i]->protection->challenge_groups) / sizeof(char*); j++) {
 
-            PRINT2("ID before changes: %s\n", (char*)ctx.folders[i]->protection->challenge_group_ids[j]);
+            //PRINT2("ID before changes: %s\n", (char*)ctx.folders[i]->protection->challenge_groups[j]);
             // Get true pointer
-            tmp_ptr = getChallengeGroupById((char*)ctx.folders[i]->protection->challenge_group_ids[j]);
+            tmp_ptr = getChallengeGroupById((char*)ctx.folders[i]->protection->challenge_groups[j]);
             // Free the char* of the ID
-            free(ctx.folders[i]->protection->challenge_group_ids[j]);
+            free(ctx.folders[i]->protection->challenge_groups[j]);
             // Assign the true pointer
-            ctx.folders[i]->protection->challenge_group_ids[j] = tmp_ptr;
-            PRINT2("ID after changes: %s\n", ctx.folders[i]->protection->challenge_group_ids[j]->id);
+            ctx.folders[i]->protection->challenge_groups[j] = tmp_ptr;
+            //PRINT2("ID after changes: %s\n", ctx.folders[i]->protection->challenge_groups[j]->id);
         }
     }
 
     // Fix ids from:    Parental Control  -->  ChallengeEqGroups
-    PRINT("CLEANING: Parental Control  -->  ChallengeEqGroups: \n");
-    for (int i = 0; i < _msize(ctx.parental->challenge_group_ids) / sizeof(char*); i++) {
+    //PRINT("Translating ids to pointers: Parental Control  -->  ChallengeEqGroups: \n");
+    for (int i = 0; i < _msize(ctx.parental->challenge_groups) / sizeof(char*); i++) {
 
-        PRINT1("ID before changes: %s\n", (char*)ctx.parental->challenge_group_ids[i]);
+        //PRINT1("ID before changes: %s\n", (char*)ctx.parental->challenge_groups[i]);
         // Get true pointer
-        tmp_ptr = getChallengeGroupById((char*)ctx.parental->challenge_group_ids[i]);
+        tmp_ptr = getChallengeGroupById((char*)ctx.parental->challenge_groups[i]);
         // Free the char* of the ID
-        free((char*)ctx.parental->challenge_group_ids[i]);
+        free((char*)ctx.parental->challenge_groups[i]);
         // Assign the true pointer
-        ctx.parental->challenge_group_ids[i] = tmp_ptr;
-        PRINT1("ID after changes: %s\n", ctx.parental->challenge_group_ids[i]->id);
+        ctx.parental->challenge_groups[i] = tmp_ptr;
+        //PRINT1("ID after changes: %s\n", ctx.parental->challenge_groups[i]->id);
     }
+    printf("Translation completed\n");
 }

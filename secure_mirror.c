@@ -1903,26 +1903,16 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   //Se lee el json de configuración (contexto)
   //SecureLog("Bienvenido SecureLog==============================\n");
   //DbgPrint("Bienvenido SecureLog==============================\n");
-  printf("Bienvenido a SecureWorld\n");
-    //loadContext();
+  printf("   ____________________________ \n");
+  printf("  |                            |\n");
+  printf("  |   Welcome to SecureWorld   |\n");
+  printf("  |____________________________|\n");
+ 
+  // Load context from json (and replace ids with pointer to objects)
   loadContext();
-  //printf("cosa %s\n",ctx.folders[0]->path);
+
   printContext();
 
-  PRINT("\n\n==========  TESTING getFormatString()  ==========\n");
-  PRINT("RESULT: %s", getTimeFormattedString(time(NULL)));
-  PRINT("\n==========  END TESTING getFormatString()  ==========\n\n");
-
-  PRINT("\n\n==========  TESTING getTimeFromString()  ==========\n");
-  PRINT("RESULT: %lld", getTimeFromString("20210315121655"));
-  PRINT("\n==========  END TESTING getTimeFromString()  ==========\n\n");
-  PRINT("\n\n==========  TESTING getTimeFromString()  ==========\n");
-  PRINT("RESULT: %lld", getTimeFromString("20010211225107"));
-  PRINT("\n==========  END TESTING getTimeFromString()  ==========\n\n");
-
-  translateIdsToPointers();
-
-  
   status = DokanMain(&dokanOptions, &dokanOperations);
   switch (status) {
   case DOKAN_SUCCESS:

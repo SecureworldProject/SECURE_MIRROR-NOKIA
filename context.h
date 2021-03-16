@@ -17,12 +17,15 @@ Nokia Febrero 2021
 extern "C" {
 	#endif	//__cplusplus
 
+
+	/////  DEFINITIONS  /////
+
 	#ifndef NULL
 		#define NULL (void*)0
 	#endif //NULL
 
 	#define NOOP ((void)0)
-	#define ENABLE_PRINTS 1					// Affects the PRINT() function. If 0 does not print anything. If 1 traces are printed.
+	#define ENABLE_PRINTS 1					// Affects the PRINT() functions. If 0 does not print anything. If 1 traces are printed.
 	#define PRINT(...) do { if (ENABLE_PRINTS) printf(__VA_ARGS__); else NOOP;} while (0)
 	#define PRINT1(...) PRINT("    "); PRINT(__VA_ARGS__)
 	#define PRINT2(...) PRINT("        "); PRINT(__VA_ARGS__)
@@ -32,20 +35,25 @@ extern "C" {
 	#define PRINTX(DEPTH, ...) do { if (ENABLE_PRINTS) { for (int x=0; x<DEPTH; x++){ printf("    ");} printf(__VA_ARGS__); } else NOOP;} while (0)
 
 
+
+
+	/////  FUNCTION PROTOTYPES  /////
+
 	static void printContext();
 	static void printChallengeGroups();
-	static void printDateNice(char* date);
-	static void printChallengeGroup(char *id);
-	static char* getTimeFormattedString(time_t time);
-	static time_t getTimeFromString(char* formatted_time_str);
-	//static int getWeekDay(int y, int m, int d);
-	//static int getYearDay(int year, int month, int day);
+	static void printChallengeGroup(struct ChallengeEquivalenceGroup* group);
+	static void printChallenge(struct Challenge* challenge);
+	static void printDateNice(struct tm * time_info);
 	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id);
 	static struct OpTable* getOpTableById(char* table_id);
 
 
-	///////////////////////////// hacer typedefs todos los structs??? así no hay que escribir siempre struct (ventaja: se programa más rapido) //////////////
+
+
+	/////  CONTEXT STRUCTS AND ENUMS  /////
+
 	#pragma region Here is the context with all the asociated structs and enums
+
 	struct Context {
 		struct Folder** folders;
 		struct ParentalControl* parental;
@@ -69,14 +77,14 @@ extern "C" {
 
 	struct Protection {
 		struct OpTable* op_table;
-		struct ChallengeEquivalenceGroup** challenge_group_ids;		//  Quitar ids//////////////////////
+		struct ChallengeEquivalenceGroup** challenge_groups;
 		char* cipher;
 	};
 
 	struct ParentalControl {
 		char* folder;
 		char** users;
-		struct ChallengeEquivalenceGroup** challenge_group_ids;		// Quitar _ids/////////////////////////
+		struct ChallengeEquivalenceGroup** challenge_groups;
 	};
 
 	struct OpTable {
@@ -118,7 +126,7 @@ extern "C" {
 	struct ChallengeEquivalenceGroup {
 		char* id;
 		char* subkey;
-		char* expires;			// YYMMDDhhmmss						// Cambiar a tipo time_t de libreria c <time.h>
+		time_t expires;			// Not obtained from json
 		struct Challenge** challenges;
 	};
 
@@ -126,9 +134,20 @@ extern "C" {
 		char* id;
 		char* properties;		// "prop1=valor&prop2=valor..."
 	};
+
 	#pragma endregion
 
 
+
+
+	/////  FUNCTION DEFINITIONS  /////
+
+
+	/**
+	* Prints all the information of the context (indented to ease the view of information).
+	*
+	* @return
+	**/
 	static void printContext() {
 		PRINT("\n");
 		PRINT("================================================================================\n");
@@ -143,10 +162,10 @@ extern "C" {
 			PRINT2("Mount point: %s\n", ctx.folders[i]->mount_point);
 			PRINT2("Driver: %d\n", ctx.folders[i]->driver);
 			PRINT2("Protection\n");
-			PRINT3("Op table: %s\n", ctx.folders[i]->protection->op_table);
+			PRINT3("Op table: %s\n", ctx.folders[i]->protection->op_table->id);
 			PRINT3("Challenge groups: ");
-			for (int j = 0; j < _msize(ctx.folders[i]->protection->challenge_group_ids) / sizeof(char*); j++) {
-				PRINT("%s%s", (char*) ctx.folders[i]->protection->challenge_group_ids[j], (j + 1 < _msize(ctx.folders[i]->protection->challenge_group_ids)/sizeof(char*)) ? ", " : "\n");
+			for (int j = 0; j < _msize(ctx.folders[i]->protection->challenge_groups) / sizeof(char*); j++) {
+				PRINT("%s%s", (char*) ctx.folders[i]->protection->challenge_groups[j]->id, (j + 1 < _msize(ctx.folders[i]->protection->challenge_groups)/sizeof(char*)) ? ", " : "\n");
 			}
 			PRINT3("Cipher: %c\n", *(ctx.folders[i]->protection->cipher));
 		}
@@ -156,8 +175,8 @@ extern "C" {
 		PRINT("Parental:\n");
 		PRINT1("Folder: %s\n", ctx.parental->folder);
 		PRINT1("Challenge groups: ");
-		for (int i = 0; i < _msize(ctx.parental->challenge_group_ids) / sizeof(char*); i++) {
-			PRINT("%s%s", ctx.parental->challenge_group_ids[i], (i + 1 < _msize(ctx.parental->challenge_group_ids) / sizeof(char*)) ? ", " : "\n");
+		for (int i = 0; i < _msize(ctx.parental->challenge_groups) / sizeof(char*); i++) {
+			PRINT("%s%s", ctx.parental->challenge_groups[i]->id, (i + 1 < _msize(ctx.parental->challenge_groups) / sizeof(char*)) ? ", " : "\n");
 		}
 		PRINT1("Users: ");
 		for (int i = 0; i < _msize(ctx.parental->users) / sizeof(char*); i++) {
@@ -214,25 +233,135 @@ extern "C" {
 		PRINT("================================================================================\n");
 	}
 
+
+	/**
+	* Prints the information of all the challenge groups (maintaining indentation from context).
+	*
+	* @return
+	**/
 	static void printChallengeGroups() {
+		struct tm *time_info;
+
 		PRINT("\n");
 		PRINT("Challenge Equivalence Groups\n");
 		for (int i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
 			PRINT1("EqGroup:\n");
 			PRINT2("Id: %s \n", ctx.groups[i]->id);
 			PRINT2("Subkey: %s \n", ctx.groups[i]->subkey);
-			PRINT2("Expires: %s (", ctx.groups[i]->expires); printDateNice(ctx.groups[i]->expires); PRINT(")\n");
+			time_info = localtime(&(ctx.groups[i]->expires));
+			PRINT2("Expires: %lld (", ctx.groups[i]->expires); printDateNice(time_info); PRINT(")\n");
 			PRINT2("Challenges: \n");
 			for (int j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct ChallengeEquivalenceGroup*); j++) {
-				PRINT3("Challenge:\n");
-				PRINT4("Id: %s \n", ctx.groups[i]->challenges[j]->id);
-				PRINT4("Properties: %s \n", ctx.groups[i]->challenges[j]->properties);
+				printChallenge(ctx.groups[i]->challenges[j]);
 			}
 		}
 	}
 
-	// The printed format is "YYYY-MM-DD - hh:mm:ss". Example: "2021-03-11 - 14:21:08"
-	static void printDateNice(char* date) {
+	/**
+	* Prints the information of the ChallengeEquivalenceGroup passed by parameter (maintaining indentation from context).
+	*
+	* @param struct ChallengeEquivalenceGroup* group
+	*		The ChallengeEquivalenceGroup which info must be printed.
+	*
+	* @return
+	**/
+	static void printChallengeGroup(struct ChallengeEquivalenceGroup* group) {
+		struct tm* time_info;
+
+		if (group == NULL) {
+			PRINT("ERROR\n");
+		} else {
+			PRINT("EqGroup:\n");
+			PRINT1("Id: %s \n", group->id);
+			PRINT1("Subkey: %s \n", group->subkey);
+			time_info = localtime(&(group->expires));
+			PRINT1("Expires: %lld (", group->expires); printDateNice(time_info); PRINT(")\n");
+			PRINT1("Challenges: \n");
+			for (int j = 0; j < _msize(group->challenges) / sizeof(struct ChallengeEquivalenceGroup*); j++) {
+				printChallenge(group->challenges[j]);
+			}
+		}
+	}
+
+	/**
+	* Prints the information of the Challenge passed by parameter (maintaining indentation from context).
+	*
+	* @param struct Challenge* challenge
+	*		The Challenge which info must be printed.
+	*
+	* @return
+	**/
+	static void printChallenge(struct Challenge* challenge) {
+		PRINT3("Challenge:\n");
+		PRINT4("Id: %s \n", challenge->id);
+		PRINT4("Properties: %s \n", challenge->properties);
+	}
+
+	/**
+	* Prints the date and time of the struct tm passed by parameter. The printed format is "YYYY/MM/DD - hh:mm:ss". 
+	* Example: "2021/03/11 - 14:21:08"
+	* 
+	* @param struct tm *time_info
+	*		The struct tm with filled fields tm_year, tm_mon, tm_mday, tm_hour, tm_min and tm_sec, to print the date and time.
+	*
+	* @return
+	**/
+	static void printDateNice(struct tm *time_info) {
+		if (time_info == NULL) {
+			PRINT("ERROR");
+		} else {
+			PRINT("%04d/%02d/%02d - %02d:%02d:%02d",
+				time_info->tm_year + 1900,			// Year
+				time_info->tm_mon + 1,				// Month
+				time_info->tm_mday,					// Day
+				time_info->tm_hour,					// Hours
+				time_info->tm_min,					// Minutes
+				time_info->tm_sec					// Seconds
+			);
+		}
+	}
+
+	/**
+	* Returns a pointer to the ChallengeEquivalenceGroup with same id provided as parameter.
+	*
+	* @param char* group_id
+	*		The id string to retrieve pointer from.
+	*
+	* @return struct ChallengeEquivalenceGroup*
+	*		The pointer to the ChallengeEquivalenceGroup with given id. May be NULL if no matches were found.
+	**/
+	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id) {
+		for (int i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
+			if (strcmp(ctx.groups[i]->id, group_id) == 0) {
+				return ctx.groups[i];
+			}
+		}
+		return NULL;
+	}
+
+	/**
+	* Returns the pointer to the OpTable with the same id as provided by parameter.
+	*
+	* @param char* group_id
+	*		The id string to retrieve pointer from.
+	*
+	* @return struct ChallengeEquivalenceGroup*
+	*		The pointer to the OpTable with given id. May be NULL if no matches are found.
+	**/
+	static struct OpTable* getOpTableById(char* table_id) {
+		for (int i = 0; i < _msize(ctx.tables) / sizeof(struct OpTable*); i++) {
+			if (strcmp(ctx.tables[i]->id, table_id) == 0) {
+				return ctx.tables[i];
+			}
+		}
+		return NULL;
+	}
+
+	// THIS FUNCTION MAY NOT BE NEEDED
+	/**
+	* The printed format is "YYYY-MM-DD - hh:mm:ss". Example: "2021-03-11 - 14:21:08"
+	**/
+	/*static void printDateNiceOLD(char* date) {
 		if (strlen(date) != 14) {
 			PRINT("ERROR");
 		} else {
@@ -245,28 +374,9 @@ extern "C" {
 				date[12], date[13]							// Seconds
 			);
 		}
-	}
+	}*/
 
-	static void printChallengeGroup(char* id) {
-		struct ChallengeEquivalenceGroup* group = getChallengeGroupById(id);
-		if (group == NULL) {
-			PRINT("ERROR\n");
-		} else {
-			PRINT("EqGroup:\n");
-			PRINT1("Id: %s \n", group->id);
-			PRINT1("Subkey: %s \n", group->subkey);
-			PRINT1("Expires: %s (", group->expires); printDateNice(group->expires); PRINT(")\n");
-			PRINT1("Challenges: \n");
-			for (int j = 0; j < _msize(group->challenges) / sizeof(struct ChallengeEquivalenceGroup*); j++) {
-				PRINT2("Challenge:\n");
-				PRINT3("Id: %s \n", group->challenges[j]->id);
-				PRINT3("Properties: %s \n", group->challenges[j]->properties);
-			}
-		}
-	}
-
-
-
+	// THIS FUNCTION MAY NOT BE NEEDED
 	/**
 	* Transforms a time_t in the correct format string for the context ("YYYYMMDDhhmmss").
 	* Allocates memory inside. Remember to free the returned char*.
@@ -277,7 +387,7 @@ extern "C" {
 	* @return char*
 	*		The time formatted as string ("YYYYMMDDhhmmss"). Memory allocated inside, remember to free.
 	**/
-	static char* getTimeFormattedString(time_t timer) {
+	/*static char* getTimeFormattedString(time_t timer) {
 
 		char* formatted_time_str = (char*)malloc(sizeof(char) * 14);
 		if (formatted_time_str == NULL) {
@@ -303,8 +413,9 @@ extern "C" {
 		}
 
 		return formatted_time_str;
-	}
+	}*/
 
+	// THIS FUNCTION MAY NOT BE NEEDED
 	/**
 	* Transforms a time formatted string into a time_t value.
 	*
@@ -314,7 +425,7 @@ extern "C" {
 	* @return time_t
 	*		The time_t value converted from the formatted string.
 	**/
-	static time_t getTimeFromString(char* formatted_time_str) {
+	/*static time_t getTimeFromString(char* formatted_time_str) {
 
 		time_t timer = 0;
 		struct tm time_info = {0};
@@ -397,15 +508,21 @@ extern "C" {
 		PRINT("YearDay: %d\n", time_info.tm_yday);
 
 		return timer;
-	}
+	}*/
 
-	// Formula "modifies" parameters (reason not to inline). Sunday=0, Monday=1, ... Saturday = 6
+	// THIS FUNCTION MAY NOT BE NEEDED
+	/**
+	* Formula "modifies" parameters (reason not to inline). Sunday=0, Monday=1, ... Saturday = 6
+	**/
 	/*static int getWeekDay(int y, int m, int d) {
 		// https://stackoverflow.com/questions/6054016/c-program-to-find-day-of-week-given-date
 		return (d += m < 3 ? y-- : y - 2, 23 * m / 9 + d + 4 + y / 4 - y / 100 + y / 400) % 7;
 	}*/
 
-	// Formula "modifies" parameters (reason not to inline). Result is in range [0-365]
+	// THIS FUNCTION MAY NOT BE NEEDED
+	/**
+	* Formula "modifies" parameters (reason not to inline). Result is in range [0-365]
+	**/
 	/*static int getYearDay(int year, int month, int day) {
 		// https://www.geeksforgeeks.org/find-the-day-number-in-the-current-year-for-the-given-date/
 		int days[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
@@ -421,23 +538,43 @@ extern "C" {
 		return day;
 	}*/
 
-	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id) {
-		for (int i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
-			if (strcmp(ctx.groups[i]->id, group_id) == 0) {
-				return ctx.groups[i];
+	// THIS FUNCTION MAY NOT BE NEEDED
+	/**
+	* Returns a list with pointers to every challenge which id matches with the id provided as parameter (independently of the group id). 
+	* Allocates memory inside. Remember to free the returned struct Challenge**. 
+	* NOTE: this function contains allocation and reallocation which may make it slow. Use it only for testing. 
+	*
+	* @param char* challenge_id
+	*		The id string to retrieve pointers from.
+	*
+	* @return struct Challenge**
+	*		The list of pointers to challenge. Memory allocated inside, remember to free. 
+	*		May contain NULL pointers at the end. 
+	*		Can be iterated with: for (int i = 0; i < _msize(challenges) / sizeof(struct Challenge*); i++) {...}
+	**/
+	/*static struct Challenge** getChallengeById(char* challenge_id) {
+		int num_challenges_in_list = 5;
+		int challenge_index = 0;
+		struct Challenge** challenges = (struct Challenge**)malloc(num_challenges_in_list * sizeof(struct Challenge*));
+		if (challenges) {
+			for (int i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
+				ctx.groups[i]->challenges;
+				for (int j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct Challenges*); j++) {
+					if (strcmp(ctx.groups[i]->challenges[j]->id, challenge_id) == 0) {
+						if (num_challenges_in_list >= challenge_index) {
+							num_challenges_in_list += 5;
+							challenges = (struct Challenge**)realloc(challenges, num_challenges_in_list * sizeof(struct Challenge*));
+						}
+						challenges[challenge_index] = ctx.groups[i]->challenges[j];
+						challenge_index++;
+					}
+				}
 			}
+			return challenges;
 		}
-		return NULL;
-	}
+		return NULL;	// challenges could not be allocated
+	}*/
 
-	static struct OpTable* getOpTableById(char* table_id) {
-		for (int i = 0; i < _msize(ctx.tables) / sizeof(struct OpTable*); i++) {
-			if (strcmp(ctx.tables[i]->id, table_id) == 0) {
-				return ctx.tables[i];
-			}
-		}
-		return NULL;
-	}
 
 
 	#ifdef __cplusplus
