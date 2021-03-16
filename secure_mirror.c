@@ -657,11 +657,11 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
   //Capturo el proceso que realiza la peticion
   // Init an App struct
   struct App app;
-  app.app_name = malloc(MAX_PATH * sizeof(char));
-  app.app_name[0] = '\0';
-  app.app_path = malloc(MAX_PATH * sizeof(char));
-  app.app_path[0] = '\0';
-  app.app_type = ANY;
+  app.name = malloc(MAX_PATH * sizeof(char));
+  app.name[0] = '\0';
+  app.path = malloc(MAX_PATH * sizeof(char));
+  app.path[0] = '\0';
+  app.type = ANY;
 
   getApp(&app, DokanFileInfo);
   preLogic(12, app);
@@ -1905,10 +1905,22 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   //DbgPrint("Bienvenido SecureLog==============================\n");
   printf("Bienvenido a SecureWorld\n");
     //loadContext();
-  load_Context();
+  loadContext();
   //printf("cosa %s\n",ctx.folders[0]->path);
   printContext();
 
+  PRINT("\n\n==========  TESTING getFormatString()  ==========\n");
+  PRINT("RESULT: %s", getTimeFormattedString(time(NULL)));
+  PRINT("\n==========  END TESTING getFormatString()  ==========\n\n");
+
+  PRINT("\n\n==========  TESTING getTimeFromString()  ==========\n");
+  PRINT("RESULT: %lld", getTimeFromString("20210315121655"));
+  PRINT("\n==========  END TESTING getTimeFromString()  ==========\n\n");
+  PRINT("\n\n==========  TESTING getTimeFromString()  ==========\n");
+  PRINT("RESULT: %lld", getTimeFromString("20010211225107"));
+  PRINT("\n==========  END TESTING getTimeFromString()  ==========\n\n");
+
+  translateIdsToPointers();
 
   
   status = DokanMain(&dokanOptions, &dokanOperations);

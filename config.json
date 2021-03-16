@@ -5,7 +5,7 @@
 			"MountPoint": "M",
 			"Driver": "Dokan",
 			"Protections": {
-				"OpTable": "Tabla1",
+				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1"],
 				"Cipher": "cipher_simple"
 			}
@@ -15,7 +15,7 @@
 			"MountPoint": "K",
 			"Driver": "WinFSP",
 			"Protections": {
-				"OpTable": "Tabla3",
+				"OpTable": "Table2",
 				"ChallengeEqGroups": ["Group1","Group2"],
 				"Cipher": "cipher_simple"
 				}
@@ -37,6 +37,20 @@
 
 	"OperativeTables": {
 		"Table1": [
+			{
+				"AppType": "BROWSER",
+				"Disk": "M",
+				"READ": "CIPHER",
+				"WRITE": "NOTHING"
+			},
+			{
+				"AppType": "MAILER",
+				"Disk": "K",
+				"READ": "DECIPHER",
+				"WRITE": "MARK"
+			}
+		],
+		"Table2": [
 			{
 				"AppType": "BROWSER",
 				"Disk": "M",

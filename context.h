@@ -10,11 +10,17 @@ Nokia Febrero 2021
 #ifndef context_h
 #define context_h
 
+#include <time.h>
+
+
 #ifdef __cplusplus
 extern "C" {
 	#endif	//__cplusplus
 
-	#define NULL (void*)0
+	#ifndef NULL
+		#define NULL (void*)0
+	#endif //NULL
+
 	#define NOOP ((void)0)
 	#define ENABLE_PRINTS 1					// Affects the PRINT() function. If 0 does not print anything. If 1 traces are printed.
 	#define PRINT(...) do { if (ENABLE_PRINTS) printf(__VA_ARGS__); else NOOP;} while (0)
@@ -30,7 +36,13 @@ extern "C" {
 	static void printChallengeGroups();
 	static void printDateNice(char* date);
 	static void printChallengeGroup(char *id);
-	static struct ChallengeEquivalenceGroup* getChallengeGroup(char* id);
+	static char* getTimeFormattedString(time_t time);
+	static time_t getTimeFromString(char* formatted_time_str);
+	//static int getWeekDay(int y, int m, int d);
+	//static int getYearDay(int year, int month, int day);
+	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id);
+	static struct OpTable* getOpTableById(char* table_id);
+
 
 	///////////////////////////// hacer typedefs todos los structs??? así no hay que escribir siempre struct (ventaja: se programa más rapido) //////////////
 	#pragma region Here is the context with all the asociated structs and enums
@@ -38,9 +50,9 @@ extern "C" {
 		struct Folder** folders;
 		struct ParentalControl* parental;
 		char** sync_folders;
-		struct OpTable** tables;									// Cambiado a plural //////////////////////////////////////////////////
-		struct App** apps;											// Cambiado a plural //////////////////////////////////////////////////
-		struct ChallengeEquivalenceGroup** groups;					// Cambiado a plural //////////////////////////////////////////////////
+		struct OpTable** tables;
+		struct App** apps;
+		struct ChallengeEquivalenceGroup** groups;
 	} ctx;
 
 	struct Folder {
@@ -56,24 +68,23 @@ extern "C" {
 	};
 
 	struct Protection {
-		char* op_table;
-		char** challenge_group_ids;									// Añadido _ids /////// cambiar tambien en el json ///////////////
+		struct OpTable* op_table;
+		struct ChallengeEquivalenceGroup** challenge_group_ids;		//  Quitar ids//////////////////////
 		char* cipher;
 	};
 
 	struct ParentalControl {
 		char* folder;
 		char** users;
-		char** challenge_group_ids;									// Añadido _ids /////// cambiar tambien en el json ///////////////
+		struct ChallengeEquivalenceGroup** challenge_group_ids;		// Quitar _ids/////////////////////////
 	};
 
 	struct OpTable {
-		char* ID_table;												////////////////////// Cambiar solo a id
-		struct TableTuple** table_tuples;							// Cambiado a plural /////////////////////////////////////////////
-																	/////// Cambiar a tuples o rows (pero tambien el nombre del struct a OpTableRow)
+		char* id;
+		struct Tuple** tuples;
 	};
 
-	struct TableTuple {
+	struct Tuple {
 		enum AppType app_type;
 		char* disk;			// char  '0'=sync folders, '1'=pendrives, <letters> = manually mirrored disks
 		enum Operation on_read;
@@ -99,21 +110,21 @@ extern "C" {
 	};
 
 	struct App {
-		char* app_path;												////////////////////// Cambiar solo a path
-		char* app_name;												////////////////////// Cambiar solo a name
-		enum AppType app_type;										////////////////////// Cambiar solo a type
+		char* path;
+		char* name;
+		enum AppType type;
 	};
 
 	struct ChallengeEquivalenceGroup {
 		char* id;
 		char* subkey;
-		char* expires;			// YYMMDDhhmmss
-		struct Challenge** challenges;								// Cambiado a plural //////////////////////////////////////////////////
+		char* expires;			// YYMMDDhhmmss						// Cambiar a tipo time_t de libreria c <time.h>
+		struct Challenge** challenges;
 	};
 
 	struct Challenge {
-		char* id_challenge;											////////////////////// Cambiar solo a id
-		char* properties;	// “prop1=valor&prop2=valor…”
+		char* id;
+		char* properties;		// "prop1=valor&prop2=valor..."
 	};
 	#pragma endregion
 
@@ -135,7 +146,7 @@ extern "C" {
 			PRINT3("Op table: %s\n", ctx.folders[i]->protection->op_table);
 			PRINT3("Challenge groups: ");
 			for (int j = 0; j < _msize(ctx.folders[i]->protection->challenge_group_ids) / sizeof(char*); j++) {
-				PRINT("%s%s", ctx.folders[i]->protection->challenge_group_ids[j], (j + 1 < _msize(ctx.folders[i]->protection->challenge_group_ids)/sizeof(char*)) ? ", " : "\n");
+				PRINT("%s%s", (char*) ctx.folders[i]->protection->challenge_group_ids[j], (j + 1 < _msize(ctx.folders[i]->protection->challenge_group_ids)/sizeof(char*)) ? ", " : "\n");
 			}
 			PRINT3("Cipher: %c\n", *(ctx.folders[i]->protection->cipher));
 		}
@@ -165,7 +176,7 @@ extern "C" {
 		PRINT("Tables:\n");
 		// Iterate over tables
 		for (int i = 0; i < _msize(ctx.tables) / sizeof(struct OpTable*); i++) {
-			PRINT1("Table id: %s \n", ctx.tables[i]->ID_table);
+			PRINT1("Table id: %s \n", ctx.tables[i]->id);
 			PRINT2(" ______________________________________________________ \n");
 			PRINT2("|       |            |        |           |            |\n");
 			PRINT2("|  Row  |  App Type  |  Disk  |  On Read  |  On Write  |\n");
@@ -173,13 +184,13 @@ extern "C" {
 			PRINT2("|       |            |        |           |            |\n");
 
 			// Iterate over rows of each table (the so called "table tuples")
-			for (int j = 0; j < _msize(ctx.tables[i]->table_tuples) / sizeof(struct TableTuple*); j++) {
+			for (int j = 0; j < _msize(ctx.tables[i]->tuples) / sizeof(struct Tuple*); j++) {
 				PRINT2("|  %2d   |     %2d     |   %2s   |    %2d     |     %2d     |\n",
 					j,
-					ctx.tables[i]->table_tuples[j]->app_type,
-					ctx.tables[i]->table_tuples[j]->disk,
-					ctx.tables[i]->table_tuples[j]->on_read,
-					ctx.tables[i]->table_tuples[j]->on_write
+					ctx.tables[i]->tuples[j]->app_type,
+					ctx.tables[i]->tuples[j]->disk,
+					ctx.tables[i]->tuples[j]->on_read,
+					ctx.tables[i]->tuples[j]->on_write
 				);
 			}
 			PRINT2("|_______|____________|________|___________|____________|\n");
@@ -190,9 +201,9 @@ extern "C" {
 		PRINT("Apps\n");
 		for (int i = 0; i < _msize(ctx.apps) / sizeof(struct App*); i++) {
 			PRINT1("App %d:\n", i);
-			PRINT2("App name: %s \n", ctx.apps[i]->app_name);
-			PRINT2("App path: %s \n", ctx.apps[i]->app_path);
-			PRINT2("App type: %d \n", ctx.apps[i]->app_type);
+			PRINT2("App name: %s \n", ctx.apps[i]->name);
+			PRINT2("App path: %s \n", ctx.apps[i]->path);
+			PRINT2("App type: %d \n", ctx.apps[i]->type);
 		}
 
 		// Challenge Equivalence Groups
@@ -214,7 +225,7 @@ extern "C" {
 			PRINT2("Challenges: \n");
 			for (int j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct ChallengeEquivalenceGroup*); j++) {
 				PRINT3("Challenge:\n");
-				PRINT4("Id: %s \n", ctx.groups[i]->challenges[j]->id_challenge);
+				PRINT4("Id: %s \n", ctx.groups[i]->challenges[j]->id);
 				PRINT4("Properties: %s \n", ctx.groups[i]->challenges[j]->properties);
 			}
 		}
@@ -237,7 +248,7 @@ extern "C" {
 	}
 
 	static void printChallengeGroup(char* id) {
-		struct ChallengeEquivalenceGroup* group = getChallengeGroup(id);
+		struct ChallengeEquivalenceGroup* group = getChallengeGroupById(id);
 		if (group == NULL) {
 			PRINT("ERROR\n");
 		} else {
@@ -248,16 +259,181 @@ extern "C" {
 			PRINT1("Challenges: \n");
 			for (int j = 0; j < _msize(group->challenges) / sizeof(struct ChallengeEquivalenceGroup*); j++) {
 				PRINT2("Challenge:\n");
-				PRINT3("Id: %s \n", group->challenges[j]->id_challenge);
+				PRINT3("Id: %s \n", group->challenges[j]->id);
 				PRINT3("Properties: %s \n", group->challenges[j]->properties);
 			}
 		}
 	}
 
-	static struct ChallengeEquivalenceGroup* getChallengeGroup(char* id) {
+
+
+	/**
+	* Transforms a time_t in the correct format string for the context ("YYYYMMDDhhmmss").
+	* Allocates memory inside. Remember to free the returned char*.
+	* 
+	* @param time_t timer
+	*		The time_t value to convert into formatted string
+	* 
+	* @return char*
+	*		The time formatted as string ("YYYYMMDDhhmmss"). Memory allocated inside, remember to free.
+	**/
+	static char* getTimeFormattedString(time_t timer) {
+
+		char* formatted_time_str = (char*)malloc(sizeof(char) * 14);
+		if (formatted_time_str == NULL) {
+			return NULL;
+		}
+		struct tm time_info;
+
+		PRINT("Value of timer is: %lld \n", timer);
+		PRINT("That is around %lld years\n", timer /(60*60*24*365));
+
+		if (localtime_s(&time_info, &timer) == 0) {
+			sprintf(formatted_time_str, "%04d%02d%02d%02d%02d%02d",
+				time_info.tm_year + 1900,		// .tm_year are years since 1900
+				time_info.tm_mon + 1,			// .tm_mon is in range [0-11]
+				time_info.tm_mday,				// .tm_mday is in range[1-31]
+				time_info.tm_hour,				// .tm_hour is in range[0-23]
+				time_info.tm_min,				// .tm_min is in range[0-59]
+				time_info.tm_sec				// .tm_sec is in range[0-60]. Can include leap seccond
+			);
+		} else {
+			free(formatted_time_str);
+			formatted_time_str = NULL;
+		}
+
+		return formatted_time_str;
+	}
+
+	/**
+	* Transforms a time formatted string into a time_t value.
+	*
+	* @param char* formatted_time_str
+	*		The time formatted as string ("YYYYMMDDhhmmss").
+	*
+	* @return time_t
+	*		The time_t value converted from the formatted string.
+	**/
+	static time_t getTimeFromString(char* formatted_time_str) {
+
+		time_t timer = 0;
+		struct tm time_info = {0};
+		int num;
+		size_t len = strlen(formatted_time_str);
+
+		PRINT("String is: '%s' with length of %llu\n", formatted_time_str, len);
+
+		// Check string length
+		if (len != 14) {
+			return timer;
+		}
+
+		// Check characters are digits
+		for (size_t i = 0; i < len; i++) {
+			PRINT("formatted_time_str[i] = %c\n", formatted_time_str[i]);
+			if (formatted_time_str[i] < '0' || formatted_time_str[i]>'9') {
+				return timer;
+			}
+		}
+
+		// Fill time_info with current time to get the DST value (all other fields will be overriden)
+		time_t curr_time = time(NULL);
+		localtime_s(&time_info, &curr_time);
+
+		// PARSE STRING
+		// Get Year
+		num = (formatted_time_str[0] - '0') * 1000 + (formatted_time_str[1] - '0') * 100 + (formatted_time_str[2] - '0') * 10 + (formatted_time_str[3] - '0');
+		num -= 1900;
+		if (num < 0) {
+			return timer;
+		}
+		time_info.tm_year = num;
+
+		// Get Month
+		num = (formatted_time_str[4] - '0') * 10 + (formatted_time_str[5] - '0');
+		num -= 1;
+		if (num < 0 || num > 11) {
+			return timer;
+		}
+		time_info.tm_mon = num;
+
+		// Get Day
+		num = (formatted_time_str[6] - '0') * 10 + (formatted_time_str[7] - '0');
+		if (num < 1 || num > 31) {
+			return timer;
+		}
+		time_info.tm_mday = num;
+
+		// Get Hours
+		num = (formatted_time_str[8] - '0') * 10 + (formatted_time_str[9] - '0');
+		if (num < 0 || num > 23) {
+			return timer;
+		}
+		time_info.tm_hour = num;
+
+		// Get Minutes
+		num = (formatted_time_str[10] - '0') * 10 + (formatted_time_str[11] - '0');
+		if (num < 0 || num > 59) {
+			return timer;
+		}
+		time_info.tm_min = num;
+
+		// Get Seconds
+		num = (formatted_time_str[12] - '0') * 10 + (formatted_time_str[13] - '0');
+		if (num < 0 || num > 60) {
+			return timer;
+		}
+		time_info.tm_sec = num;
+
+		// Gets the result and fills the WeekDay and YearDay
+		timer = mktime(&time_info);
+
+		// Get WeekDay
+		//time_info.tm_wday = getWeekDay(time_info.tm_year, time_info.tm_mon, time_info.tm_mday);
+		PRINT("WeekDay: %d\n", time_info.tm_wday);
+
+		// Get YearDay
+		//time_info.tm_yday = getYearDay(time_info.tm_year, time_info.tm_mon, time_info.tm_mday);
+		PRINT("YearDay: %d\n", time_info.tm_yday);
+
+		return timer;
+	}
+
+	// Formula "modifies" parameters (reason not to inline). Sunday=0, Monday=1, ... Saturday = 6
+	/*static int getWeekDay(int y, int m, int d) {
+		// https://stackoverflow.com/questions/6054016/c-program-to-find-day-of-week-given-date
+		return (d += m < 3 ? y-- : y - 2, 23 * m / 9 + d + 4 + y / 4 - y / 100 + y / 400) % 7;
+	}*/
+
+	// Formula "modifies" parameters (reason not to inline). Result is in range [0-365]
+	/*static int getYearDay(int year, int month, int day) {
+		// https://www.geeksforgeeks.org/find-the-day-number-in-the-current-year-for-the-given-date/
+		int days[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+		if (month > 2 && year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) {
+			++day;
+		}
+
+		while (month-- > 0) {
+			day = day + days[month - 1];
+		}
+
+		return day;
+	}*/
+
+	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id) {
 		for (int i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
-			if (strcmp(ctx.groups[i]->id, id) == 0) {
+			if (strcmp(ctx.groups[i]->id, group_id) == 0) {
 				return ctx.groups[i];
+			}
+		}
+		return NULL;
+	}
+
+	static struct OpTable* getOpTableById(char* table_id) {
+		for (int i = 0; i < _msize(ctx.tables) / sizeof(struct OpTable*); i++) {
+			if (strcmp(ctx.tables[i]->id, table_id) == 0) {
+				return ctx.tables[i];
 			}
 		}
 		return NULL;

@@ -56,25 +56,25 @@ void getApp(struct App * app, PDOKAN_FILE_INFO dokan_file_info, struct Context c
 		// Fill app path and name
 		*tmp_str = '\0';
 		len = strlen(process_full_path);
-		strcpy(app->app_path, process_full_path);
-		app->app_path[len] = '/';
-		app->app_path[len+1] = '\0';
-		strcpy(app->app_name, tmp_str + 1);
+		strcpy(app->path, process_full_path);
+		app->path[len] = '/';
+		app->path[len+1] = '\0';
+		strcpy(app->name, tmp_str + 1);
 
 		// For every app in the list check if the path is the same
 		for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
-			if (strcmp(ctx.apps[i]->app_path, app->app_path) == 0) {
+			if (strcmp(ctx.apps[i]->path, app->path) == 0) {
 				match_found = TRUE;
-				app->app_type = ctx.apps[i]->app_type;
+				app->type = ctx.apps[i]->type;
 				break;
 			}
 		}
 
 		// For every app in the list check if the name is the same
 		for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
-			if (strcmp(ctx.apps[i]->app_name, app->app_name) == 0) {
+			if (strcmp(ctx.apps[i]->name, app->name) == 0) {
 				match_found = TRUE;
-				app->app_type = ctx.apps[i]->app_type;
+				app->type = ctx.apps[i]->type;
 				break;
 			}
 		}
