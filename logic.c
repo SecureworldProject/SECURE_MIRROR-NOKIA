@@ -15,23 +15,23 @@ Nokia Febrero 2021
 
 
 /////  FUNCTION HEADERS  /////
-void preLogic(int num, struct App app);
-void postLogic(int num, struct App app);
-void getApp(struct App* app, PDOKAN_FILE_INFO dokan_file_info, struct Context ctx);
+void preLogic(int num, struct App* app);
+void postLogic(int num, struct App* app);
+void getApp(struct App* app, PDOKAN_FILE_INFO dokan_file_info);
 
 
 
 /////  FUNCTION IMPLEMENTATIONS  /////
-void preLogic(int num, struct App app) {
+void preLogic(int num, struct App* app) {
 	PRINT("HELLO!!  %d \n", num);
 }
 
-void postLogic(int num, struct App app) {
+void postLogic(int num, struct App* app) {
 	PRINT("BYE!!  %d \n", num);
 }
 
 
-void getApp(struct App * app, PDOKAN_FILE_INFO dokan_file_info, struct Context ctx) {
+void getApp(struct App* app, PDOKAN_FILE_INFO dokan_file_info) {
 	PRINT("hemos llegado aqui---------------\n");
 	HANDLE process_handle;
 	CHAR process_full_path[MAX_PATH] = { 0 };

@@ -21,7 +21,11 @@ extern "C" {
 	/////  DEFINITIONS  /////
 
 	#ifndef NULL
-		#define NULL (void*)0
+		#define NULL ((void*)0)
+	#endif //NULL
+
+	#ifndef MAX_PATH
+		#define MAX_PATH 260
 	#endif //NULL
 
 	#define NOOP ((void)0)
@@ -100,12 +104,12 @@ extern "C" {
 	};
 
 	enum AppType {
+		ANY,
 		BROWSER,
 		MAILER,
-		BLOCKED,
-		ANY
+		BLOCKED
 	};
-	//const char* APP_TYPE_STRINGS[] = { "BROWSER", "MAILER", "BLOCKED", "ANY" };
+	//const char* APP_TYPE_STRINGS[] = { "ANY, "BROWSER", "MAILER", "BLOCKED" };
 
 	enum Operation {
 		NOTHING,

@@ -656,14 +656,15 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
   //==========================================================
   //Capturo el proceso que realiza la peticion
   // Init an App struct
-  struct App app;
+  /*struct App app;
   app.name = malloc(MAX_PATH * sizeof(char));
   app.name[0] = '\0';
   app.path = malloc(MAX_PATH * sizeof(char));
   app.path[0] = '\0';
-  app.type = ANY;
+  app.type = ANY;*/
+  struct App* app = createApp();
 
-  getApp(&app, DokanFileInfo);
+  getApp(app, DokanFileInfo);
   preLogic(12, app);
 
   int chrome = 0;
@@ -700,7 +701,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
     if (chrome == 1) {
       for (unsigned int i = 0; i < BufferLength; i++) {
         //xor
-        ((char *)Buffer)[i] = ((char *)Buffer2)[i] ^ 0xFF;
+        ((char*)Buffer)[i] = ((char*)Buffer2)[i] ^ 0xFF;
       }
     }
   }
@@ -710,7 +711,9 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
     CloseHandle(handle);
 
   postLogic(11515, app);
-  // falta free de app ///////////////////////////////
+
+  // Free the app
+  destroyApp(&app);
 
   return STATUS_SUCCESS;
 }
@@ -1899,16 +1902,14 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   dokanOperations.Unmounted = MirrorUnmounted;
   dokanOperations.FindStreams = MirrorFindStreams;
   dokanOperations.Mounted = MirrorMounted;
-  
-  //Se lee el json de configuración (contexto)
-  //SecureLog("Bienvenido SecureLog==============================\n");
-  //DbgPrint("Bienvenido SecureLog==============================\n");
+
+
   printf("   ____________________________ \n");
   printf("  |                            |\n");
   printf("  |   Welcome to SecureWorld   |\n");
   printf("  |____________________________|\n");
  
-  // Load context from json (and replace ids with pointer to objects)
+  // Load context from config.json (and replace ids with pointer to objects)
   loadContext();
 
   printContext();
