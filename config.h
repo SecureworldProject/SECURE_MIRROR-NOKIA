@@ -27,7 +27,7 @@ static void process_array(json_value* value, int depth);
 
 static void process_value(json_value* value, int depth);
 
-static void processProtection(int index, json_value* value, int depth);
+static void processProtection(struct Protection* ctx_value, json_value* value, int depth);
 
 static void processFolder(int index, json_value* value, int depth);
 
@@ -56,3 +56,7 @@ static void processContext(json_value* value, int depth);
 void loadContext();
 
 void translateIdsToPointers();
+
+void convertSyncFolderPaths();
+
+void formatCtxPaths();

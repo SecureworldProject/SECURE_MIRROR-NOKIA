@@ -21,12 +21,12 @@ extern "C" {
 	/////  DEFINITIONS  /////
 
 	#ifndef NULL
-		#define NULL ((void*)0)
+	#define NULL ((void*)0)
 	#endif //NULL
 
 	#ifndef MAX_PATH
-		#define MAX_PATH 260
-	#endif //NULL
+	#define MAX_PATH 260
+	#endif //MAX_PATH
 
 	#define NOOP ((void)0)
 	#define ENABLE_PRINTS 1					// Affects the PRINT() functions. If 0 does not print anything. If 1 traces are printed.
@@ -60,6 +60,7 @@ extern "C" {
 
 	struct Context {
 		struct Folder** folders;
+		struct Pendrive* pendrive;
 		struct ParentalControl* parental;
 		char** sync_folders;
 		struct OpTable** tables;
@@ -69,7 +70,7 @@ extern "C" {
 
 	struct Folder {
 		char* path;
-		char* mount_point;
+		char mount_point;	// change to char	/////////////////////////////////////////////////////////////// DONE
 		enum Driver driver;
 		struct Protection* protection;
 	};
@@ -85,6 +86,12 @@ extern "C" {
 		char* cipher;
 	};
 
+	struct Pendrive {
+		char* mount_points;		// several letters in a string like: "HIJKLMNOPQRSTUVWXYZ"
+		enum Driver driver;
+		struct Protection* protection;
+	};
+
 	struct ParentalControl {
 		char* folder;
 		char** users;
@@ -98,7 +105,7 @@ extern "C" {
 
 	struct Tuple {
 		enum AppType app_type;
-		char* disk;			// char  '0'=sync folders, '1'=pendrives, <letters> = manually mirrored disks
+		char* disk;			// change to char  '0'=sync folders, '1'=pendrives, <letters> = manually mirrored disks
 		enum Operation on_read;
 		enum Operation on_write;
 	};

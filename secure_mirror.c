@@ -664,7 +664,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
   app.type = ANY;*/
   struct App* app = createApp();
 
-  getApp(app, DokanFileInfo);
+  getAppDokan(app, DokanFileInfo);
   preLogic(12, app);
 
   int chrome = 0;

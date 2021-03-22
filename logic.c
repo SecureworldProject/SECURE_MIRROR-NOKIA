@@ -17,7 +17,7 @@ Nokia Febrero 2021
 /////  FUNCTION HEADERS  /////
 void preLogic(int num, struct App* app);
 void postLogic(int num, struct App* app);
-void getApp(struct App* app, PDOKAN_FILE_INFO dokan_file_info);
+void getAppDokan(struct App* app, PDOKAN_FILE_INFO dokan_file_info);
 
 
 
@@ -31,7 +31,7 @@ void postLogic(int num, struct App* app) {
 }
 
 
-void getApp(struct App* app, PDOKAN_FILE_INFO dokan_file_info) {
+void getAppDokan(struct App* app, PDOKAN_FILE_INFO dokan_file_info) {
 	PRINT("hemos llegado aqui---------------\n");
 	HANDLE process_handle;
 	CHAR process_full_path[MAX_PATH] = { 0 };
@@ -79,6 +79,7 @@ void getApp(struct App* app, PDOKAN_FILE_INFO dokan_file_info) {
 			}
 		}
 	}
+	CloseHandle(process_handle);
 
 	return app;
 }

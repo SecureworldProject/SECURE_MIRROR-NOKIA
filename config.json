@@ -2,25 +2,35 @@
 	"Folders": [
 		{
 			"Path": "C:/Users/Juan/Desktop",
-			"MountPoint": "M",
+			"MountPoint": "F",
 			"Driver": "Dokan",
-			"Protections": {
+			"Protection": {
 				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1"],
 				"Cipher": "cipher_simple"
 			}
 		},
 		{
-			"Path": "",
-			"MountPoint": "K",
+			"Path": "C:/Users/Juan/Docuemnts",
+			"MountPoint": "G",
 			"Driver": "WinFSP",
-			"Protections": {
+			"Protection": {
 				"OpTable": "Table2",
 				"ChallengeEqGroups": ["Group1","Group2"],
 				"Cipher": "cipher_simple"
 				}
 		}
 	],
+
+	"Pendrives": {
+		"MountPoints": "HIJKLMNOPQRSTUVWXYZ", //["H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"],
+		"Driver": "WinFSP",
+		"Protection": {
+			"OpTable": "Table2",
+			"ChallengeEqGroups": ["Group1","Group2"],
+			"Cipher": "cipher_simple"
+		}
+	},
 
 	"ParentalControl": [
 		{
@@ -39,13 +49,13 @@
 		"Table1": [
 			{
 				"AppType": "BROWSER",
-				"Disk": "M",
+				"Disk": "F",
 				"READ": "CIPHER",
 				"WRITE": "NOTHING"
 			},
 			{
 				"AppType": "MAILER",
-				"Disk": "K",
+				"Disk": "G",
 				"READ": "DECIPHER",
 				"WRITE": "MARK"
 			}
@@ -53,15 +63,15 @@
 		"Table2": [
 			{
 				"AppType": "BROWSER",
-				"Disk": "M",
+				"Disk": "F",
 				"READ": "CIPHER",
 				"WRITE": "NOTHING"
 			},
 			{
 				"AppType": "MAILER",
-				"Disk": "K",
-				"READ": "DECIPHER",
-				"WRITE": "MARK"
+				"Disk": "G",
+				"READ": "MARK",
+				"WRITE": "UNMARK"
 			}
 		]
 	},
