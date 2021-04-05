@@ -42,7 +42,9 @@ THE SOFTWARE.
 #include <inttypes.h>
 //includes propios
 #include "config.h"
-#include "context.h"
+#include "context.c"
+
+
 
 //#define WIN10_ENABLE_LONG_PATH
 #ifdef WIN10_ENABLE_LONG_PATH
@@ -307,8 +309,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
   MirrorCheckFlag(DesiredAccess, STANDARD_RIGHTS_WRITE);
   MirrorCheckFlag(DesiredAccess, STANDARD_RIGHTS_EXECUTE);
 
-  // When filePath is a directory, needs to change the flag so that the file can
-  // be opened.
+  // When filePath is a directory, needs to change the flag so that the file can be opened.
   fileAttr = GetFileAttributes(filePath);
 
   if (fileAttr != INVALID_FILE_ATTRIBUTES
@@ -617,23 +618,23 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
                                               LPDWORD ReadLength,
                                               LONGLONG Offset,
                                               PDOKAN_FILE_INFO DokanFileInfo) {
-  WCHAR filePath[DOKAN_MAX_PATH];
+  WCHAR file_path[DOKAN_MAX_PATH];
   HANDLE handle = (HANDLE)DokanFileInfo->Context;
   ULONG offset = (ULONG)Offset;
   BOOL opened = FALSE;
-  GetFilePath(filePath, DOKAN_MAX_PATH, FileName);
+  GetFilePath(file_path, DOKAN_MAX_PATH, FileName);
 
   //==========================================================
   //VER EL PATH
-  //wprintf(L"Path: %s, Op: ReadFile\n", filePath);
-  //SecureLog(L"Path de lectura: %s\n", filePath);
+  //wprintf(L"Path: %s, Op: ReadFile\n", file_path);
+  //SecureLog(L"Path de lectura: %s\n", file_path);
   //==========================================================
  
-  DbgPrint(L"ReadFile : %s\n", filePath);
+  DbgPrint(L"ReadFile : %s\n", file_path);
 
   if (!handle || handle == INVALID_HANDLE_VALUE) {
     DbgPrint(L"\tinvalid handle, cleanuped?\n");
-    handle = CreateFile(filePath, GENERIC_READ, FILE_SHARE_READ, NULL,
+    handle = CreateFile(file_path, GENERIC_READ, FILE_SHARE_READ, NULL,
                         OPEN_EXISTING, 0, NULL);
     if (handle == INVALID_HANDLE_VALUE) {
       DWORD error = GetLastError();
@@ -662,10 +663,19 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
   app.path = malloc(MAX_PATH * sizeof(char));
   app.path[0] = '\0';
   app.type = ANY;*/
-  struct App* app = createApp();
 
-  getAppDokan(app, DokanFileInfo);
-  preLogic(12, app);
+  char* full_app_path;
+  full_app_path = getAppPathDokan();
+
+  enum Operation op = getTableOperation(ON_READ, full_app_path, file_path);
+
+  LPVOID buffer_aux = Buffer;
+  DWORD buffer_length_aux = BufferLength;
+  LPDWORD read_length_aux = ReadLength;
+  LONGLONG offset_aux = Offset;
+
+  // Adjust buffers
+  preReadLogic(12, op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux);
 
   int chrome = 0;
   HANDLE hProcess;
@@ -683,11 +693,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
     }
   }
   //==========================================================
-  LPVOID Buffer2 = Buffer;
-  if (chrome == 1) {
-    Buffer2 = malloc(sizeof(char) * BufferLength);
-  }
-  if (!ReadFile(handle, Buffer2, BufferLength, ReadLength, NULL)) {
+  if (!ReadFile(handle, buffer_aux, buffer_length_aux, read_length_aux, NULL)) {
     DWORD error = GetLastError();
     DbgPrint(L"\tread error = %u, buffer length = %d, read length = %d\n\n",
              error, BufferLength, *ReadLength);
@@ -695,25 +701,19 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
       CloseHandle(handle);
     return DokanNtStatusFromWin32(error);
 
-  } else {
-    DbgPrint(L"\tByte to read: %d, Byte read %d, offset %d\n\n", BufferLength,
-             *ReadLength, offset);
-    if (chrome == 1) {
-      for (unsigned int i = 0; i < BufferLength; i++) {
-        //xor
-        ((char*)Buffer)[i] = ((char*)Buffer2)[i] ^ 0xFF;
-      }
-    }
   }
-  if (chrome == 1) 
-      free(Buffer2);
+
+  // Do the operations
+  postReadLogic(4615, op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux);
+
+  // Reassign buffers
+
+
+  DbgPrint(L"\tByte to read: %d, Byte read %d, offset %d\n\n", BufferLength, *ReadLength, offset);
+
   if (opened)
     CloseHandle(handle);
 
-  postLogic(11515, app);
-
-  // Free the app
-  destroyApp(&app);
 
   return STATUS_SUCCESS;
 }
@@ -809,7 +809,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 
   //==========================================================
   //VER EL PATH
-  //wprintf(L"Path: %s, Op: WriteFile\n", filePath);
+  //wprintf(L"Path: %s, Op: WriteFile\n", file_path);
   //==========================================================
   int local_op = 1;
   LPCVOID Buffer2 = Buffer;
@@ -858,7 +858,7 @@ MirrorFlushFileBuffers(LPCWSTR FileName, PDOKAN_FILE_INFO DokanFileInfo) {
 
   //==========================================================
   //VER EL PATH
-  //wprintf(L"Path: %s, Op: FlushFileBuffers\n", filePath);
+  //wprintf(L"Path: %s, Op: FlushFileBuffers\n", file_path);
   //==========================================================
 
   DbgPrint(L"FlushFileBuffers : %s\n", filePath);
@@ -889,7 +889,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorGetFileInformation(
 
   //==========================================================
   //VER EL PATH
-  //wprintf(L"Path: %s, Op: GetFileInformation\n", filePath);
+  //wprintf(L"Path: %s, Op: GetFileInformation\n", file_path);
   //==========================================================
 
   DbgPrint(L"GetFileInfo : %s\n", filePath);
@@ -962,7 +962,7 @@ MirrorFindFiles(LPCWSTR FileName,
   GetFilePath(filePath, DOKAN_MAX_PATH, FileName);
   //==========================================================
   //VER EL PATH
-  //wprintf(L"Path: %s, Op: FindFiles\n", filePath);
+  //wprintf(L"Path: %s, Op: FindFiles\n", file_path);
   //==========================================================
 
   DbgPrint(L"FindFiles : %s\n", filePath);
@@ -1112,7 +1112,7 @@ MirrorMoveFile(LPCWSTR FileName, // existing file name
   DbgPrint(L"MoveFile %s -> %s\n\n", filePath, newFilePath);
   //==========================================================
   //VER EL PATH
-  //wprintf(L"Path: %s, Op: MoveFile\n", filePath);
+  //wprintf(L"Path: %s, Op: MoveFile\n", file_path);
   //wprintf(L"NewPath: %s, Op: MoveFile\n", newFilePath);
   //==========================================================
   handle = (HANDLE)DokanFileInfo->Context;

@@ -1,11 +1,14 @@
+
+#ifndef context_c
+#define context_c
+
 #include "context.h"
 #include "string.h"
 #include <ctype.h>
 #include <string.h>
 
 
-
-enum IRP_OPERATION {
+enum IrpOperation {
 	ON_READ,
 	ON_WRITE
 };
@@ -25,69 +28,111 @@ enum IRP_OPERATION {
 #endif //BOOL
 
 
+// FOR FUTURE USE - performance improvement: create a context for each volume (each mirror thread) and a context for each file handle (in PDOKAN_FILE_INFO.Context)
+/*
+struct VolumeContext {
+	union {
+		struct Folder* folder;		// Pointer to the struct folder of this volume
+		struct Pendrive* pendrive;	// Pointer to the struct folder of this volume
+	};
+	char** sync_folders;			// Array of synchronization folders that affect this volume (after conversion from "C:\..." to "M:\...", "N:\...", etc)
+	BOOL any_sync_folder;
+	BOOL is_pendrive;				// If this volume is a pendrive (detected from USB and mounted as such)
+};
+
+struct FileContext {
+	struct App* app;
+	BOOL is_sync_folder;
+};
+*/
+
+
+
 
 /////  FUNCTION PROTOTYPES  /////
 
 
-struct App* createApp();
+static struct App* createApp();
 
-void destroyApp(struct App** app);
-
-
-enum Operation getTableOperation(enum IRP_OPERATION irp_operation, char* app_full_path, char* file_full_path);
+static void destroyApp(struct App** app);
 
 
-struct OpTable* getTable(char* file_full_path);
+static enum Operation getTableOperation(enum IrpOperation irp_operation, char* app_full_path, char* file_full_path);
 
-struct App* getApp(char* app_full_path);
 
-char getDiskType(char* file_full_path);
+inline struct OpTable* getTable(char* file_full_path);
 
-enum Operation* getOperations(char disk_letter, enum AppType app_type, struct OpTable* table);
+inline struct App* getApp(char* app_full_path);
 
-void formatPath(char* full_path);
+inline char getDiskType(char* file_full_path);
+
+inline enum Operation* getOperations(char disk_letter, enum AppType app_type, struct OpTable* table);
+
+static void formatPath(char** full_path);
 
 
 /////  FUNCTION DEFINITIONS  /////
 
 /**
 * Returns a newly allocated and initialized (path="", name="" and type=ANY) pointer to an app.
+* If it is not possible to allocate memory, frees internal buffers and returns NULL.
 *
 * @return struct App* app
-*		The initialized app pointer.
+*		The initialized app pointer. May be NULL.
 **/
-struct App* createApp() {
+static struct App* createApp() {
 	struct App* app =  malloc(sizeof(struct App));
+	if (app) {
 
-	app->name = malloc(MAX_PATH * sizeof(char));
-	memset(app->name, '\0', MAX_PATH * sizeof(char));
-	app->name = malloc(MAX_PATH * sizeof(char));
-	memset(app->path, '\0', MAX_PATH * sizeof(char));
-	app->type = ANY;
+		app->name = malloc(MAX_PATH * sizeof(char));
+		if (app->name)
+			memset(app->name, '\0', MAX_PATH * sizeof(char));
+		else
+			goto _LABEL_FREE;
+
+		app->path = malloc(MAX_PATH * sizeof(char));
+		if (app->path)
+			memset(app->path, '\0', MAX_PATH * sizeof(char));
+		else
+			goto _LABEL_FREE;
+
+		app->type = ANY;
+	} else
+		goto _LABEL_FREE;
 
 	return app;
+
+	_LABEL_FREE:
+	if (app) {
+		if (app->path) free(app->path);
+		if (app->name) free(app->name);
+		free(app);
+	}
+	return NULL;
 }
 
 /**
 * Frees all the memory from the app pointer passed as parameter and all its fields.
 *
 * @param struct App** app
-*		The pointer to the app pointer to be destroyed.
+*		The pointer to the app pointer to be destroyed. The pointer to App is always nullified.
 **/
-void destroyApp(struct App** app) {
-	free((*app)->name);
-	(*app)->name = NULL;
-	free((*app)->path);
-	(*app)->path = NULL;
-	free(*app);
-	(*app) = NULL;
+static void destroyApp(struct App** app) {
+	struct App* a = *app;
+
+	if (a) {
+		if (a->path) free(a->path);
+		if (a->name) free(a->name);
+		free(a);
+	}
+	a = NULL;
 }
 
 
 /**
 * Gets the operation that has to be done when reading/writing by checking the corresponding OpTable with the app and filepath given.
 *
-* @param enum IRP_OPERATION irp_operation
+* @param enum IrpOperation irp_operation
 *		Determines if the operation needed is for a read or write.
 * @param char* app_full_path
 *		The full path (name and extension included) to the executable of the irp originating process.
@@ -97,8 +142,8 @@ void destroyApp(struct App** app) {
 * @return enum Operation
 *		The logic that must be done for the given irp operation, appfile
 **/
-enum Operation getTableOperation(enum IRP_OPERATION irp_operation, char* app_full_path, char* file_full_path) {
-	enum Operation result_operation = NOTHING;
+static enum Operation getTableOperation(enum IrpOperation irp_operation, char* app_full_path, char* file_full_path) {
+	enum Operation *result_operation = NULL;
 	struct OpTable* table = NULL;
 	enum AppType app_type = ANY;
 	char disk_letter = '\0';
@@ -116,13 +161,16 @@ enum Operation getTableOperation(enum IRP_OPERATION irp_operation, char* app_ful
 	disk_letter = getDiskType(file_full_path);
 
 	// Gets the operation for the disk and app_type in the table given. The irp_operation is an enum that is used as index
-	result_operation = (getOperations(disk_letter, app_type, table))[irp_operation];
+	result_operation = getOperations(disk_letter, app_type, table);
+	if (result_operation) {
+		return result_operation[irp_operation];
+	}
 
-	return result_operation;
+	return NOTHING;
 }
 
 
-struct OpTable* getTable(char* file_full_path) {
+inline struct OpTable* getTable(char* file_full_path) {
 	char letter = '\0';
 
 	// For the moment assume the path is good and then letter is position 0 of the string.
@@ -147,7 +195,7 @@ struct OpTable* getTable(char* file_full_path) {
 	return NULL;
 }
 
-struct App* getApp(char* app_full_path) {
+inline struct App* getApp(char* app_full_path) {
 	enum AppType app_type = ANY;
 	struct App* app = NULL;
 	char* tmp_str = NULL;
@@ -189,7 +237,7 @@ struct App* getApp(char* app_full_path) {
 	return app;
 }
 
-char getDiskType(char* file_full_path) {
+inline char getDiskType(char* file_full_path) {
 	// It can be '0' (sync folders), '1' (pendrives) or any letter ('a', 'b', 'c', etc.)
 	char* tmp_str = NULL;
 	char letter = '\0';
@@ -217,24 +265,26 @@ char getDiskType(char* file_full_path) {
 	return letter;
 }
 
-enum Operation* getOperations(char disk_letter, enum AppType app_type, struct OpTable* table) {
+inline enum Operation* getOperations(char disk_letter, enum AppType app_type, struct OpTable* table) {
 	enum Operation* operations = NULL;
 
 	operations = malloc(NUM_IRP_OPERATIONS * sizeof(enum Operation));
-	operations[ON_READ] = NOTHING;
-	operations[ON_WRITE] = NOTHING;
+	if (operations) {
+		operations[ON_READ] = NOTHING;
+		operations[ON_WRITE] = NOTHING;
 
-	for (int i = 0; i < _msize(table->tuples) / sizeof(struct Tuple*); i++) {
-		if (table->tuples[i]->app_type == app_type && (table->tuples[i]->disk)[0] == disk_letter) {
-			operations[ON_READ] = table->tuples[i]->on_read;
-			operations[ON_WRITE] = table->tuples[i]->on_write;
+		for (int i = 0; i < _msize(table->tuples) / sizeof(struct Tuple*); i++) {
+			if (table->tuples[i]->app_type == app_type && table->tuples[i]->disk == disk_letter) {
+				operations[ON_READ] = table->tuples[i]->on_read;
+				operations[ON_WRITE] = table->tuples[i]->on_write;
+			}
 		}
 	}
 
 	return operations;
 }
 
-void formatPath(char** full_path) {
+static void formatPath(char** full_path) {
 	char* tmp_str = NULL;
 
 	// WARNING!!!  read below
@@ -244,19 +294,20 @@ void formatPath(char** full_path) {
 	//		- "\Device\Harddisk0\Partition0\folder1\folder2\file.txt"
 	//		- "\\?\Volume{a2b4c6d8-0000-0000-00000100000000000}\folder1\folder2\file.txt"
 	// Appart from the different writtings there are additional problems:
-	//		- May have forward slashes instead of backwards.
+	//		- May have forward or backward slashes.
 	//		- May be preceded by "\\?\" or "\\.\".
 	//		- May contain relative paths inside (like references to the same path "./" or to the parent directory "../").
-	//		- It the path is to a folder, it may or not contain the last slash.
+	//		- If the path refers to a folder, it may or not contain a trailing slash.
 
 	// Clear possible backward slashes into forward slashes
-	tmp_str = strchr(full_path, '\\');
+	tmp_str = strchr(*full_path, '\\');
 	while (tmp_str != NULL) {
 		*tmp_str = '/';
-		tmp_str = strchr(full_path, '\\');
+		tmp_str = strchr(*full_path, '\\');
 	}
 
 	// TO DO MORE
 }
 
 
+#endif context_c

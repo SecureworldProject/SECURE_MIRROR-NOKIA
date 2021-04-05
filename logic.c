@@ -11,75 +11,222 @@ Nokia Febrero 2021
 #include "context.h"
 #include "winnt.h"
 #include <psapi.h>
-
+#include "context.c"
 
 
 /////  FUNCTION HEADERS  /////
-void preLogic(int num, struct App* app);
-void postLogic(int num, struct App* app);
+
+int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
+int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
+int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
+int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
+
 void getAppDokan(struct App* app, PDOKAN_FILE_INFO dokan_file_info);
 
 
 
+
 /////  FUNCTION IMPLEMENTATIONS  /////
-void preLogic(int num, struct App* app) {
-	PRINT("HELLO!!  %d \n", num);
+
+void fixBuffer() {
+	// TO DO
+}
+void fixBufferLimitsPre() {
+	// TO DO
+}
+void cipher() {
+	// TO DO
+}
+void decipher() {
+	// TO DO
+}
+BOOL checkMark() {
+	// TO DO
+	return TRUE;
+}
+void mark() {
+	// TO DO
+}
+void unmark() {
+	// TO DO
 }
 
-void postLogic(int num, struct App* app) {
-	PRINT("BYE!!  %d \n", num);
+
+int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+	PRINT("preCreateLogic!!  %d \n", num);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, buffer, bytes_to_do, *bytes_done, offset);
+
+	PRINT("TO DO \n", num);
+
+	return 0;
+}
+
+// This function allocates buffers to a memory size adjusted to the blocksize and other parameters. If blocksize is 0, allocates buffers of the same size.
+int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+	// Change offset and bytes_to_do
+	switch (op) {
+		case NOTHING:
+		case MARK:
+		case UNMARK:
+			break;
+
+		case CIPHER:
+			fixBufferLimitsPre();	// Change offset and bytes to do
+			break;
+		case DECIPHER:
+			fixBufferLimitsPre();	// Change offset and bytes to do
+			break;
+		case IF_MARK_UNMARK_ELSE_CIPHER:
+			if (checkMark()) {
+				unmark();
+			} else {
+				fixBufferLimitsPre();	// Change offset and bytes to do
+				cipher();
+			}
+			break;
+		case IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING:
+			if (checkMark()) {
+				unmark();
+				fixBufferLimitsPre();	// Change offset and bytes to do
+				decipher();
+			} else {
+				fixBufferLimitsPre();	// Change offset and bytes to do
+				cipher();
+			}
+			break;
+		default:
+			break;
+	}
+	return 0;
+}
+
+int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+	PRINT("postReadLogic!!  %d \n", num);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, buffer, bytes_to_do, *bytes_done, offset);
+
+	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
+	// If write, execute operation
+	switch (op) {
+		case NOTHING:
+			break;
+		case CIPHER:	// Call cipher
+			fixBuffer();	// In case of block cipher
+			cipher();
+			break;
+		case DECIPHER:	// Call decipher
+			fixBuffer();	// In case of block cipher
+			decipher();
+			break;
+		case MARK:		// Call mark
+			mark();
+			break;
+		case UNMARK:	// Call unmark
+			unmark();
+			break;
+		case IF_MARK_UNMARK_ELSE_CIPHER:	// Call check mark, if it is true, then unmark, else cipher
+			if (checkMark()) {
+				unmark();
+			} else {
+				fixBuffer();	// In case of block cipher
+				cipher();
+			}
+			break;
+		case IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING:		// Call check mark, if it is true, then unmark and decipher, else cipher
+			if (checkMark()) {
+				unmark();
+				fixBuffer();	// In case of block cipher
+				decipher();
+			} else {
+				fixBuffer();	// In case of block cipher
+				cipher();
+			}
+			break;
+		default:
+			break;
+	}
+
+	return 0;
 }
 
 
-void getAppDokan(struct App* app, PDOKAN_FILE_INFO dokan_file_info) {
+int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+	PRINT("preWriteLogic!!  %d \n", num);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, buffer, bytes_to_do, *bytes_done, offset);
+
+	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
+	// If write, execute operation
+	switch (op) {
+		case NOTHING:
+			break;
+		case CIPHER:	// Call cipher
+			fixBuffer();	// In case of block cipher
+			cipher();
+			break;
+		case DECIPHER:	// Call decipher
+			fixBuffer();	// In case of block cipher
+			decipher();
+			break;
+		case MARK:		// Call mark
+			mark();
+			break;
+		case UNMARK:	// Call unmark
+			unmark();
+			break;
+		case IF_MARK_UNMARK_ELSE_CIPHER:	// Call check mark, if it is true, then unmark, else cipher
+			if (checkMark()) {
+				unmark();
+			} else {
+				fixBuffer();	// In case of block cipher
+				cipher();
+			}
+			break;
+		case IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING:		// Call check mark, if it is true, then unmark and decipher, else cipher
+			if (checkMark()) {
+				unmark();
+				fixBuffer();	// In case of block cipher
+				decipher();
+			} else {
+				fixBuffer();	// In case of block cipher
+				cipher();
+			}
+			break;
+		default:
+			break;
+	}
+
+	return 0;
+}
+
+
+
+/**
+* Returns the full path of the application performing an file operation (open, read, write, etc.) in a Dokan filesystem
+* Note the returned full path is in Device form. Example: "\\Device\\Harddisk0\\Partition1\\Windows\\System32\\Ctype.nls"
+* Memory for the path is allocated inside, remember to free after use.
+*
+* @param PDOKAN_FILE_INFO dokan_file_info:
+*		The dokan information of the file filesystem operation.
+*
+* @return char*:
+*		The full path of the application performing the file operation.
+**/
+char* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info) {
 	PRINT("hemos llegado aqui---------------\n");
 	HANDLE process_handle;
-	CHAR process_full_path[MAX_PATH] = { 0 };
-	char* tmp_str;
-	size_t len;
+	CHAR * process_full_path = NULL;
+	size_t process_full_path_length = 0;
 
-	BOOL match_found = FALSE;
+	process_full_path_length = MAX_PATH;
+	process_full_path = malloc(process_full_path_length * sizeof(char));
+	if (process_full_path != NULL) {
+		process_handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, dokan_file_info->ProcessId);
 
-	process_handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, dokan_file_info->ProcessId);
-
-	if (GetProcessImageFileNameA(process_handle, process_full_path, sizeof(process_full_path) / sizeof(*process_full_path)) > 0) {
-		// Clear possible backward slashes into forward slashes
-		tmp_str = strchr(process_full_path, '\\');
-		while (tmp_str != NULL) {
-			*tmp_str = '/';
-			tmp_str = strchr(process_full_path, '\\');
+		if (GetProcessImageFileNameA(process_handle, process_full_path, process_full_path_length) > 0) {
+			CloseHandle(process_handle);
+			return process_full_path;
 		}
-
-		// Find last position of a forward slash, which divides string in "path_to_folder" and "name" (e.g.:  C:/path/to/folder/name.exe)
-		tmp_str = strrchr(process_full_path, '/');
-
-		// Fill app path and name
-		*tmp_str = '\0';
-		len = strlen(process_full_path);
-		strcpy(app->path, process_full_path);
-		app->path[len] = '/';
-		app->path[len+1] = '\0';
-		strcpy(app->name, tmp_str + 1);
-
-		// For every app in the list check if the path is the same
-		for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
-			if (strcmp(ctx.apps[i]->path, app->path) == 0) {
-				match_found = TRUE;
-				app->type = ctx.apps[i]->type;
-				break;
-			}
-		}
-
-		// For every app in the list check if the name is the same
-		for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
-			if (strcmp(ctx.apps[i]->name, app->name) == 0) {
-				match_found = TRUE;
-				app->type = ctx.apps[i]->type;
-				break;
-			}
-		}
+		free(process_full_path);
 	}
-	CloseHandle(process_handle);
 
-	return app;
+	return NULL;
 }

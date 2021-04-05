@@ -1,40 +1,40 @@
 {
 	"Folders": [
 		{
-			"Path": "C:/Users/Juan/Desktop",
+			"Path": "C:/Users/Pepito/Documents/",
 			"MountPoint": "F",
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1"],
-				"Cipher": "cipher_simple"
+				"Cipher": "Cipher1"
 			}
 		},
 		{
-			"Path": "C:/Users/Juan/Docuemnts",
+			"Path": "C:/Users/Pepito/OneDrive/",
 			"MountPoint": "G",
 			"Driver": "WinFSP",
 			"Protection": {
 				"OpTable": "Table2",
 				"ChallengeEqGroups": ["Group1","Group2"],
-				"Cipher": "cipher_simple"
-				}
+				"Cipher": "Cipher2"
+			}
 		}
 	],
 
-	"Pendrives": {
-		"MountPoints": "HIJKLMNOPQRSTUVWXYZ", //["H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"],
+	"Pendrive": {
+		"MountPoints": "HIJKLMNOPQRSTUVWXYZ",
 		"Driver": "WinFSP",
 		"Protection": {
 			"OpTable": "Table2",
 			"ChallengeEqGroups": ["Group1","Group2"],
-			"Cipher": "cipher_simple"
+			"Cipher": "Cipher2"
 		}
 	},
 
 	"ParentalControl": [
 		{
-			"Folder": "C:/Users/Pepito/playboy_files/",
+			"Folder": "C:/Users/Pepito/Documents/playboy_files/",
 			"Users": ["Pepito", "Admin"],
 			"ChallengeEqGroups": ["Group2"]
 		}
@@ -101,16 +101,16 @@
 			"Expires": "20210909145232",
 			"ChallengeList": [
 				{
-					"ID": "ch1",
-					"Description": "Da igual",
+					"Id": "ch1",
+					"Description": "Here goes the description",
 					"Props": "one=1,two=2",
-					"Requirements": "camara, micro"
+					"Requirements": "camera, microphone"
 				},
 				{
-					"ID": "ch2",
-					"Description": "no hace nada",
+					"Id": "ch2",
+					"Description": "The challenge takes into account the time from ...",
 					"Props": "one=1,two=2",
-					"Requirements": "nada"
+					"Requirements": ""
 				}
 			]
 		},
@@ -119,18 +119,31 @@
 			"Expires": "20210909145232",
 			"ChallengeList": [
 				{
-					"ID": "ch4",
-					"Description": "nada",
-					"Props": "nada=0",
-					"Requirements": "nada"
+					"Id": "ch4",
+					"Description": "This challenge looks for a certain pattern in the wall.",
+					"Props": "pattern_type=4",
+					"Requirements": "camera"
 				},
 				{
-					"ID": "ch25",
-					"Description": "nada",
-					"Props": "nada=1",
-					"Requirements": "todos"
+					"Id": "ch25",
+					"Description": "Checks the existence of an unaudible tone in the background.",
+					"Props": "freq=40000hz",
+					"Requirements": "microphone"
 				}
 			]
+		}
+	},
+
+	"Ciphers": {
+		"Cipher1": {
+			"FileName": "cipher_simple.dll",
+			"BlockSize": 0,
+			"Custom": ""
+		},
+		"Cipher2": {
+			"FileName": "AES128.dll",
+			"BlockSize": 128,
+			"Custom": ""
 		}
 	}
 }

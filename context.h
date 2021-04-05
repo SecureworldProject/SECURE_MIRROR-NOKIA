@@ -11,6 +11,8 @@ Nokia Febrero 2021
 #define context_h
 
 #include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 
 #ifdef __cplusplus
@@ -83,7 +85,7 @@ extern "C" {
 	struct Protection {
 		struct OpTable* op_table;
 		struct ChallengeEquivalenceGroup** challenge_groups;
-		char* cipher;
+		struct Cipher* cipher;
 	};
 
 	struct Pendrive {
@@ -105,7 +107,7 @@ extern "C" {
 
 	struct Tuple {
 		enum AppType app_type;
-		char* disk;			// change to char  '0'=sync folders, '1'=pendrives, <letters> = manually mirrored disks
+		char disk;			// change to char  '0'=sync folders, '1'=pendrives, <letters> = manually mirrored disks
 		enum Operation on_read;
 		enum Operation on_write;
 	};
@@ -146,6 +148,13 @@ extern "C" {
 		char* properties;		// "prop1=valor&prop2=valor..."
 	};
 
+	struct Cipher {
+		char* id;
+		char* file_name;
+		int block_size;
+		char* custom;
+	};
+
 	#pragma endregion
 
 
@@ -170,7 +179,7 @@ extern "C" {
 		for (int i = 0; i < _msize(ctx.folders) / sizeof(struct Folder*); i++) {
 			PRINT1("Folder %d:\n", i);
 			PRINT2("Path: %s\n", ctx.folders[i]->path);
-			PRINT2("Mount point: %s\n", ctx.folders[i]->mount_point);
+			PRINT2("Mount point: %c\n", ctx.folders[i]->mount_point);
 			PRINT2("Driver: %d\n", ctx.folders[i]->driver);
 			PRINT2("Protection\n");
 			PRINT3("Op table: %s\n", ctx.folders[i]->protection->op_table->id);
@@ -178,8 +187,21 @@ extern "C" {
 			for (int j = 0; j < _msize(ctx.folders[i]->protection->challenge_groups) / sizeof(char*); j++) {
 				PRINT("%s%s", (char*) ctx.folders[i]->protection->challenge_groups[j]->id, (j + 1 < _msize(ctx.folders[i]->protection->challenge_groups)/sizeof(char*)) ? ", " : "\n");
 			}
-			PRINT3("Cipher: %c\n", *(ctx.folders[i]->protection->cipher));
+			PRINT3("Cipher: %s\n", ctx.folders[i]->protection->cipher);
 		}
+
+		// Pendrive
+		PRINT("\n");
+		PRINT("Pendrive:\n");
+		PRINT1("Mount points: %s\n", ctx.pendrive->mount_points);
+		PRINT1("Driver: %d\n", ctx.pendrive->driver);
+		PRINT1("Protection\n");
+		PRINT2("Op table: %s\n", ctx.pendrive->protection->op_table->id);
+		PRINT2("Challenge groups: ");
+		for (int j = 0; j < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*); j++) {
+			PRINT("%s%s", (char*)ctx.pendrive->protection->challenge_groups[j]->id, (j + 1 < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*)) ? ", " : "\n");
+		}
+		PRINT2("Cipher: %s\n", ctx.pendrive->protection->cipher);
 		
 		// Parental control
 		PRINT("\n");
@@ -215,7 +237,7 @@ extern "C" {
 
 			// Iterate over rows of each table (the so called "table tuples")
 			for (int j = 0; j < _msize(ctx.tables[i]->tuples) / sizeof(struct Tuple*); j++) {
-				PRINT2("|  %2d   |     %2d     |   %2s   |    %2d     |     %2d     |\n",
+				PRINT2("|  %2d   |     %2d     |    %c   |    %2d     |     %2d     |\n",
 					j,
 					ctx.tables[i]->tuples[j]->app_type,
 					ctx.tables[i]->tuples[j]->disk,
@@ -238,6 +260,20 @@ extern "C" {
 
 		// Challenge Equivalence Groups
 		printChallengeGroups(ctx);
+
+		// Ciphers
+		PRINT("\n");
+		PRINT("Ciphers\n");
+		PRINT("TO DO\n");
+		// TO DO
+		/*for (int i = 0; i < _msize(ctx.ciphers) / sizeof(struct Cipher*); i++) {
+			PRINT1("Cipher %d:\n", i);
+			PRINT2("Id: %s \n", ctx.ciphers[i]->id);
+			PRINT2("Filename: %s \n", ctx.ciphers[i]->file_name);
+			PRINT2("Blocksize: %d \n", ctx.ciphers[i]->block_size);
+			PRINT2("Custom: %s \n", ctx.ciphers[i]->custom);
+		}*/
+
 
 		PRINT("\n");
 		PRINT("PRINT CONTEXT ENDS\n");
