@@ -51,6 +51,7 @@ extern "C" {
 	static void printChallenge(struct Challenge* challenge);
 	static void printDateNice(struct tm * time_info);
 	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id);
+	static struct Cipher* getCipherById(char* group_id);
 	static struct OpTable* getOpTableById(char* table_id);
 
 
@@ -68,6 +69,7 @@ extern "C" {
 		struct OpTable** tables;
 		struct App** apps;
 		struct ChallengeEquivalenceGroup** groups;
+		struct Cipher** ciphers;
 	} ctx;
 
 	struct Folder {
@@ -177,7 +179,7 @@ extern "C" {
 		PRINT("\n");
 		PRINT("Folders:\n");
 		for (int i = 0; i < _msize(ctx.folders) / sizeof(struct Folder*); i++) {
-			PRINT1("Folder %d:\n", i);
+			PRINT1("Folder:\n");
 			PRINT2("Path: %s\n", ctx.folders[i]->path);
 			PRINT2("Mount point: %c\n", ctx.folders[i]->mount_point);
 			PRINT2("Driver: %d\n", ctx.folders[i]->driver);
@@ -187,7 +189,7 @@ extern "C" {
 			for (int j = 0; j < _msize(ctx.folders[i]->protection->challenge_groups) / sizeof(char*); j++) {
 				PRINT("%s%s", (char*) ctx.folders[i]->protection->challenge_groups[j]->id, (j + 1 < _msize(ctx.folders[i]->protection->challenge_groups)/sizeof(char*)) ? ", " : "\n");
 			}
-			PRINT3("Cipher: %s\n", ctx.folders[i]->protection->cipher);
+			PRINT3("Cipher: %s\n", ctx.folders[i]->protection->cipher->id);
 		}
 
 		// Pendrive
@@ -201,7 +203,7 @@ extern "C" {
 		for (int j = 0; j < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*); j++) {
 			PRINT("%s%s", (char*)ctx.pendrive->protection->challenge_groups[j]->id, (j + 1 < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*)) ? ", " : "\n");
 		}
-		PRINT2("Cipher: %s\n", ctx.pendrive->protection->cipher);
+		PRINT2("Cipher: %s\n", ctx.pendrive->protection->cipher->id);
 		
 		// Parental control
 		PRINT("\n");
@@ -250,12 +252,12 @@ extern "C" {
 
 		// Apps
 		PRINT("\n");
-		PRINT("Apps\n");
+		PRINT("Apps:\n");
 		for (int i = 0; i < _msize(ctx.apps) / sizeof(struct App*); i++) {
-			PRINT1("App %d:\n", i);
-			PRINT2("App name: %s \n", ctx.apps[i]->name);
-			PRINT2("App path: %s \n", ctx.apps[i]->path);
-			PRINT2("App type: %d \n", ctx.apps[i]->type);
+			PRINT1("App:\n");
+			PRINT2("Name: %s \n", ctx.apps[i]->name);
+			PRINT2("Path: %s \n", ctx.apps[i]->path);
+			PRINT2("Type: %d \n", ctx.apps[i]->type);
 		}
 
 		// Challenge Equivalence Groups
@@ -263,16 +265,14 @@ extern "C" {
 
 		// Ciphers
 		PRINT("\n");
-		PRINT("Ciphers\n");
-		PRINT("TO DO\n");
-		// TO DO
-		/*for (int i = 0; i < _msize(ctx.ciphers) / sizeof(struct Cipher*); i++) {
-			PRINT1("Cipher %d:\n", i);
+		PRINT("Ciphers:\n");
+		for (int i = 0; i < _msize(ctx.ciphers) / sizeof(struct Cipher*); i++) {
+			PRINT1("Cipher:\n");
 			PRINT2("Id: %s \n", ctx.ciphers[i]->id);
 			PRINT2("Filename: %s \n", ctx.ciphers[i]->file_name);
 			PRINT2("Blocksize: %d \n", ctx.ciphers[i]->block_size);
 			PRINT2("Custom: %s \n", ctx.ciphers[i]->custom);
-		}*/
+		}
 
 
 		PRINT("\n");
@@ -290,7 +290,7 @@ extern "C" {
 		struct tm *time_info;
 
 		PRINT("\n");
-		PRINT("Challenge Equivalence Groups\n");
+		PRINT("Challenge Equivalence Groups:\n");
 		for (int i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
 			PRINT1("EqGroup:\n");
 			PRINT2("Id: %s \n", ctx.groups[i]->id);
@@ -387,9 +387,27 @@ extern "C" {
 	}
 
 	/**
+	* Returns a pointer to the Cipher with same id provided as parameter.
+	*
+	* @param char* cipher_id
+	*		The id string to retrieve pointer from.
+	*
+	* @return struct ChallengeEquivalenceGroup*
+	*		The pointer to the ChallengeEquivalenceGroup with given id. May be NULL if no matches were found.
+	**/
+	static struct Cipher* getCipherById(char* cipher_id) {
+		for (int i = 0; i < _msize(ctx.ciphers) / sizeof(struct Cipher*); i++) {
+			if (strcmp(ctx.ciphers[i]->id, cipher_id) == 0) {
+				return ctx.ciphers[i];
+			}
+		}
+		return NULL;
+	}
+
+	/**
 	* Returns the pointer to the OpTable with the same id as provided by parameter.
 	*
-	* @param char* group_id
+	* @param char* table_id
 	*		The id string to retrieve pointer from.
 	*
 	* @return struct ChallengeEquivalenceGroup*

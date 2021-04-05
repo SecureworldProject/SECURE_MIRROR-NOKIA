@@ -51,6 +51,10 @@ static void processChallengeEqGroup(int index, json_value* value, int depth);
 
 static void processChallengeEqGroups(json_value* value, int depth);
 
+static void processCipher(int index, json_value* value, int depth);
+
+static void processCiphers(json_value* value, int depth);
+
 static void processContext(json_value* value, int depth);
 
 void loadContext();

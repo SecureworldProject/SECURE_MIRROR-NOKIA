@@ -606,6 +606,59 @@ static void processChallengeEqGroups(json_value* value, int depth) {
     PRINT(" - processChallengeEqGroups() ends\n");
 }
 
+static void processCipher(int index, json_value* value, int depth) {
+    int i, num_elems;
+
+    num_elems = value->u.object.length;
+    for (i = 0; i < num_elems; i++) {
+
+        if (strcmp(value->u.object.values[i].name, "FileName") == 0) {
+            ctx.ciphers[index]->file_name = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
+            if (ctx.ciphers[index]->file_name) {
+                strcpy(ctx.ciphers[index]->file_name, value->u.object.values[i].value->u.string.ptr);
+            } // else --> The pointer is null because it was not possible to allocate memory
+        }
+
+        else if (strcmp(value->u.object.values[i].name, "BlockSize") == 0) {
+            ctx.ciphers[index]->block_size = (int)value->u.object.values[i].value->u.integer;
+        }
+
+        else if (strcmp(value->u.object.values[i].name, "Custom") == 0) {
+            ctx.ciphers[index]->custom = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
+            if (ctx.ciphers[index]->custom) {
+                strcpy(ctx.ciphers[index]->custom, value->u.object.values[i].value->u.string.ptr);
+            } // else --> The pointer is null because it was not possible to allocate memory
+        }
+    }
+}
+
+static void processCiphers(json_value* value, int depth) {
+    PRINT(" - processCiphers() starts\n");
+    int i, num_ciphers;
+    json_value* cipher_value;
+
+    num_ciphers = value->u.object.length;
+    if (num_ciphers <= 0) {     // Fixes warning C6386 (Visual Studio bug)
+        ctx.ciphers = NULL;
+    } else {
+        ctx.ciphers = (struct Cipher**)malloc(num_ciphers * sizeof(struct Cipher*));
+        if (ctx.ciphers) {
+            for (i = 0; i < num_ciphers; i++) {
+                ctx.ciphers[i] = malloc(sizeof(struct Cipher));
+                if (ctx.ciphers[i]) {
+                    // The cipher id is processeed here because it is the name of dictionary, the rest is done inside processCipher()
+                    ctx.ciphers[i]->id = malloc(sizeof(char) * ((value->u.object.values[i].name_length) + 1));
+                    if (ctx.ciphers[i]->id) {
+                        strcpy(ctx.ciphers[i]->id, value->u.object.values[i].name);
+                        cipher_value = value->u.object.values[i].value;
+                        processCipher(i, cipher_value, depth + 1);
+                    } // else --> The pointer is null because it was not possible to allocate memory
+                } // else --> The pointer is null because it was not possible to allocate memory
+            }
+        } // else --> The pointer is null because it was not possible to allocate memory
+    }
+    PRINT(" - processCiphers() ends\n");
+}
 #pragma endregion
 
 
@@ -627,6 +680,7 @@ static void processContext(json_value* value, int depth) {
         else if (strcmp(value->u.object.values[i].name, "OperativeTables") == 0)    processOperativeTables(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "Apps") == 0)               processApps(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "ChallengeEqGroups") == 0)  processChallengeEqGroups(value->u.object.values[i].value, depth + 1);
+        else if (strcmp(value->u.object.values[i].name, "Ciphers") == 0)            processCiphers(value->u.object.values[i].value, depth + 1);
         else fprintf(stderr, "WARINING: the field '%s' included in config.json is not registered and will not be processed.\n", value->u.object.values[i].name);
     }
     PRINT("Processing completed\n");
@@ -745,6 +799,17 @@ void translateIdsToPointers() {
             ctx.folders[i]->protection->challenge_groups[j] = tmp_ptr;                                  // Assign the true pointer
             //PRINT2("ID after changes: %s\n", ctx.folders[i]->protection->challenge_groups[j]->id);
         }
+
+        // Fix ids from:    Folders  -->  Protection  -->  Cipher
+        //PRINT1("Translating ids to pointers: Folders  -->  Protection  -->  Cipher\n");
+
+        //PRINT1("ID before changes: %s\n", (char*)ctx.folders[i]->protection->cipher);
+        tmp_ptr = getCipherById((char*)ctx.folders[i]->protection->cipher);     // Get true pointer
+        free(ctx.folders[i]->protection->cipher);                               // Free the char* of the ID
+        ctx.folders[i]->protection->cipher = tmp_ptr;                           // Assign the true pointer
+        //PRINT1("ID after changes: %s\n", ctx.folders[i]->protection->cipher->id);
+
+
     }
 
 
@@ -770,6 +835,16 @@ void translateIdsToPointers() {
         //PRINT2("ID after changes: %s\n", ctx.pendrive->protection->challenge_groups[j]->id);
     }
 
+    // Fix ids from:    Pendrive  -->  Protection  -->  Cipher
+    //PRINT1("Translating ids to pointers: Pendrive  -->  Protection  -->  Cipher\n");
+
+    //PRINT1("ID before changes: %s\n", (char*)ctx.pendrive->protection->cipher);
+    tmp_ptr = getCipherById((char*)ctx.pendrive->protection->cipher);           // Get true pointer
+    free(ctx.pendrive->protection->cipher);                                     // Free the char* of the ID
+    ctx.pendrive->protection->cipher = tmp_ptr;                                 // Assign the true pointer
+    //PRINT1("ID after changes: %s\n", ctx.pendrive->protection->cipher->id);
+
+
 
     // Fix ids from:    Parental Control  -->  ChallengeEqGroups
     //PRINT("Translating ids to pointers: Parental Control  -->  ChallengeEqGroups: \n");
@@ -782,9 +857,6 @@ void translateIdsToPointers() {
         //PRINT1("ID after changes: %s\n", ctx.parental->challenge_groups[i]->id);
     }
 
-
-    // TO DO
-    PRINT("TO DO translate ids from ciphers of any protection\n");
 
     PRINT("Translation completed\n");
 }
