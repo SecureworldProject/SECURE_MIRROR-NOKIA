@@ -104,14 +104,14 @@ static void processProtection(struct Protection* ctx_value, json_value* value, i
     for (x = 0; x < dict_length; x++) {
 
         if (strcmp(value->u.object.values[x].name, "OpTable") == 0) {
-            PRINT1("OpTable id detected------\n");
+            //PRINT1("OpTable id detected------\n");
             // This will be a OpTable pointer but for now it will hold the id, so force it as char pointer
             #pragma warning(suppress: 4133)
             ctx_value->op_table = (char*)malloc(sizeof(char) * ((value->u.object.values[x].value->u.string.length) + 1));
             if (ctx_value->op_table) {
                 #pragma warning(suppress: 4133)
                 strcpy(ctx_value->op_table, value->u.object.values[x].value->u.string.ptr);
-                PRINT("OpTable id copied++++++\n");
+                //PRINT("OpTable id copied++++++\n");
             } // else --> The pointer is null because it was not possible to allocate memory
         }
 
@@ -262,68 +262,77 @@ static void processPendrive(json_value* value, int depth) {
     PRINT(" - processPendrive() ends\n");
 }
 
-static void processParentalControl(json_value* value, int depth) {
-    PRINT(" - processParentalControl() starts\n");
+static void processParentalControls(json_value* value, int depth) {
+    PRINT(" - processParentalControls() starts\n");
     int array_length, dict_length, users_array_length;
     json_value* array_value;
 
     array_length = value->u.array.length;
-    ctx.parental = malloc(array_length * sizeof(struct ParentalControl));
-    if (ctx.parental) {
-        for (int i = 0; i < array_length; i++) {
-            array_value = value->u.array.values[i];
-            dict_length = array_value->u.object.length;
-            for (int j = 0; j < dict_length; j++) {
-                if (strcmp(array_value->u.object.values[j].name, "Folder") == 0) {
-                    ctx.parental[i].folder = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.string.length) + 1));
-                    if (ctx.parental[i].folder) {
-                        strcpy(ctx.parental[i].folder, array_value->u.object.values[j].value->u.string.ptr);
-                    } // else --> The pointer is null because it was not possible to allocate memory
-                }
+    PRINT("LENGTH = %d", array_length);
+    if (array_length <= 0) {    // Fixes warning C6386 (Visual Studio bug)
+        ctx.parentals = NULL;
+    } else {
+        ctx.parentals = (struct ParentalControl**)malloc(array_length * sizeof(struct ParentalControl*));
+        if (ctx.parentals) {
+            for (int i = 0; i < array_length; i++) {
+                ctx.parentals[i] = (struct ParentalControl*)malloc(sizeof(struct ParentalControl));
+                if (ctx.parentals[i]) {
+                    array_value = value->u.array.values[i];
+                    dict_length = array_value->u.object.length;
+                    for (int j = 0; j < dict_length; j++) {
 
-                else if (strcmp(array_value->u.object.values[j].name, "Users") == 0) {
-                    users_array_length = array_value->u.object.values[j].value->u.array.length;
-                    if (users_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
-                        ctx.parental[i].users = NULL;
-                    } else {
-                        ctx.parental[i].users = (char**)malloc(users_array_length * sizeof(char*));
-                        if (ctx.parental[i].users) {
-                            for (int k = 0; k < users_array_length; k++) {
-                                //ctx.parental[i].users[k] = array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr;
-                                ctx.parental[i].users[k] = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));
-                                if (ctx.parental[i].users[k]) {
-                                    strcpy(ctx.parental[i].users[k], array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr);
+                        if (strcmp(array_value->u.object.values[j].name, "Folder") == 0) {
+                            ctx.parentals[i]->folder = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.string.length) + 1));
+                            if (ctx.parentals[i]->folder) {
+                                strcpy(ctx.parentals[i]->folder, array_value->u.object.values[j].value->u.string.ptr);
+                            } // else --> The pointer is null because it was not possible to allocate memory
+                        }
+
+                        else if (strcmp(array_value->u.object.values[j].name, "Users") == 0) {
+                            users_array_length = array_value->u.object.values[j].value->u.array.length;
+                            if (users_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+                                ctx.parentals[i]->users = NULL;
+                            } else {
+                                ctx.parentals[i]->users = (char**)malloc(users_array_length * sizeof(char*));
+                                if (ctx.parentals[i]->users) {
+                                    for (int k = 0; k < users_array_length; k++) {
+                                        ctx.parentals[i]->users[k] = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));
+                                        if (ctx.parentals[i]->users[k]) {
+                                            strcpy(ctx.parentals[i]->users[k], array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr);
+                                        } // else --> The pointer is null because it was not possible to allocate memory
+                                    }
                                 } // else --> The pointer is null because it was not possible to allocate memory
                             }
-                        } // else --> The pointer is null because it was not possible to allocate memory
-                    }
-                }
+                        }
 
-                else if (strcmp(array_value->u.object.values[j].name, "ChallengeEqGroups") == 0) {
-                    users_array_length = array_value->u.object.values[j].value->u.array.length;
-                    if (users_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
-                        ctx.parental[i].users = NULL;
-                    } else {
-                        // This will be a ChallengeEquivalenceGroup pointer pointer but for now it will hold ids, so force it to char pointer pointer
-                        #pragma warning(suppress: 4133)
-                        ctx.parental[i].challenge_groups = (char**)malloc(users_array_length * sizeof(char*));
-                        if (ctx.parental[i].challenge_groups) {
-                            for (int k = 0; k < users_array_length; k++) {
-                                // This will be a ChallengeEquivalenceGroup pointer but for now it will hold is, so force it to char pointer
+                        else if (strcmp(array_value->u.object.values[j].name, "ChallengeEqGroups") == 0) {
+                            users_array_length = array_value->u.object.values[j].value->u.array.length;
+                            if (users_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+                                ctx.parentals[i]->users = NULL;
+                            } else {
+                                // This will be a ChallengeEquivalenceGroup pointer pointer but for now it will hold ids, so force it to char pointer pointer
                                 #pragma warning(suppress: 4133)
-                                ctx.parental[i].challenge_groups[k] = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));
-                                if (ctx.parental[i].challenge_groups[k]) {
-                                    #pragma warning(suppress: 4133)
-                                    strcpy(ctx.parental[i].challenge_groups[k], array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr);
+                                ctx.parentals[i]->challenge_groups = (char**)malloc(users_array_length * sizeof(char*));
+                                if (ctx.parentals[i]->challenge_groups) {
+                                    for (int k = 0; k < users_array_length; k++) {
+                                        // This will be a ChallengeEquivalenceGroup pointer but for now it will hold is, so force it to char pointer
+                                        #pragma warning(suppress: 4133)
+                                        ctx.parentals[i]->challenge_groups[k] = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));
+                                        if (ctx.parentals[i]->challenge_groups[k]) {
+                                            #pragma warning(suppress: 4133)
+                                            strcpy(ctx.parentals[i]->challenge_groups[k], array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr);
+                                        } // else --> The pointer is null because it was not possible to allocate memory
+                                    }
                                 } // else --> The pointer is null because it was not possible to allocate memory
                             }
-                        } // else --> The pointer is null because it was not possible to allocate memory
+                        }
                     }
-                }
+                } // else --> The pointer is null because it was not possible to allocate memory
             }
-        }
+        } // else --> The pointer is null because it was not possible to allocate memory
     }
-    PRINT(" - processParentalControl() ends\n");
+
+    PRINT(" - processParentalControls() ends\n");
 }
 
 static void processSyncFolders(json_value* value, int depth) {
@@ -675,7 +684,7 @@ static void processContext(json_value* value, int depth) {
     for (int i = 0;i < num_main_fields;i++) {
         if      (strcmp(value->u.object.values[i].name, "Folders") == 0)            processFolders(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "Pendrive") == 0)           processPendrive(value->u.object.values[i].value, depth + 1);
-        else if (strcmp(value->u.object.values[i].name, "ParentalControl") == 0)    processParentalControl(value->u.object.values[i].value, depth + 1);
+        else if (strcmp(value->u.object.values[i].name, "ParentalControl") == 0)    processParentalControls(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "SyncFolders") == 0)        processSyncFolders(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "OperativeTables") == 0)    processOperativeTables(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "Apps") == 0)               processApps(value->u.object.values[i].value, depth + 1);
@@ -758,6 +767,8 @@ void loadContext() {
 
     // Convert sync folder paths to use secure-mirror letters
     convertSyncFolderPaths();
+
+    // TO DO convert also parental paths
 
     return;
 }
@@ -845,18 +856,18 @@ void translateIdsToPointers() {
     //PRINT1("ID after changes: %s\n", ctx.pendrive->protection->cipher->id);
 
 
-
     // Fix ids from:    Parental Control  -->  ChallengeEqGroups
     //PRINT("Translating ids to pointers: Parental Control  -->  ChallengeEqGroups: \n");
-    for (int i = 0; i < _msize(ctx.parental->challenge_groups) / sizeof(char*); i++) {
+    for (int i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
+        for (int j = 0; j < _msize(ctx.parentals[i]->challenge_groups) / sizeof(char*); j++) {
 
-        //PRINT1("ID before changes: %s\n", (char*)ctx.parental->challenge_groups[i]);
-        tmp_ptr = getChallengeGroupById((char*)ctx.parental->challenge_groups[i]);      // Get true pointer
-        free((char*)ctx.parental->challenge_groups[i]);                                 // Free the char* of the ID
-        ctx.parental->challenge_groups[i] = tmp_ptr;                                    // Assign the true pointer
-        //PRINT1("ID after changes: %s\n", ctx.parental->challenge_groups[i]->id);
+            //PRINT1("ID before changes: %s\n", (char*)ctx.parentals[i]->challenge_groups[j]);
+            tmp_ptr = getChallengeGroupById((char*)ctx.parentals[i]->challenge_groups[j]);  // Get true pointer
+            free(ctx.parentals[i]->challenge_groups[j]);                                    // Free the char* of the ID
+            ctx.parentals[i]->challenge_groups[j] = tmp_ptr;                                // Assign the true pointer
+            //PRINT1("ID after changes: %s\n", ctx.parentals[i]->challenge_groups[j]->id);
+        }
     }
-
 
     PRINT("Translation completed\n");
 }
@@ -876,10 +887,9 @@ void formatCtxPaths() {
     }
 
     // Format parental paths
-    // TO DO
-    ///////////////////////////////////////////   parental is an array or folders inside parental is an array ???? solve and fix EVERYTHING
-    PRINT("TO DO parental paths!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-    PRINT("TO DO fix parental json or struct (multiple paths or multiple structs) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+    for (int i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
+        formatPath(&ctx.parentals[i]->folder);
+    }
 
     // Format sync folder paths
     for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(char*); i++) {

@@ -64,7 +64,7 @@ extern "C" {
 	struct Context {
 		struct Folder** folders;
 		struct Pendrive* pendrive;
-		struct ParentalControl* parental;
+		struct ParentalControl** parentals;
 		char** sync_folders;
 		struct OpTable** tables;
 		struct App** apps;
@@ -74,7 +74,7 @@ extern "C" {
 
 	struct Folder {
 		char* path;
-		char mount_point;	// change to char	/////////////////////////////////////////////////////////////// DONE
+		char mount_point;
 		enum Driver driver;
 		struct Protection* protection;
 	};
@@ -91,7 +91,7 @@ extern "C" {
 	};
 
 	struct Pendrive {
-		char* mount_points;		// several letters in a string like: "HIJKLMNOPQRSTUVWXYZ"
+		char* mount_points;		// All  the possible letters to mount a pendrive, in a string like: "HIJKLMNOPQRSTUVWXYZ"
 		enum Driver driver;
 		struct Protection* protection;
 	};
@@ -109,7 +109,7 @@ extern "C" {
 
 	struct Tuple {
 		enum AppType app_type;
-		char disk;			// change to char  '0'=sync folders, '1'=pendrives, <letters> = manually mirrored disks
+		char disk;			// A letter for the manually mirrored disks. Other valid values are: '0'=sync folders, '1'=pendrives
 		enum Operation on_read;
 		enum Operation on_write;
 	};
@@ -140,14 +140,14 @@ extern "C" {
 
 	struct ChallengeEquivalenceGroup {
 		char* id;
-		char* subkey;
+		char* subkey;			// Not obtained from json
 		time_t expires;			// Not obtained from json
 		struct Challenge** challenges;
 	};
 
 	struct Challenge {
 		char* id;
-		char* properties;		// "prop1=valor&prop2=valor..."
+		char* properties;		// String of properties as in a HTML query: "prop1=valor&prop2=valor..."
 	};
 
 	struct Cipher {
@@ -200,22 +200,25 @@ extern "C" {
 		PRINT1("Protection\n");
 		PRINT2("Op table: %s\n", ctx.pendrive->protection->op_table->id);
 		PRINT2("Challenge groups: ");
-		for (int j = 0; j < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*); j++) {
-			PRINT("%s%s", (char*)ctx.pendrive->protection->challenge_groups[j]->id, (j + 1 < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*)) ? ", " : "\n");
+		for (int i = 0; i < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*); i++) {
+			PRINT("%s%s", (char*)ctx.pendrive->protection->challenge_groups[i]->id, (i + 1 < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*)) ? ", " : "\n");
 		}
 		PRINT2("Cipher: %s\n", ctx.pendrive->protection->cipher->id);
 		
-		// Parental control
+		// Parental controls
 		PRINT("\n");
-		PRINT("Parental:\n");
-		PRINT1("Folder: %s\n", ctx.parental->folder);
-		PRINT1("Challenge groups: ");
-		for (int i = 0; i < _msize(ctx.parental->challenge_groups) / sizeof(char*); i++) {
-			PRINT("%s%s", ctx.parental->challenge_groups[i]->id, (i + 1 < _msize(ctx.parental->challenge_groups) / sizeof(char*)) ? ", " : "\n");
-		}
-		PRINT1("Users: ");
-		for (int i = 0; i < _msize(ctx.parental->users) / sizeof(char*); i++) {
-			PRINT("%s%s", ctx.parental->users[i], (i + 1 < _msize(ctx.parental->users) / sizeof(char*)) ? ", " : "\n");
+		PRINT("Parental controls:\n");
+		for (int i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
+			PRINT1("Parental control:\n");
+			PRINT2("Folder: %s\n", ctx.parentals[i]->folder);
+			PRINT2("Challenge groups: ");
+			for (int j = 0; j < _msize(ctx.parentals[i]->challenge_groups) / sizeof(char*); j++) {
+				PRINT("%s%s", ctx.parentals[i]->challenge_groups[j]->id, (j + 1 < _msize(ctx.parentals[i]->challenge_groups) / sizeof(char*)) ? ", " : "\n");
+			}
+			PRINT2("Users: ");
+			for (int j = 0; j < _msize(ctx.parentals[i]->users) / sizeof(char*); j++) {
+				PRINT("%s%s", ctx.parentals[i]->users[j], (j + 1 < _msize(ctx.parentals[i]->users) / sizeof(char*)) ? ", " : "\n");
+			}
 		}
 
 		// Sync folders
@@ -228,8 +231,7 @@ extern "C" {
 		// Operative tables
 		PRINT("\n");
 		PRINT("Tables:\n");
-		// Iterate over tables
-		for (int i = 0; i < _msize(ctx.tables) / sizeof(struct OpTable*); i++) {
+		for (int i = 0; i < _msize(ctx.tables) / sizeof(struct OpTable*); i++) {	// Iterate over tables
 			PRINT1("Table id: %s \n", ctx.tables[i]->id);
 			PRINT2(" ______________________________________________________ \n");
 			PRINT2("|       |            |        |           |            |\n");
@@ -237,8 +239,7 @@ extern "C" {
 			PRINT2("|_______|____________|________|___________|____________|\n");
 			PRINT2("|       |            |        |           |            |\n");
 
-			// Iterate over rows of each table (the so called "table tuples")
-			for (int j = 0; j < _msize(ctx.tables[i]->tuples) / sizeof(struct Tuple*); j++) {
+			for (int j = 0; j < _msize(ctx.tables[i]->tuples) / sizeof(struct Tuple*); j++) {	// Iterate over rows of each table (the so called "table tuples")
 				PRINT2("|  %2d   |     %2d     |    %c   |    %2d     |     %2d     |\n",
 					j,
 					ctx.tables[i]->tuples[j]->app_type,
@@ -298,7 +299,7 @@ extern "C" {
 			time_info = localtime(&(ctx.groups[i]->expires));
 			PRINT2("Expires: %lld (", ctx.groups[i]->expires); printDateNice(time_info); PRINT(")\n");
 			PRINT2("Challenges: \n");
-			for (int j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct ChallengeEquivalenceGroup*); j++) {
+			for (int j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct Challenge*); j++) {
 				printChallenge(ctx.groups[i]->challenges[j]);
 			}
 		}

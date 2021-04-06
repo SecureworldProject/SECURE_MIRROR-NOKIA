@@ -306,7 +306,7 @@ static void formatPath(char** full_path) {
 		tmp_str = strchr(*full_path, '\\');
 	}
 
-	// TO DO MORE
+	// TO DO MORE FORMATTING
 }
 
 

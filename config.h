@@ -33,7 +33,7 @@ static void processFolder(int index, json_value* value, int depth);
 
 static void processFolders(json_value* value, int depth);
 
-static void processParentalControl(json_value* value, int depth);
+static void processParentalControls(json_value* value, int depth);
 
 static void processSyncFolders(json_value* value, int depth);
 
