@@ -268,7 +268,6 @@ static void processParentalControls(json_value* value, int depth) {
     json_value* array_value;
 
     array_length = value->u.array.length;
-    PRINT("LENGTH = %d", array_length);
     if (array_length <= 0) {    // Fixes warning C6386 (Visual Studio bug)
         ctx.parentals = NULL;
     } else {
@@ -768,7 +767,8 @@ void loadContext() {
     // Convert sync folder paths to use secure-mirror letters
     convertSyncFolderPaths();
 
-    // TO DO convert also parental paths
+    // Convert parental paths to use secure-mirror letters
+    convertParentalFolderPaths();
 
     return;
 }
@@ -904,7 +904,6 @@ void formatCtxPaths() {
     PRINT("Formatting completed\n");
 }
 
-
 /**
 * Converts the synchronized folder paths from the context so that they make use of the drive letters assigned to the mirrored drives.
 * If there is no memory to perform the conversion, the context is not modified
@@ -925,14 +924,11 @@ void convertSyncFolderPaths() {
     // CASE 3:
     // Example syncfolder:      "C:\Users\Sergio\OneDrive\"
     // Example mirror path:     "C:\Users\Sergio\Onedrive\cosas\",  letter: 'H'
-    // Result: syncfolder has to be changed to      ?????   Cannot be changed but it will always affect 'H:\' disk (among other things) mark somehow?
-
-    // For the moment only cases 1 and 2 are taken into account  -->  // TO DO
-    // Any sync folder in case 3 will be removed!!! -->  // TO DO something
+    // Example mirror path:     "C:\Users\Sergio\Onedrive\cosas2\",  letter: 'J'
+    // Result: syncfolder has to be replicated as many times as it appears in mirrored disks inside the syncfolder. New sync folders: "H:\", "J:\"
 
     // Known limitations:
-    // - One syncfolder inside a mirrored folder inside another mirrored folder
-    // - One mirrored folder inside a sync folder
+    // - A syncfolder inside a mirrored folder inside another mirrored folder. Do not use nested mirrored folders.
 
     char* tmp_str = NULL;
     size_t mirr_len = 0;
@@ -966,17 +962,18 @@ void convertSyncFolderPaths() {
             mirr_len = strlen(ctx.folders[j]->path);
             sync_len = strlen(ctx.sync_folders[i]);
             if (mirr_len <= sync_len) {     // Only if mirror folder path is smaller or equal to sync folder path in length
+                // CASE 1 or CASE 2
                 tmp_str = strstr(ctx.sync_folders[i], ctx.folders[j]->path);
                 if (tmp_str != NULL && tmp_str == ctx.sync_folders[i]) {
                     // It matches a syncfolder (folder path is prefix of sync folder)
-                    PRINT3("Match found. Processing...\n");
+                    PRINT3("Match found, case 1 or case 2. Processing...\n");
 
                     tmp_str = (char*)malloc(sizeof(char) * (sync_len - mirr_len + 3 + 1));  // +3 to add letter ("X:\") and +1 is to add '\0'
                     if (tmp_str != NULL) {
                         tmp_str[0] = ctx.folders[j]->mount_point;
                         tmp_str[1] = (char)':';
                         tmp_str[2] = (char)'\\';
-                        strcpy(tmp_str, &((ctx.sync_folders[i])[mirr_len]));   // copies the rest of the sync folder and appends '\0'
+                        strcpy(&(tmp_str[3]), &((ctx.sync_folders[i])[mirr_len]));   // copies the rest of the sync folder and appends '\0'
 
                         // Check if this match fits inside allocated space of new_sync_folders (if not, realloc so it fits)
                         if (new_sync_folder_index >= size_new_sync_folders) {
@@ -995,6 +992,37 @@ void convertSyncFolderPaths() {
                         new_sync_folder_index++;
                     }
                     break;  // exit inner for-loop
+                }
+            } else {
+                // CASE 3
+                tmp_str = strstr(ctx.folders[j]->path, ctx.sync_folders[i]);
+                if (tmp_str != NULL && tmp_str == ctx.folders[j]->path) {
+                    // It matches a syncfolder (folder path is prefix of sync folder)
+                    PRINT3("Match found, case 3. Processing...\n");
+
+                    tmp_str = (char*)malloc(sizeof(char) * (3 + 1));  // 3 to add letter ("X:\") and +1 is to add '\0'
+                    if (tmp_str != NULL) {
+                        tmp_str[0] = ctx.folders[j]->mount_point;
+                        tmp_str[1] = (char)':';
+                        tmp_str[2] = (char)'\\';
+                        tmp_str[3] = (char)'\0';
+                    }
+
+                    // Check if this match fits inside allocated space of new_sync_folders (if not, realloc so it fits)
+                    if (new_sync_folder_index >= size_new_sync_folders) {
+                        tmp_reallocated_new_sync_folders = realloc(new_sync_folders, size_new_sync_folders + 10);
+                        free(new_sync_folders);
+                        if (tmp_reallocated_new_sync_folders == NULL) {
+                            fprintf(stderr, "Error: not enough memory. Could not complete conversion.\n");
+                            return;
+                        }
+                        new_sync_folders = tmp_reallocated_new_sync_folders;
+                        tmp_reallocated_new_sync_folders = NULL;
+                    }
+                    // Copy the pointer and increment the index
+                    new_sync_folders[new_sync_folder_index] = tmp_str;
+                    tmp_str = NULL;
+                    new_sync_folder_index++;
                 }
             }
         }
@@ -1030,4 +1058,14 @@ void convertSyncFolderPaths() {
     }
 
     PRINT("Conversion completed\n");
+}
+
+/**
+* Converts the parental folder paths from the context so that they make use of the drive letters assigned to the mirrored drives.
+* If there is no memory to perform the conversion, the context is not modified.
+*
+* @return
+**/
+void convertParentalFolderPaths() {
+    PRINT("TO DO convertParentalFolderPaths() \n");
 }

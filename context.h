@@ -59,7 +59,7 @@ extern "C" {
 
 	/////  CONTEXT STRUCTS AND ENUMS  /////
 
-	#pragma region Here is the context with all the asociated structs and enums
+	#pragma region Here is the context with all the associated structs and enums
 
 	struct Context {
 		struct Folder** folders;

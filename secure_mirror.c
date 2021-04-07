@@ -1712,7 +1712,7 @@ void ShowUsage() {
     }                                                                          \
   }
 
-int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
+int __cdecl wmain2(ULONG argc, PWCHAR argv[]) {
   int status;
   ULONG command;
   DOKAN_OPERATIONS dokanOperations;
@@ -1903,16 +1903,6 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
   dokanOperations.FindStreams = MirrorFindStreams;
   dokanOperations.Mounted = MirrorMounted;
 
-
-  printf("   ____________________________ \n");
-  printf("  |                            |\n");
-  printf("  |   Welcome to SecureWorld   |\n");
-  printf("  |____________________________|\n");
- 
-  // Load context from config.json (and replace ids with pointer to objects)
-  loadContext();
-
-  printContext();
 
   status = DokanMain(&dokanOptions, &dokanOperations);
   switch (status) {

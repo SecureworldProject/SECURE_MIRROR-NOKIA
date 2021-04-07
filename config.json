@@ -19,11 +19,31 @@
 				"ChallengeEqGroups": ["Group1","Group2"],
 				"Cipher": "Cipher2"
 			}
+		},
+		{
+			"Path": "C:/Users/caso3/OneDrive/cosa1/",
+			"MountPoint": "H",
+			"Driver": "Dokan",
+			"Protection": {
+				"OpTable": "Table2",
+				"ChallengeEqGroups": ["Group1","Group2"],
+				"Cipher": "Cipher2"
+			}
+		},
+		{
+			"Path": "C:/Users/caso3/OneDrive/cosa2/",
+			"MountPoint": "I",
+			"Driver": "Dokan",
+			"Protection": {
+				"OpTable": "Table2",
+				"ChallengeEqGroups": ["Group1","Group2"],
+				"Cipher": "Cipher2"
+			}
 		}
 	],
 
 	"Pendrive": {
-		"MountPoints": "HIJKLMNOPQRSTUVWXYZ",
+		"MountPoints": "JKLMNOPQRSTUVWXYZ",
 		"Driver": "WinFSP",
 		"Protection": {
 			"OpTable": "Table2",
@@ -47,7 +67,8 @@
 
 	"SyncFolders": [
 		"C:/Users/Pepito/Google Drive/",
-		"C:/Users/Pepito/OneDrive/"
+		"C:/Users/Pepito/OneDrive/",
+		"C:/Users/caso3/OneDrive/"
 	],
 
 	"OperativeTables": {

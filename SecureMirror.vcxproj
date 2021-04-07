@@ -155,7 +155,9 @@
     <ClCompile Include="context.c" />
     <ClCompile Include="keymaker.c" />
     <ClCompile Include="logic.c" />
+    <ClCompile Include="main.c" />
     <ClCompile Include="secure_mirror.c" />
+    <ClCompile Include="wrapper_dokan.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h" />

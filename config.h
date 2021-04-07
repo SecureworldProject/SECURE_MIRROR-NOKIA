@@ -61,6 +61,8 @@ void loadContext();
 
 void translateIdsToPointers();
 
+void formatCtxPaths();
+
 void convertSyncFolderPaths();
 
-void formatCtxPaths();
+void convertParentalFolderPaths();
