@@ -7,15 +7,14 @@ el comportamiento de la función logic().
 Nokia Febrero 2021
 */
 
-#include <sys/stat.h>
+/////  FILE INCLUDES  /////
+
 #include "json.h"
-//#include "json.c"
-#include <stdint.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "context.h"
 
+
+
+/////  FUNCTION PROTOTYPES  /////
 
 static void print_depth_shift(int depth);
 

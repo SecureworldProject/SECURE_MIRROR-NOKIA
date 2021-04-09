@@ -1,17 +1,21 @@
 /*
-* SecureWorld file logic.c
-contiene la lógica común logic(ctx, operación) a cualquier operación.
-SOLO una lógica que implementa la operativa cargada en loadContext() para todas las operaciones. 
-invoca a parentControl(), keymaker(), cypher() y decypher().
+SecureWorld file logic.c
+Contains the pre and post logic functions for all operations.
+Invokes functions like cypher(), decypher(), mark(), unmark(), etc
 
 Nokia Febrero 2021
 */
+
+
+/////  FILE INCLUDES  /////
 
 #include "dokan.h"
 #include "context.h"
 #include "winnt.h"
 #include <psapi.h>
-#include "context.c"
+#include "context.h"
+
+
 
 
 /////  FUNCTION HEADERS  /////
@@ -21,7 +25,7 @@ int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, 
 int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
 int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
 
-void getAppDokan(struct App* app, PDOKAN_FILE_INFO dokan_file_info);
+char* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info);
 
 
 
@@ -54,9 +58,9 @@ void unmark() {
 
 int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
 	PRINT("preCreateLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, buffer, bytes_to_do, *bytes_done, offset);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
 
-	PRINT("TO DO \n", num);
+	PRINT("TO DO \n");
 
 	return 0;
 }
@@ -102,7 +106,7 @@ int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, 
 
 int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
 	PRINT("postReadLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, buffer, bytes_to_do, *bytes_done, offset);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
 
 	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
 	// If write, execute operation
@@ -151,7 +155,7 @@ int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer,
 
 int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
 	PRINT("preWriteLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, buffer, bytes_to_do, *bytes_done, offset);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
 
 	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
 	// If write, execute operation

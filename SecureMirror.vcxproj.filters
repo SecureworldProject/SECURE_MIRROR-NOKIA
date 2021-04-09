@@ -36,12 +36,21 @@
     <ClCompile Include="wrapper_dokan.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="json.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="main.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="context2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

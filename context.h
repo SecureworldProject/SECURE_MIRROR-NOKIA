@@ -164,7 +164,6 @@ extern "C" {
 
 	/////  FUNCTION DEFINITIONS  /////
 
-
 	/**
 	* Prints all the information of the context (indented to ease the view of information).
 	*

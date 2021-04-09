@@ -26,6 +26,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+/////  FILE INCLUDES  /////
+
 #include "dokan.h"
 #include "fileinfo.h"
 #include <malloc.h>
@@ -33,16 +35,11 @@ THE SOFTWARE.
 #include <stdlib.h>
 #include <winbase.h>
 #include <psapi.h>
-//Para leer json
-#include <sys/stat.h>
-//#include "json.h"
-//#include "json.c"
-//#include "test_json.c"
-#include <stdint.h>
-#include <inttypes.h>
+
 //includes propios
 #include "config.h"
-#include "context.c"
+#include "context.h"
+#include "context2.h"
 
 
 
@@ -1903,6 +1900,15 @@ int __cdecl wmain2(ULONG argc, PWCHAR argv[]) {
   dokanOperations.FindStreams = MirrorFindStreams;
   dokanOperations.Mounted = MirrorMounted;
 
+  printf("   ____________________________ \n");
+  printf("  |                            |\n");
+  printf("  |   Welcome to SecureWorld   |\n");
+  printf("  |____________________________|\n");
+
+  // Load context from config.json (and replace ids with pointer to objects)
+  loadContext();
+
+  printContext();
 
   status = DokanMain(&dokanOptions, &dokanOperations);
   switch (status) {

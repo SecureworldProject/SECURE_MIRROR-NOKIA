@@ -7,18 +7,21 @@ el comportamiento de la función logic().
 Nokia Febrero 2021
 */
 
-#include <sys/stat.h>
-#include "json.h"
-#include "json.c"
-#include "config.h"
-#include <stdint.h>
-#include <inttypes.h>
-#include <stdio.h>
-//#include <windows.h>
+/////  FILE INCLUDES  /////
 
-#include <stdlib.h>
-#include "context.c"
-#include <string.h>
+#include "config.h"
+//#include "json.h"         // Already in config.h
+//#include "context.h"      // Already in config.h
+#include "context2.h"
+#include <sys/stat.h>
+#include <stdio.h>
+#include <inttypes.h>
+//#include <stdint.h>       // Already in inttypes.h
+
+
+
+
+/////  FUNCTION DEFINITIONS  /////
 
 
 #pragma region Basic json testing functions (unused)
@@ -667,9 +670,6 @@ static void processCiphers(json_value* value, int depth) {
     }
     PRINT(" - processCiphers() ends\n");
 }
-#pragma endregion
-
-
 
 /**
 * Processes the json_value given as parameter (interpreted as full contents of config.json) and fills the context
@@ -693,6 +693,10 @@ static void processContext(json_value* value, int depth) {
     }
     PRINT("Processing completed\n");
 }
+
+#pragma endregion
+
+
 
 /**
 * Loads, reads and processes the config.json filling the global ctx variable. 
@@ -777,8 +781,8 @@ void loadContext() {
 * Translates the char pointers which hold identifiers refering to other structs into pointers to those corresponding structs. 
 * Frees the identifier pointers so there is no memory leak. 
 * More specifically modifies the following fields: 
-*   (Folders[i]->Protection->OpTable & ChallengeEqGroups) ,
-*   (Pendrive->Protection->OpTable & ChallengeEqGroups) ,
+*   (Folders[i]->Protection->OpTable & ChallengeEqGroups & Cipher) ,
+*   (Pendrive->Protection->OpTable & ChallengeEqGroups & Cipher) ,
 *   (Parental Control->ChallengeEqGroups).
 * 
 * @return
@@ -911,6 +915,10 @@ void formatCtxPaths() {
 * @return
 **/
 void convertSyncFolderPaths() {
+    // In order to allow an N to N relation between sync folders and mirrored folders, it is necessary not to stop processing after a match is found.
+    // If any sync folder does not affect any mirrored folder, it is removed.
+    // Let S be the number of sync folders and M the number of mirrored folders, the final number of converted sync folders is in the range [0, S*M].
+
     // CASE 1:
     // Example syncfolder:      "C:\Users\Sergio\OneDrive\"
     // Example mirror path:     "C:\Users\Sergio\",  letter: 'H'
@@ -924,11 +932,13 @@ void convertSyncFolderPaths() {
     // CASE 3:
     // Example syncfolder:      "C:\Users\Sergio\OneDrive\"
     // Example mirror path:     "C:\Users\Sergio\Onedrive\cosas\",  letter: 'H'
-    // Example mirror path:     "C:\Users\Sergio\Onedrive\cosas2\",  letter: 'J'
-    // Result: syncfolder has to be replicated as many times as it appears in mirrored disks inside the syncfolder. New sync folders: "H:\", "J:\"
+    // Result: syncfolder has to be change to       "H:\"
 
-    // Known limitations:
-    // - A syncfolder inside a mirrored folder inside another mirrored folder. Do not use nested mirrored folders.
+    // Any other case is a combination of the previous cases. Take next case as example
+    // Example syncfolder:      "C:\Users\Sergio\OneDrive\"
+    // Example mirror path:     "C:\Users\Sergio\",  letter: 'H'
+    // Example mirror path:     "C:\Users\Sergio\Onedrive\cosas\",  letter: 'I'
+    // Result: combination of case 1 and case 3. New sync folders: "H:\OneDrive\", "I:\"
 
     char* tmp_str = NULL;
     size_t mirr_len = 0;
@@ -991,7 +1001,6 @@ void convertSyncFolderPaths() {
                         tmp_str = NULL;
                         new_sync_folder_index++;
                     }
-                    break;  // exit inner for-loop
                 }
             } else {
                 // CASE 3

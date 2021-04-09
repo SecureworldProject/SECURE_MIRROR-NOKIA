@@ -1,74 +1,15 @@
+/////  FILE INCLUDES  /////
 
-#ifndef context_c
-#define context_c
 
 #include "context.h"
+#include "context2.h"
 #include "string.h"
 #include <ctype.h>
 #include <string.h>
+#include <Windows.h>
+#include "main.h"
 
 
-enum IrpOperation {
-	ON_READ,
-	ON_WRITE
-};
-#define NUM_IRP_OPERATIONS 2
-
-
-#ifndef FALSE
-#define FALSE 0
-#endif //FALSE
-
-#ifndef TRUE
-#define TRUE 1
-#endif //TRUE
-
-#ifndef BOOL
-#define BOOL int
-#endif //BOOL
-
-
-// FOR FUTURE USE - performance improvement: create a context for each volume (each mirror thread) and a context for each file handle (in PDOKAN_FILE_INFO.Context)
-/*
-struct VolumeContext {
-	union {
-		struct Folder* folder;		// Pointer to the struct folder of this volume
-		struct Pendrive* pendrive;	// Pointer to the struct folder of this volume
-	};
-	char** sync_folders;			// Array of synchronization folders that affect this volume (after conversion from "C:\..." to "M:\...", "N:\...", etc)
-	BOOL any_sync_folder;
-	BOOL is_pendrive;				// If this volume is a pendrive (detected from USB and mounted as such)
-};
-
-struct FileContext {
-	struct App* app;
-	BOOL is_sync_folder;
-};
-*/
-
-
-
-
-/////  FUNCTION PROTOTYPES  /////
-
-
-static struct App* createApp();
-
-static void destroyApp(struct App** app);
-
-
-static enum Operation getTableOperation(enum IrpOperation irp_operation, char* app_full_path, char* file_full_path);
-
-
-inline struct OpTable* getTable(char* file_full_path);
-
-inline struct App* getApp(char* app_full_path);
-
-inline char getDiskType(char* file_full_path);
-
-inline enum Operation* getOperations(char disk_letter, enum AppType app_type, struct OpTable* table);
-
-static void formatPath(char** full_path);
 
 
 /////  FUNCTION DEFINITIONS  /////
@@ -142,7 +83,7 @@ static void destroyApp(struct App** app) {
 * @return enum Operation
 *		The logic that must be done for the given irp operation, appfile
 **/
-static enum Operation getTableOperation(enum IrpOperation irp_operation, char* app_full_path, char* file_full_path) {
+enum Operation getTableOperation(enum IrpOperation irp_operation, char* app_full_path, char* file_full_path) {
 	enum Operation *result_operation = NULL;
 	struct OpTable* table = NULL;
 	enum AppType app_type = ANY;
@@ -284,7 +225,7 @@ inline enum Operation* getOperations(char disk_letter, enum AppType app_type, st
 	return operations;
 }
 
-static void formatPath(char** full_path) {
+void formatPath(char** full_path) {
 	char* tmp_str = NULL;
 
 	// WARNING!!!  read below
@@ -299,15 +240,23 @@ static void formatPath(char** full_path) {
 	//		- May contain relative paths inside (like references to the same path "./" or to the parent directory "../").
 	//		- If the path refers to a folder, it may or not contain a trailing slash.
 
-	// Clear possible backward slashes into forward slashes
-	tmp_str = strchr(*full_path, '\\');
+	// Clear possible forward slashes into backward slashes
+	tmp_str = strchr(*full_path, '/');
 	while (tmp_str != NULL) {
-		*tmp_str = '/';
-		tmp_str = strchr(*full_path, '\\');
+		*tmp_str = '\\';
+		tmp_str = strchr(*full_path, '/');
 	}
 
 	// TO DO MORE FORMATTING
+
+	// Call GetFullPathName(). Normalices to absolute paths and removes the "./" and "../"
+	// If it is directory to add trailing slash. Check with PathIsDirectoryA()
+	//
+	// Other possibility is to open a handle with the path and use function GetFinalPathNameByHandle()
 }
 
-
-#endif context_c
+void fromDeviceToLetter(WCHAR** full_path) {
+	for (size_t i = 0; i < _msize(letter_device_table) / sizeof(struct LetterDeviceMap); i++) {
+		// TO DO
+	}
+}

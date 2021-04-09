@@ -1,10 +1,17 @@
+
+/////  FILE INCLUDES  /////
+
 #include <Windows.h>
 #include "dokan.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "config.h"
-#include "context.c"
+#include "context.h"
 
+
+
+
+/////  FUNCTION DEFINITIONS  /////
 
 int dokanMapAndLaunch(char* path, char letter) {
 	PDOKAN_OPTIONS dokan_options;

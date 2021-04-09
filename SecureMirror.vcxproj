@@ -153,6 +153,7 @@
   <ItemGroup>
     <ClCompile Include="config.c" />
     <ClCompile Include="context.c" />
+    <ClCompile Include="json.c" />
     <ClCompile Include="keymaker.c" />
     <ClCompile Include="logic.c" />
     <ClCompile Include="main.c" />
@@ -162,6 +163,8 @@
   <ItemGroup>
     <ClInclude Include="config.h" />
     <ClInclude Include="context.h" />
+    <ClInclude Include="context2.h" />
+    <ClInclude Include="main.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
