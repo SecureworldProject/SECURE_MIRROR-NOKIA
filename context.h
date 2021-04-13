@@ -13,6 +13,7 @@ Nokia Febrero 2021
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "windows.h"
 
 
 #ifdef __cplusplus
@@ -49,7 +50,7 @@ extern "C" {
 	static void printChallengeGroups();
 	static void printChallengeGroup(struct ChallengeEquivalenceGroup* group);
 	static void printChallenge(struct Challenge* challenge);
-	static void printDateNice(struct tm * time_info);
+	static void printDateNice(struct tm* time_info);
 	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id);
 	static struct Cipher* getCipherById(char* group_id);
 	static struct OpTable* getOpTableById(char* table_id);
@@ -65,7 +66,7 @@ extern "C" {
 		struct Folder** folders;
 		struct Pendrive* pendrive;
 		struct ParentalControl** parentals;
-		char** sync_folders;
+		WCHAR** sync_folders;
 		struct OpTable** tables;
 		struct App** apps;
 		struct ChallengeEquivalenceGroup** groups;
@@ -73,8 +74,8 @@ extern "C" {
 	} ctx;
 
 	struct Folder {
-		char* path;
-		char mount_point;
+		WCHAR* path;
+		WCHAR mount_point;
 		enum Driver driver;
 		struct Protection* protection;
 	};
@@ -91,13 +92,13 @@ extern "C" {
 	};
 
 	struct Pendrive {
-		char* mount_points;		// All  the possible letters to mount a pendrive, in a string like: "HIJKLMNOPQRSTUVWXYZ"
+		WCHAR* mount_points;		// All  the possible letters to mount a pendrive, in a string like: "HIJKLMNOPQRSTUVWXYZ"
 		enum Driver driver;
 		struct Protection* protection;
 	};
 
 	struct ParentalControl {
-		char* folder;
+		WCHAR* folder;
 		char** users;
 		struct ChallengeEquivalenceGroup** challenge_groups;
 	};
@@ -109,7 +110,7 @@ extern "C" {
 
 	struct Tuple {
 		enum AppType app_type;
-		char disk;			// A letter for the manually mirrored disks. Other valid values are: '0'=sync folders, '1'=pendrives
+		WCHAR disk;			// A letter for the manually mirrored disks. Other valid values are: '0'=sync folders, '1'=pendrives
 		enum Operation on_read;
 		enum Operation on_write;
 	};
@@ -133,8 +134,8 @@ extern "C" {
 	};
 
 	struct App {
-		char* path;
-		char* name;
+		WCHAR* path;
+		WCHAR* name;
 		enum AppType type;
 	};
 
@@ -152,7 +153,7 @@ extern "C" {
 
 	struct Cipher {
 		char* id;
-		char* file_name;
+		WCHAR* file_name;
 		int block_size;
 		char* custom;
 	};
@@ -179,8 +180,8 @@ extern "C" {
 		PRINT("Folders:\n");
 		for (int i = 0; i < _msize(ctx.folders) / sizeof(struct Folder*); i++) {
 			PRINT1("Folder:\n");
-			PRINT2("Path: %s\n", ctx.folders[i]->path);
-			PRINT2("Mount point: %c\n", ctx.folders[i]->mount_point);
+			PRINT2("Path: %ws\n", ctx.folders[i]->path);
+			PRINT2("Mount point: %wc\n", ctx.folders[i]->mount_point);
 			PRINT2("Driver: %d\n", ctx.folders[i]->driver);
 			PRINT2("Protection\n");
 			PRINT3("Op table: %s\n", ctx.folders[i]->protection->op_table->id);
@@ -194,7 +195,7 @@ extern "C" {
 		// Pendrive
 		PRINT("\n");
 		PRINT("Pendrive:\n");
-		PRINT1("Mount points: %s\n", ctx.pendrive->mount_points);
+		PRINT1("Mount points: %ws\n", ctx.pendrive->mount_points);
 		PRINT1("Driver: %d\n", ctx.pendrive->driver);
 		PRINT1("Protection\n");
 		PRINT2("Op table: %s\n", ctx.pendrive->protection->op_table->id);
@@ -209,7 +210,7 @@ extern "C" {
 		PRINT("Parental controls:\n");
 		for (int i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
 			PRINT1("Parental control:\n");
-			PRINT2("Folder: %s\n", ctx.parentals[i]->folder);
+			PRINT2("Folder: %ws\n", ctx.parentals[i]->folder);
 			PRINT2("Challenge groups: ");
 			for (int j = 0; j < _msize(ctx.parentals[i]->challenge_groups) / sizeof(char*); j++) {
 				PRINT("%s%s", ctx.parentals[i]->challenge_groups[j]->id, (j + 1 < _msize(ctx.parentals[i]->challenge_groups) / sizeof(char*)) ? ", " : "\n");
@@ -223,8 +224,8 @@ extern "C" {
 		// Sync folders
 		PRINT("\n");
 		PRINT("Sync folders: ");
-		for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(char*); i++) {
-			PRINT("%s%s", ctx.sync_folders[i], (i + 1 < _msize(ctx.sync_folders) / sizeof(char*)) ? ", " : "\n");
+		for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(WCHAR*); i++) {
+			PRINT("%ws%s", ctx.sync_folders[i], (i + 1 < _msize(ctx.sync_folders) / sizeof(WCHAR*)) ? ", " : "\n");
 		}
 
 		// Operative tables
@@ -239,7 +240,7 @@ extern "C" {
 			PRINT2("|       |            |        |           |            |\n");
 
 			for (int j = 0; j < _msize(ctx.tables[i]->tuples) / sizeof(struct Tuple*); j++) {	// Iterate over rows of each table (the so called "table tuples")
-				PRINT2("|  %2d   |     %2d     |    %c   |    %2d     |     %2d     |\n",
+				PRINT2("|  %2d   |     %2d     |    %wc   |    %2d     |     %2d     |\n",
 					j,
 					ctx.tables[i]->tuples[j]->app_type,
 					ctx.tables[i]->tuples[j]->disk,
@@ -255,8 +256,8 @@ extern "C" {
 		PRINT("Apps:\n");
 		for (int i = 0; i < _msize(ctx.apps) / sizeof(struct App*); i++) {
 			PRINT1("App:\n");
-			PRINT2("Name: %s \n", ctx.apps[i]->name);
-			PRINT2("Path: %s \n", ctx.apps[i]->path);
+			PRINT2("Path: %ws \n", ctx.apps[i]->path);
+			PRINT2("Name: %ws \n", ctx.apps[i]->name);
 			PRINT2("Type: %d \n", ctx.apps[i]->type);
 		}
 
@@ -269,7 +270,7 @@ extern "C" {
 		for (int i = 0; i < _msize(ctx.ciphers) / sizeof(struct Cipher*); i++) {
 			PRINT1("Cipher:\n");
 			PRINT2("Id: %s \n", ctx.ciphers[i]->id);
-			PRINT2("Filename: %s \n", ctx.ciphers[i]->file_name);
+			PRINT2("Filename: %ws \n", ctx.ciphers[i]->file_name);
 			PRINT2("Blocksize: %d \n", ctx.ciphers[i]->block_size);
 			PRINT2("Custom: %s \n", ctx.ciphers[i]->custom);
 		}

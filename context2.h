@@ -1,6 +1,7 @@
 #ifndef context2_h
 #define context2_h
 
+#include "windows.h"
 
 
 /////  FUNCTION PROTOTYPES  /////
@@ -10,12 +11,12 @@ static void destroyApp(struct App** app);
 
 enum Operation getTableOperation(enum IrpOperation irp_operation, char* app_full_path, char* file_full_path);
 
-inline struct OpTable* getTable(char* file_full_path);
-inline struct App* getApp(char* app_full_path);
-inline char getDiskType(char* file_full_path);
-inline enum Operation* getOperations(char disk_letter, enum AppType app_type, struct OpTable* table);
-void formatPath(char** full_path);
-
+inline struct OpTable* getTable(WCHAR* file_full_path);
+inline struct App* getApp(WCHAR* app_full_path);
+inline WCHAR getDiskType(WCHAR* file_full_path);
+inline enum Operation* getOperations(WCHAR disk_letter, enum AppType app_type, struct OpTable* table);
+void formatPathOLD(char** full_path);
+void formatPath(WCHAR** full_path);
 
 
 
@@ -35,8 +36,7 @@ struct VolumeContext {
 		struct Folder* folder;		// Pointer to the struct folder of this volume
 		struct Pendrive* pendrive;	// Pointer to the struct folder of this volume
 	};
-	char** sync_folders;			// Array of synchronization folders that affect this volume (after conversion from "C:\..." to "M:\...", "N:\...", etc)
-	BOOL any_sync_folder;
+	WCHAR** sync_folders;			// Array of synchronization folders that affect this volume (after conversion from "C:\..." to "M:\...", "N:\...", etc)
 	BOOL is_pendrive;				// If this volume is a pendrive (detected from USB and mounted as such)
 };
 

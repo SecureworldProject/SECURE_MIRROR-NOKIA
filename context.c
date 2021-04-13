@@ -25,15 +25,15 @@ static struct App* createApp() {
 	struct App* app =  malloc(sizeof(struct App));
 	if (app) {
 
-		app->name = malloc(MAX_PATH * sizeof(char));
+		app->name = malloc(MAX_PATH * sizeof(WCHAR));
 		if (app->name)
-			memset(app->name, '\0', MAX_PATH * sizeof(char));
+			memset(app->name, L'\0', MAX_PATH * sizeof(WCHAR));
 		else
 			goto _LABEL_FREE;
 
-		app->path = malloc(MAX_PATH * sizeof(char));
+		app->path = malloc(MAX_PATH * sizeof(WCHAR));
 		if (app->path)
-			memset(app->path, '\0', MAX_PATH * sizeof(char));
+			memset(app->path, L'\0', MAX_PATH * sizeof(WCHAR));
 		else
 			goto _LABEL_FREE;
 
@@ -111,12 +111,12 @@ enum Operation getTableOperation(enum IrpOperation irp_operation, char* app_full
 }
 
 
-inline struct OpTable* getTable(char* file_full_path) {
-	char letter = '\0';
+inline struct OpTable* getTable(WCHAR* file_full_path) {
+	WCHAR letter = L'\0';
 
 	// For the moment assume the path is good and then letter is position 0 of the string.
 	letter = file_full_path[0];
-	letter = toupper(letter);
+	letter = towupper(letter);
 
 	// Return the table from the context folder which MountPoint matches the letter
 	for (int i = 0; i < _msize(ctx.folders) / sizeof(char*); i++) {
@@ -126,7 +126,7 @@ inline struct OpTable* getTable(char* file_full_path) {
 	}
 
 	// Check if the letter is a pendrive
-	for (int i = 0; i < strlen(ctx.pendrive->mount_points); i++) {
+	for (int i = 0; i < wcslen(ctx.pendrive->mount_points); i++) {
 		if (ctx.pendrive->mount_points[i] == letter) {
 			return ctx.pendrive->protection->op_table;
 		}
@@ -136,10 +136,10 @@ inline struct OpTable* getTable(char* file_full_path) {
 	return NULL;
 }
 
-inline struct App* getApp(char* app_full_path) {
+inline struct App* getApp(WCHAR* app_full_path) {
 	enum AppType app_type = ANY;
 	struct App* app = NULL;
-	char* tmp_str = NULL;
+	WCHAR* tmp_str = NULL;
 	size_t len = 0;
 	BOOL match_found = FALSE;
 
@@ -147,19 +147,19 @@ inline struct App* getApp(char* app_full_path) {
 	app = createApp();
 
 	// Find last position of a forward slash, which divides string in "path" and "name" (e.g.:  C:/path/to/folder/name.exe)
-	tmp_str = strrchr(app_full_path, '/');
+	tmp_str = wcsrchr(app_full_path, L'/');
 
 	// Fill app path and name
-	*tmp_str = '\0';
+	*tmp_str = L'\0';
 	len = strlen(app_full_path);
-	strcpy(app->path, app_full_path);
-	app->path[len] = '/';
-	app->path[len + 1] = '\0';
-	strcpy(app->name, tmp_str + 1);
+	wcscpy(app->path, app_full_path);
+	app->path[len] = L'/';
+	app->path[len + 1] = L'\0';
+	wcscpy(app->name, tmp_str + 1);
 
 	// For every app in the list check if the path is the same
 	for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
-		if (strcmp(ctx.apps[i]->path, app->path) == 0) {
+		if (wcscmp(ctx.apps[i]->path, app->path) == 0) {
 			match_found = TRUE;
 			app->type = ctx.apps[i]->type;
 			break;
@@ -168,7 +168,7 @@ inline struct App* getApp(char* app_full_path) {
 
 	// For every app in the list check if the name is the same
 	for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
-		if (strcmp(ctx.apps[i]->name, app->name) == 0) {
+		if (wcscmp(ctx.apps[i]->name, app->name) == 0) {
 			match_found = TRUE;
 			app->type = ctx.apps[i]->type;
 			break;
@@ -178,27 +178,27 @@ inline struct App* getApp(char* app_full_path) {
 	return app;
 }
 
-inline char getDiskType(char* file_full_path) {
+inline WCHAR getDiskType(WCHAR* file_full_path) {
 	// It can be '0' (sync folders), '1' (pendrives) or any letter ('a', 'b', 'c', etc.)
-	char* tmp_str = NULL;
-	char letter = '\0';
+	WCHAR* tmp_str = NULL;
+	WCHAR letter = L'\0';
 
 	// Check if it is syncfolder
-	for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(char*); i++) {
-		tmp_str = strstr(file_full_path, ctx.sync_folders[i]);
+	for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(WCHAR*); i++) {
+		tmp_str = wcsstr(file_full_path, ctx.sync_folders[i]);
 		if (tmp_str != NULL && tmp_str == file_full_path) {
-			return '0';			// It matches a syncfolder
+			return L'0';			// It matches a syncfolder
 		}
 	}
 
 	// Check if it is a pendrive
 	letter = file_full_path[0];
-	letter = toupper(letter);		// This should already have been done in formatPath()
+	letter = towupper(letter);		// This should already have been done in formatPath()
 
 	// Check if the letter is a pendrive
-	for (int i = 0; i < strlen(ctx.pendrive->mount_points); i++) {
+	for (int i = 0; i < wcslen(ctx.pendrive->mount_points); i++) {
 		if (ctx.pendrive->mount_points[i] == letter) {
-			return '1';
+			return L'1';
 		}
 	}
 
@@ -206,7 +206,7 @@ inline char getDiskType(char* file_full_path) {
 	return letter;
 }
 
-inline enum Operation* getOperations(char disk_letter, enum AppType app_type, struct OpTable* table) {
+inline enum Operation* getOperations(WCHAR disk_letter, enum AppType app_type, struct OpTable* table) {
 	enum Operation* operations = NULL;
 
 	operations = malloc(NUM_IRP_OPERATIONS * sizeof(enum Operation));
@@ -225,7 +225,7 @@ inline enum Operation* getOperations(char disk_letter, enum AppType app_type, st
 	return operations;
 }
 
-void formatPath(char** full_path) {
+void formatPathOLD(char** full_path) {
 	char* tmp_str = NULL;
 
 	// WARNING!!!  read below
@@ -258,5 +258,48 @@ void formatPath(char** full_path) {
 void fromDeviceToLetter(WCHAR** full_path) {
 	for (size_t i = 0; i < _msize(letter_device_table) / sizeof(struct LetterDeviceMap); i++) {
 		// TO DO
+	}
+}
+
+void formatPath(WCHAR** full_path) {
+	if (!PathFileExistsW(*full_path)) {
+		fprintf(stderr, "ERROR: path does not exist\n");
+		return;
+	}
+
+	HANDLE handle = NULL;
+	WCHAR* new_full_path = NULL;
+	DWORD result = 0;
+	DWORD attributes_flags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS;
+
+	/*if (PathIsDirectoryW(*full_path)) {
+		PRINT("directory!!!!\n");
+		attributes_flags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS;
+	} else {
+		PRINT("file!!!!\n");
+		attributes_flags = FILE_ATTRIBUTE_NORMAL;
+	}*/
+
+	handle = CreateFileW(*full_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, attributes_flags, NULL);
+
+	if (handle != INVALID_HANDLE_VALUE) {
+		result = GetFinalPathNameByHandleW(handle, new_full_path, 0, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+		if (result != 0) {
+			new_full_path = malloc(result * sizeof(WCHAR));
+			if (new_full_path) {
+				if (result - 1 == GetFinalPathNameByHandleW(handle, new_full_path, result, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS)) {
+					free(*full_path);
+					*full_path = new_full_path;
+				} else {
+					fprintf(stderr, "ERROR: something went wrong obtaining the path by handle (%lu)\n", GetLastError());
+					free(new_full_path);
+				}
+			}
+		} else {
+			fprintf(stderr, "ERROR: something went wrong obtaining the path by handle (%lu)\n", GetLastError());
+		}
+	CloseHandle(handle);
+	} else {
+		fprintf(stderr, "ERROR: invalid file handle (%lu)\n", GetLastError());
 	}
 }

@@ -21,7 +21,7 @@
 			}
 		},
 		{
-			"Path": "C:/Users/caso3/OneDrive/cosa1/",
+			"Path": "C:/Users/Pepito/OneDrive/cosa1/",
 			"MountPoint": "H",
 			"Driver": "Dokan",
 			"Protection": {
@@ -31,7 +31,7 @@
 			}
 		},
 		{
-			"Path": "C:/Users/caso3/OneDrive/cosa2/",
+			"Path": "C:/Users/Pepito/OneDrive/cosa2/",
 			"MountPoint": "I",
 			"Driver": "Dokan",
 			"Protection": {
@@ -67,8 +67,7 @@
 
 	"SyncFolders": [
 		"C:/Users/Pepito/Google Drive/",
-		"C:/Users/Pepito/OneDrive/",
-		"C:/Users/caso3/OneDrive/"
+		"C:\\Users/./Pepito/OneDrive/..\\OneDrive"
 	],
 
 	"OperativeTables": {
@@ -104,18 +103,18 @@
 
 	"Apps": [
 		{
-			"AppPath": "C:/program files/chrome", 
+			"AppPath": "C:/Program Files/Google/Chrome/Application/",
 			"AppName": "chrome.exe",
 			"AppType": "BROWSER"
 		},
 		{
-			"AppPath": "C:/program files/chrome", 
-			"AppName": "test.exe",
+			"AppPath": "C:/Program Files (x86)/Microsoft/Edge/Application",
+			"AppName": "msedge.exe",
 			"AppType": "MAILER"
 		},
 		{
-			"AppPath": "C:/program files/cosa/", 
-			"AppName": "cosa.exe",
+			"AppPath": "C:\\Windows",
+			"AppName": "notepad.exe",
 			"AppType": "ANY"
 		}
 	],
@@ -134,7 +133,7 @@
 				},
 				{
 					"Id": "ch2",
-					"Description": "The challenge checks if it ",
+					"Description": "The challenge checks if it working time.",
 					"Props": "one=1,two=2",
 					"Requirements": "none"
 				}

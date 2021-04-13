@@ -15,7 +15,6 @@
 #include <fileapi.h>
 
 
-
 /////  DEFINITIONS  /////
 
 #define NUM_LETTERS 26
@@ -26,8 +25,8 @@
 
 struct ThreadData {
 	int thread_id;
-	char letter;
-	char* path;
+	WCHAR letter;
+	WCHAR* path;
 };
 
 struct LetterDeviceMap {

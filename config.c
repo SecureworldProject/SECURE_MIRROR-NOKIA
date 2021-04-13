@@ -161,9 +161,9 @@ static void processFolder(int index, json_value* value, int depth) {
     for (x = 0; x < dict_length; x++) {
 
         if (strcmp(value->u.object.values[x].name, "Path") == 0) {
-            ctx.folders[index]->path = (char*)malloc(sizeof(char) * ((value->u.object.values[x].value->u.string.length)+1));
+            ctx.folders[index]->path = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[x].value->u.string.length)+1));
             if (ctx.folders[index]->path) {
-                strcpy(ctx.folders[index]->path, value->u.object.values[x].value->u.string.ptr);
+                mbstowcs(ctx.folders[index]->path, value->u.object.values[x].value->u.string.ptr, SIZE_MAX);
             } // else --> The pointer is null because it was not possible to allocate memory
         }
 
@@ -173,9 +173,9 @@ static void processFolder(int index, json_value* value, int depth) {
                 strcpy(ctx.folders[index]->mount_point, value->u.object.values[x].value->u.string.ptr);
             } // else --> The pointer is null because it was not possible to allocate memory*/
             if (value->u.object.values[x].value->u.string.length >= 1) {
-                ctx.folders[index]->mount_point = toupper(value->u.object.values[x].value->u.string.ptr[0]);
+                ctx.folders[index]->mount_point = btowc(toupper(value->u.object.values[x].value->u.string.ptr[0]));
             } else {
-                ctx.folders[index]->mount_point = '\0'; // ERROR
+                ctx.folders[index]->mount_point = L'\0'; // ERROR
                 fprintf(stderr, "WARNING: incorrect MountPoint.\n");
             }
         }
@@ -236,13 +236,13 @@ static void processPendrive(json_value* value, int depth) {
 
         if (strcmp(value->u.object.values[x].name, "MountPoints") == 0) {
 
-            ctx.pendrive->mount_points = (char*)malloc(sizeof(char) * ((value->u.object.values[x].value->u.string.length) + 1));
+            ctx.pendrive->mount_points = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[x].value->u.string.length) + 1));
             if (ctx.pendrive->mount_points) {
                 //strcpy(ctx.pendrive->mount_points, value->u.object.values[x].value->u.string.ptr);
                 for (size_t i = 0; i < value->u.object.values[x].value->u.string.length; i++) 		{
-                    ctx.pendrive->mount_points[i] = (char)toupper(value->u.object.values[x].value->u.string.ptr[i]);
+                    ctx.pendrive->mount_points[i] = btowc(toupper(value->u.object.values[x].value->u.string.ptr[i]));
                 }
-                ctx.pendrive->mount_points[value->u.object.values[x].value->u.string.length] = '\0';
+                ctx.pendrive->mount_points[value->u.object.values[x].value->u.string.length] = L'\0';
             } // else --> The pointer is null because it was not possible to allocate memory
         }
 
@@ -284,9 +284,9 @@ static void processParentalControls(json_value* value, int depth) {
                     for (int j = 0; j < dict_length; j++) {
 
                         if (strcmp(array_value->u.object.values[j].name, "Folder") == 0) {
-                            ctx.parentals[i]->folder = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.string.length) + 1));
+                            ctx.parentals[i]->folder = (WCHAR*)malloc(sizeof(WCHAR) * ((array_value->u.object.values[j].value->u.string.length) + 1));
                             if (ctx.parentals[i]->folder) {
-                                strcpy(ctx.parentals[i]->folder, array_value->u.object.values[j].value->u.string.ptr);
+                                mbstowcs(ctx.parentals[i]->folder, array_value->u.object.values[j].value->u.string.ptr, SIZE_MAX);
                             } // else --> The pointer is null because it was not possible to allocate memory
                         }
 
@@ -344,12 +344,12 @@ static void processSyncFolders(json_value* value, int depth) {
     if (array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
         ctx.sync_folders = NULL;
     } else {
-        ctx.sync_folders = (char**)malloc(array_length * sizeof(char*));
+        ctx.sync_folders = (WCHAR**)malloc(array_length * sizeof(WCHAR*));
         if (ctx.sync_folders) 	{
             for (int i = 0; i < array_length; i++) {
-                ctx.sync_folders[i] = (char*)malloc(sizeof(char) * ((value->u.array.values[i]->u.string.length) + 1));
+                ctx.sync_folders[i] = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.array.values[i]->u.string.length) + 1));
                 if (ctx.sync_folders[i]) {
-                    strcpy(ctx.sync_folders[i], value->u.array.values[i]->u.string.ptr);
+                    mbstowcs(ctx.sync_folders[i], value->u.array.values[i]->u.string.ptr, SIZE_MAX);
                 } // else --> The pointer is null because it was not possible to allocate memory
             }
         } // else --> The pointer is null because it was not possible to allocate memory
@@ -383,9 +383,9 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
 
             if (strcmp(value->u.object.values[x].name, "Disk") == 0) {
                 if (value->u.object.values[x].value->u.string.length >= 1) {
-                    ctx.tables[table_index]->tuples[row_index]->disk = toupper(value->u.object.values[x].value->u.string.ptr[0]);
+                    ctx.tables[table_index]->tuples[row_index]->disk = btowc(toupper(value->u.object.values[x].value->u.string.ptr[0]));
                 } else {
-                    ctx.tables[table_index]->tuples[row_index]->disk = '\0';
+                    ctx.tables[table_index]->tuples[row_index]->disk = L'\0';
                     fprintf(stderr, "WARNING: incorrect Disk.\n");
                 }
             }
@@ -477,16 +477,16 @@ static void processApp(int index, json_value* value, int depth) {
         num_elem = value->u.object.length;
         for (i = 0; i < num_elem; i++) {
             if (strcmp(value->u.object.values[i].name, "AppPath") == 0) {
-                ctx.apps[index]->path = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
+                ctx.apps[index]->path = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[i].value->u.string.length) + 1));
                 if (ctx.apps[index]->path) {
-                    strcpy(ctx.apps[index]->path, value->u.object.values[i].value->u.string.ptr);
+                    mbstowcs(ctx.apps[index]->path, value->u.object.values[i].value->u.string.ptr, SIZE_MAX);
                 } // else --> The pointer is null because it was not possible to allocate memory
             }
 
             else if (strcmp(value->u.object.values[i].name, "AppName") == 0) {
-                ctx.apps[index]->name = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
+                ctx.apps[index]->name = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[i].value->u.string.length) + 1));
                 if (ctx.apps[index]->name) {
-                    strcpy(ctx.apps[index]->name, value->u.object.values[i].value->u.string.ptr);
+                    mbstowcs(ctx.apps[index]->name, value->u.object.values[i].value->u.string.ptr, SIZE_MAX);
                 } // else --> The pointer is null because it was not possible to allocate memory
             }
 
@@ -624,9 +624,9 @@ static void processCipher(int index, json_value* value, int depth) {
     for (i = 0; i < num_elems; i++) {
 
         if (strcmp(value->u.object.values[i].name, "FileName") == 0) {
-            ctx.ciphers[index]->file_name = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
+            ctx.ciphers[index]->file_name = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[i].value->u.string.length) + 1));
             if (ctx.ciphers[index]->file_name) {
-                strcpy(ctx.ciphers[index]->file_name, value->u.object.values[i].value->u.string.ptr);
+                mbstowcs(ctx.ciphers[index]->file_name, value->u.object.values[i].value->u.string.ptr, SIZE_MAX);
             } // else --> The pointer is null because it was not possible to allocate memory
         }
 
@@ -896,7 +896,7 @@ void formatCtxPaths() {
     }
 
     // Format sync folder paths
-    for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(char*); i++) {
+    for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(WCHAR*); i++) {
         formatPath(&ctx.sync_folders[i]);
     }
 
@@ -940,11 +940,17 @@ void convertSyncFolderPaths() {
     // Example mirror path:     "C:\Users\Sergio\Onedrive\cosas\",  letter: 'I'
     // Result: combination of case 1 and case 3. New sync folders: "H:\OneDrive\", "I:\"
 
-    char* tmp_str = NULL;
+    // Another example:
+    // Example syncfolder:      "C:\Users\Sergio\Cosas\OneDrive\"
+    // Example mirror path:     "C:\Users\Sergio\",  letter: 'H'
+    // Example mirror path:     "C:\Users\Sergio\Cosas\",  letter: 'I'
+    // Result: combination of case 1 and case 1 again. New sync folders: "H:\Cosas\OneDrive\", "I:\OneDrive\"
+
+    WCHAR* tmp_str = NULL;
     size_t mirr_len = 0;
     size_t sync_len = 0;
-    char** new_sync_folders = NULL;
-    char** tmp_reallocated_new_sync_folders = NULL;
+    WCHAR** new_sync_folders = NULL;
+    WCHAR** tmp_reallocated_new_sync_folders = NULL;
     int size_new_sync_folders = 10;
     int new_sync_folder_index = 0;
 
@@ -954,36 +960,36 @@ void convertSyncFolderPaths() {
         return;
     }
 
-    new_sync_folders = malloc(sizeof(char*) * size_new_sync_folders);
+    new_sync_folders = malloc(sizeof(WCHAR*) * size_new_sync_folders);
     if (new_sync_folders == NULL) {
         fprintf(stderr, "Error: not enough memory. Could not complete conversion.\n");
         return;
     }
 
-    for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(char*); i++) {
+    for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(WCHAR*); i++) {
         // Each folder is: ctx.sync_folders[i]
-        PRINT1("i: %d \t %s\n", i, ctx.sync_folders[i]);
+        PRINT1("i: %d \t %ws\n", i, ctx.sync_folders[i]);
 
         // Check if for each of the Folders the path is prefix substring of the current syncfolder or vice versa
         for (int j = 0; j < _msize(ctx.folders) / sizeof(struct Folder*); j++) {
             // Each folder is: ctx.folders[j]->path
-            PRINT2("j: %d \t\t %s\n", j, ctx.folders[j]->path);
+            PRINT2("j: %d \t\t %ws\n", j, ctx.folders[j]->path);
 
-            mirr_len = strlen(ctx.folders[j]->path);
-            sync_len = strlen(ctx.sync_folders[i]);
+            mirr_len = wcslen(ctx.folders[j]->path);
+            sync_len = wcslen(ctx.sync_folders[i]);
             if (mirr_len <= sync_len) {     // Only if mirror folder path is smaller or equal to sync folder path in length
                 // CASE 1 or CASE 2
-                tmp_str = strstr(ctx.sync_folders[i], ctx.folders[j]->path);
+                tmp_str = wcsstr(ctx.sync_folders[i], ctx.folders[j]->path);
                 if (tmp_str != NULL && tmp_str == ctx.sync_folders[i]) {
                     // It matches a syncfolder (folder path is prefix of sync folder)
                     PRINT3("Match found, case 1 or case 2. Processing...\n");
 
-                    tmp_str = (char*)malloc(sizeof(char) * (sync_len - mirr_len + 3 + 1));  // +3 to add letter ("X:\") and +1 is to add '\0'
+                    tmp_str = (WCHAR*)malloc(sizeof(WCHAR) * (sync_len - mirr_len + 3 + 1));  // +3 to add letter ("X:\") and +1 is to add '\0'
                     if (tmp_str != NULL) {
                         tmp_str[0] = ctx.folders[j]->mount_point;
-                        tmp_str[1] = (char)':';
-                        tmp_str[2] = (char)'\\';
-                        strcpy(&(tmp_str[3]), &((ctx.sync_folders[i])[mirr_len]));   // copies the rest of the sync folder and appends '\0'
+                        tmp_str[1] = L':';
+                        tmp_str[2] = L'\\';
+                        wcscpy(&(tmp_str[3]), &((ctx.sync_folders[i])[mirr_len + 1]));  // Append the rest of sync folder and '\0' (+1 to skip slash)
 
                         // Check if this match fits inside allocated space of new_sync_folders (if not, realloc so it fits)
                         if (new_sync_folder_index >= size_new_sync_folders) {
@@ -1004,17 +1010,17 @@ void convertSyncFolderPaths() {
                 }
             } else {
                 // CASE 3
-                tmp_str = strstr(ctx.folders[j]->path, ctx.sync_folders[i]);
+                tmp_str = wcsstr(ctx.folders[j]->path, ctx.sync_folders[i]);
                 if (tmp_str != NULL && tmp_str == ctx.folders[j]->path) {
                     // It matches a syncfolder (folder path is prefix of sync folder)
                     PRINT3("Match found, case 3. Processing...\n");
 
-                    tmp_str = (char*)malloc(sizeof(char) * (3 + 1));  // 3 to add letter ("X:\") and +1 is to add '\0'
+                    tmp_str = (WCHAR*)malloc(sizeof(WCHAR) * (3 + 1));  // 3 to add letter ("X:\") and +1 is to add '\0'
                     if (tmp_str != NULL) {
                         tmp_str[0] = ctx.folders[j]->mount_point;
-                        tmp_str[1] = (char)':';
-                        tmp_str[2] = (char)'\\';
-                        tmp_str[3] = (char)'\0';
+                        tmp_str[1] = L':';
+                        tmp_str[2] = L'\\';
+                        tmp_str[3] = L'\0';
                     }
 
                     // Check if this match fits inside allocated space of new_sync_folders (if not, realloc so it fits)
@@ -1044,7 +1050,7 @@ void convertSyncFolderPaths() {
     PRINT1("Cleaning and reasigning internal pointers...\n");
 
     // Free all initial sync folders and the sync_folders pointer itself
-    for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(char*); i++) {
+    for (int i = 0; i < _msize(ctx.sync_folders) / sizeof(WCHAR*); i++) {
         free(ctx.sync_folders[i]);
     }
     free(ctx.sync_folders);
@@ -1053,7 +1059,7 @@ void convertSyncFolderPaths() {
     // Try to allocate memory for the correct size in ctx.sync_folders:
     //      If it works: put the pointers to the translated paths in this new buffer and free the other (new_sync_folders)
     //      If it does not work: assign the pointer to new_sync_folders to ctx.sync_folders and fill with NULLs the non used space for pointers.
-    ctx.sync_folders = malloc(sizeof(char*) * new_sync_folder_index);
+    ctx.sync_folders = malloc(sizeof(WCHAR*) * new_sync_folder_index);
     if (ctx.sync_folders) {
         for (int i = 0; i < new_sync_folder_index; i++) {
             ctx.sync_folders[i] = new_sync_folders[i];
