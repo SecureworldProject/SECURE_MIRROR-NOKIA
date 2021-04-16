@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="secure_mirror.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="config.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -51,6 +48,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="context2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="wrapper_dokan.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

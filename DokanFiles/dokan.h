@@ -161,6 +161,7 @@ typedef struct _DOKAN_OPTIONS {
   ULONG AllocationUnitSize;
   /** Sector Size of the volume. This will affect the file size. */
   ULONG SectorSize;
+  int thread_index;
 } DOKAN_OPTIONS, *PDOKAN_OPTIONS;
 
 /**

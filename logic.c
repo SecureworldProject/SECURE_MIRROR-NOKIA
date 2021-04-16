@@ -14,6 +14,8 @@ Nokia Febrero 2021
 #include "winnt.h"
 #include <psapi.h>
 #include "context.h"
+#include "wrapper_dokan.h"
+//#include "wrapper_winfsp.h"
 
 
 
@@ -24,8 +26,6 @@ int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer
 int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
 int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
 int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
-
-char* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info);
 
 
 
@@ -199,38 +199,4 @@ int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer,
 	}
 
 	return 0;
-}
-
-
-
-/**
-* Returns the full path of the application performing an file operation (open, read, write, etc.) in a Dokan filesystem
-* Note the returned full path is in Device form. Example: "\\Device\\Harddisk0\\Partition1\\Windows\\System32\\Ctype.nls"
-* Memory for the path is allocated inside, remember to free after use.
-*
-* @param PDOKAN_FILE_INFO dokan_file_info:
-*		The dokan information of the file filesystem operation.
-*
-* @return char*:
-*		The full path of the application performing the file operation.
-**/
-char* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info) {
-	PRINT("hemos llegado aqui---------------\n");
-	HANDLE process_handle;
-	CHAR * process_full_path = NULL;
-	size_t process_full_path_length = 0;
-
-	process_full_path_length = MAX_PATH;
-	process_full_path = malloc(process_full_path_length * sizeof(char));
-	if (process_full_path != NULL) {
-		process_handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, dokan_file_info->ProcessId);
-
-		if (GetProcessImageFileNameA(process_handle, process_full_path, process_full_path_length) > 0) {
-			CloseHandle(process_handle);
-			return process_full_path;
-		}
-		free(process_full_path);
-	}
-
-	return NULL;
 }

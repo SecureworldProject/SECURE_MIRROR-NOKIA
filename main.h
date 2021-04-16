@@ -21,10 +21,11 @@
 
 
 
+
 /////  STRUCTS AND ENUMS  /////
 
 struct ThreadData {
-	int thread_id;
+	int index;
 	WCHAR letter;
 	WCHAR* path;
 };
@@ -46,8 +47,9 @@ struct LetterDeviceMap* letter_device_table;
 int main(int argc, char* argv[]);
 int threadDokan(struct ThreadData* th_data);
 int threadWinFSP(struct ThreadData* th_data);
-void decipherMenu();
+void decipherFileMenu();
+void uvaFileMenu();
 void initLetterDeviceMapping();
 
 
-#endif // !MAIN_H
+#endif // !__MAIN_H

@@ -83,7 +83,7 @@ static void destroyApp(struct App** app) {
 * @return enum Operation
 *		The logic that must be done for the given irp operation, appfile
 **/
-enum Operation getTableOperation(enum IrpOperation irp_operation, char* app_full_path, char* file_full_path) {
+enum Operation getTableOperation(enum IrpOperation irp_operation, WCHAR* app_full_path, WCHAR* file_full_path) {
 	enum Operation *result_operation = NULL;
 	struct OpTable* table = NULL;
 	enum AppType app_type = ANY;
@@ -255,15 +255,81 @@ void formatPathOLD(char** full_path) {
 	// Other possibility is to open a handle with the path and use function GetFinalPathNameByHandle()
 }
 
-void fromDeviceToLetter(WCHAR** full_path) {
-	for (size_t i = 0; i < _msize(letter_device_table) / sizeof(struct LetterDeviceMap); i++) {
-		// TO DO
+int fromDeviceToLetter(WCHAR** full_path) {
+	WCHAR* tmp_str = NULL;
+	WCHAR* match_ptr;
+	WCHAR* new_full_path;
+	size_t initial_len;
+	size_t device_len;
+
+	// Clear possible forward slashes into backward slashes
+	PRINT("Clearing slashes in '%ws'\n", *full_path);
+	tmp_str = wcschr(*full_path, L'/');
+	while (tmp_str != NULL) {
+		*tmp_str = L'\\';
+		tmp_str = wcschr(*full_path, L'/');
 	}
+
+	// Change Device path for DOS letter path
+	PRINT("Looking for Device path match in '%ws'\n", *full_path);
+	initial_len = wcslen(*full_path);
+	for (size_t i = 0; i < _msize(letter_device_table) / sizeof(struct LetterDeviceMap); i++) {
+		device_len = wcslen(letter_device_table[i].device);
+		if (initial_len > device_len) {
+			match_ptr = wcsstr(*full_path, letter_device_table[i].device);
+			if (match_ptr && match_ptr == *full_path) {
+				PRINT("Match found, allocating %lld * sizeof(WCHAR)\n", (initial_len - device_len + 2));
+				new_full_path = malloc((initial_len - device_len + 2) * sizeof(WCHAR));
+				if (new_full_path) {
+					// Fill new full path
+					PRINT("Allocate success: Fill new full path\n");
+					new_full_path[0] = letter_device_table[i].letter;
+					new_full_path[1] = L':';
+					wcscpy(&(new_full_path[2]), &((*full_path)[device_len-1+1]));	// -1 because indexes start on 0 and +1 to start on the next slot
+					// Free old full path
+					PRINT("Allocate success: Free old full path\n");
+					free(*full_path);
+					// Assign new full path
+					PRINT("Allocate success: Assign new full path\n");
+					*full_path = new_full_path;
+					return 0;
+				} else {
+					return 2;	// Could not allocate memory
+				}
+			}
+		}
+	}
+
+	return 1;	// No matches
 }
 
 void formatPath(WCHAR** full_path) {
+	PRINT("Function formatPath() starts with '%ws'\n", *full_path);
+	if (wcsstr(*full_path, L"Device") != NULL) {	//== &((*full_path)[1])) {
+		PRINT("Starting fromDeviceToLetter() function on '%ws'\n", *full_path);
+		switch (fromDeviceToLetter(full_path)) {
+			case 0:
+				PRINT("New path is: %ws\n", *full_path);
+				break;
+			case 1:
+				PRINT("No matches found\n");
+				break;
+			case 2:
+				fprintf(stderr, "ERROR: could not allocate memory\n");
+				break;
+			default:
+				fprintf(stderr, "ERROR: unknown error\n");
+				break;
+		}
+	} else {
+		PRINT("Skipping device to letter conversion...\n");
+	}
+
 	if (!PathFileExistsW(*full_path)) {
-		fprintf(stderr, "ERROR: path does not exist\n");
+		fprintf(stderr, "ERROR: path does not exist.\n");
+		wchar_t err_buf[256];
+		FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_buf, (sizeof(err_buf) / sizeof(wchar_t)), NULL);
+		fprintf(stderr, "ErrorMessage=%ws\n", err_buf);
 		return;
 	}
 
@@ -294,6 +360,8 @@ void formatPath(WCHAR** full_path) {
 					fprintf(stderr, "ERROR: something went wrong obtaining the path by handle (%lu)\n", GetLastError());
 					free(new_full_path);
 				}
+			} else {
+				fprintf(stderr, "ERROR: could not allocate memory\n");
 			}
 		} else {
 			fprintf(stderr, "ERROR: something went wrong obtaining the path by handle (%lu)\n", GetLastError());
@@ -302,4 +370,6 @@ void formatPath(WCHAR** full_path) {
 	} else {
 		fprintf(stderr, "ERROR: invalid file handle (%lu)\n", GetLastError());
 	}
+
+	PRINT("Function formatPath() ends with '%ws'\n", *full_path);
 }
