@@ -71,6 +71,7 @@ extern "C" {
 		struct App** apps;
 		struct ChallengeEquivalenceGroup** groups;
 		struct Cipher** ciphers;
+		struct ThirdParty** third_parties;
 	} ctx;
 
 	struct Folder {
@@ -156,6 +157,12 @@ extern "C" {
 		WCHAR* file_name;
 		int block_size;
 		char* custom;
+	};
+
+	struct ThirdParty {
+		char* id;
+		struct Cipher* cipher;
+		char* key;
 	};
 
 	#pragma endregion
@@ -275,6 +282,15 @@ extern "C" {
 			PRINT2("Custom: %s \n", ctx.ciphers[i]->custom);
 		}
 
+		// Third Parties
+		PRINT("\n");
+		PRINT("Third Parties:\n");
+		for (int i = 0; i < _msize(ctx.third_parties) / sizeof(struct ThirdParty*); i++) {
+			PRINT1("Third Party:\n");
+			PRINT2("Id: %s \n", ctx.third_parties[i]->id);
+			PRINT2("Cipher: %s \n", ctx.third_parties[i]->cipher->id);
+			PRINT2("Key: '%s' \n", ctx.third_parties[i]->key);
+		}
 
 		PRINT("\n");
 		PRINT("PRINT CONTEXT ENDS\n");

@@ -7,7 +7,7 @@
 			"Protection": {
 				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1"],
-				"Cipher": "Cipher1"
+				"Cipher": "simple"
 			}
 		},
 		{
@@ -17,7 +17,7 @@
 			"Protection": {
 				"OpTable": "Table2",
 				"ChallengeEqGroups": ["Group1","Group2"],
-				"Cipher": "Cipher2"
+				"Cipher": "AES-128bit"
 			}
 		},
 		{
@@ -27,7 +27,7 @@
 			"Protection": {
 				"OpTable": "Table2",
 				"ChallengeEqGroups": ["Group1","Group2"],
-				"Cipher": "Cipher2"
+				"Cipher": "AES-128bit"
 			}
 		},
 		{
@@ -37,7 +37,7 @@
 			"Protection": {
 				"OpTable": "Table2",
 				"ChallengeEqGroups": ["Group1","Group2"],
-				"Cipher": "Cipher2"
+				"Cipher": "AES-128bit"
 			}
 		}
 	],
@@ -48,7 +48,7 @@
 		"Protection": {
 			"OpTable": "Table2",
 			"ChallengeEqGroups": ["Group1","Group2"],
-			"Cipher": "Cipher2"
+			"Cipher": "AES-128bit"
 		}
 	},
 
@@ -160,30 +160,35 @@
 	},
 
 	"Ciphers": {
-		"Cipher1": {
+		"simple": {
 			"FileName": "cipher_simple.dll",
 			"BlockSize": 0,
 			"Custom": ""
 		},
-		"Cipher2": {
+		"AES-128bit": {
 			"FileName": "AES128.dll",
 			"BlockSize": 128,
+			"Custom": ""
+		},
+		"RSA": {
+			"FileName": "RSA.dll",
+			"BlockSize": 0,
 			"Custom": ""
 		}
 	},
 
 	"ThirdParties": {
 		"Izertis":{
-			"Cipher": "Cipher2",
-			"PublicKey": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqGKukO1De7zhZj6+H0qtjTkVxwTCpvKe4eCZ0FPqri0cb2JZfXJ/DgYSF6vUpwmJG8wVQZKjeGcjDOL5UlsuusFncCzWBQ7RKNUSesmQRMSGkVb1/3j+skZ6UtW+5u09lHNsj6tQ51s1SPrCBkedbNf0Tp0GbMJDyR4e9T04ZZwIDAQAB"
+			"Cipher": "RSA",
+			"Key": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqGKukO1De7zhZj6+H0qtjTkVxwTCpvKe4eCZ0FPqri0cb2JZfXJ/DgYSF6vUpwmJG8wVQZKjeGcjDOL5UlsuusFncCzWBQ7RKNUSesmQRMSGkVb1/3j+skZ6UtW+5u09lHNsj6tQ51s1SPrCBkedbNf0Tp0GbMJDyR4e9T04ZZwIDAQAB"
 		},
 		"Optiva":{
-			"Cipher": "Cipher2",
-			"PublicKey": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCgohxrggmfhx6H1w+U7PQLW8MlFGQpPANzNoxH8x/ar4y1BqNm97k7QYUJcDxLZ8x97xwbsF21GFIzDRBzPI7bzl0WORSh14BsSK5piB1JCAD8wlpuFy/sXnL/7jj2jU2oDCI5ITG+OdHE41jXVVbfTrQ2+NpIg6OXwWXE91B5CwIDAQAB"
+			"Cipher": "RSA",
+			"Key": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCgohxrggmfhx6H1w+U7PQLW8MlFGQpPANzNoxH8x/ar4y1BqNm97k7QYUJcDxLZ8x97xwbsF21GFIzDRBzPI7bzl0WORSh14BsSK5piB1JCAD8wlpuFy/sXnL/7jj2jU2oDCI5ITG+OdHE41jXVVbfTrQ2+NpIg6OXwWXE91B5CwIDAQAB"
 		},
 		"Others":{
-			"Cipher": "Cipher2",
-			"PublicKey": ""
+			"Cipher": "RSA",
+			"Key": ""
 		}
 	}
 }

@@ -118,7 +118,7 @@ static void processProtection(struct Protection* ctx_value, json_value* value, i
             } // else --> The pointer is null because it was not possible to allocate memory
         }
 
-        if (strcmp(value->u.object.values[x].name, "ChallengeEqGroups") == 0) {
+        else if (strcmp(value->u.object.values[x].name, "ChallengeEqGroups") == 0) {
             //Este objeto es un array
             num_groups = value->u.object.values[x].value->u.array.length;
             if (num_groups <= 0) {          // Fixes warning C6386 (Visual Studio bug)
@@ -139,7 +139,7 @@ static void processProtection(struct Protection* ctx_value, json_value* value, i
             }
         }
 
-        if (strcmp(value->u.object.values[x].name, "Cipher") == 0) {
+        else if (strcmp(value->u.object.values[x].name, "Cipher") == 0) {
             ctx_value->cipher = malloc(sizeof(char) * ((value->u.object.values[x].value->u.string.length) + 1));
             if (ctx_value->cipher) {
                 #pragma warning(suppress: 4133)
@@ -671,6 +671,59 @@ static void processCiphers(json_value* value, int depth) {
     PRINT(" - processCiphers() ends\n");
 }
 
+static void processThirdParty(int index, json_value* value, int depth) {
+    int i, num_elems;
+
+    num_elems = value->u.object.length;
+    for (i = 0; i < num_elems; i++) {
+
+        if (strcmp(value->u.object.values[i].name, "Cipher") == 0) {
+            ctx.third_parties[index]->cipher = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
+            if (ctx.third_parties[index]->cipher) {
+                #pragma warning(suppress: 4133)
+                strcpy(ctx.third_parties[index]->cipher, value->u.object.values[i].value->u.string.ptr);
+            } // else --> The pointer is null because it was not possible to allocate memory
+        }
+
+        else if (strcmp(value->u.object.values[i].name, "Key") == 0) {
+            ctx.third_parties[index]->key = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
+            if (ctx.third_parties[index]->key) {
+                strcpy(ctx.third_parties[index]->key, value->u.object.values[i].value->u.string.ptr);
+            } // else --> The pointer is null because it was not possible to allocate memory
+        }
+    }
+}
+
+static void processThirdParties(json_value* value, int depth) {
+    PRINT(" - processThirdParties() starts\n");
+
+    int i, num_third_parties;
+    json_value* third_party_value;
+
+    num_third_parties = value->u.object.length;
+    if (num_third_parties <= 0) {     // Fixes warning C6386 (Visual Studio bug)
+        ctx.third_parties = NULL;
+    } else {
+        ctx.third_parties = (struct ThirdParty**)malloc(num_third_parties * sizeof(struct ThirdParty*));
+        if (ctx.third_parties) {
+            for (i = 0; i < num_third_parties; i++) {
+                ctx.third_parties[i] = malloc(sizeof(struct ThirdParty));
+                if (ctx.third_parties[i]) {
+                    // The third party id is processeed here because it is the name of dictionary, the rest is done inside processThirdParty()
+                    ctx.third_parties[i]->id = malloc(sizeof(char) * ((value->u.object.values[i].name_length) + 1));
+                    if (ctx.third_parties[i]->id) {
+                        strcpy(ctx.third_parties[i]->id, value->u.object.values[i].name);
+                        third_party_value = value->u.object.values[i].value;
+                        processThirdParty(i, third_party_value, depth + 1);
+                    } // else --> The pointer is null because it was not possible to allocate memory
+                } // else --> The pointer is null because it was not possible to allocate memory
+            }
+        } // else --> The pointer is null because it was not possible to allocate memory
+    }
+    PRINT(" - processThirdParties() ends\n");
+}
+
+
 /**
 * Processes the json_value given as parameter (interpreted as full contents of config.json) and fills the context
 *
@@ -689,6 +742,7 @@ static void processContext(json_value* value, int depth) {
         else if (strcmp(value->u.object.values[i].name, "Apps") == 0)               processApps(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "ChallengeEqGroups") == 0)  processChallengeEqGroups(value->u.object.values[i].value, depth + 1);
         else if (strcmp(value->u.object.values[i].name, "Ciphers") == 0)            processCiphers(value->u.object.values[i].value, depth + 1);
+        else if (strcmp(value->u.object.values[i].name, "ThirdParties") == 0)       processThirdParties(value->u.object.values[i].value, depth + 1);
         else fprintf(stderr, "WARINING: the field '%s' included in config.json is not registered and will not be processed.\n", value->u.object.values[i].name);
     }
     PRINT("Processing completed\n");
@@ -781,9 +835,10 @@ void loadContext() {
 * Translates the char pointers which hold identifiers refering to other structs into pointers to those corresponding structs. 
 * Frees the identifier pointers so there is no memory leak. 
 * More specifically modifies the following fields: 
-*   (Folders[i]->Protection->OpTable & ChallengeEqGroups & Cipher) ,
-*   (Pendrive->Protection->OpTable & ChallengeEqGroups & Cipher) ,
-*   (Parental Control->ChallengeEqGroups).
+*   (Folders[i]->Protection->OpTable & ChallengeEqGroups & Cipher),
+*   (Pendrive->Protection->OpTable & ChallengeEqGroups & Cipher),
+*   (Parental Control->ChallengeEqGroups),
+*   (Third Parties->Cipher).
 * 
 * @return
 **/
@@ -872,6 +927,18 @@ void translateIdsToPointers() {
             //PRINT1("ID after changes: %s\n", ctx.parentals[i]->challenge_groups[j]->id);
         }
     }
+
+
+    // Fix ids from:    Third Parties  -->  Cipher
+    //PRINT("Translating ids to pointers: Parental Control  -->  ChallengeEqGroups: \n");
+    for (int i = 0; i < _msize(ctx.third_parties) / sizeof(struct ThirdParty*); i++) {
+        //PRINT1("ID before changes: %s\n", (char*)ctx.third_parties[i]->cipher);
+        tmp_ptr = getCipherById((char*)ctx.third_parties[i]->cipher);           // Get true pointer
+        free(ctx.third_parties[i]->cipher);                                     // Free the char* of the ID
+        ctx.third_parties[i]->cipher = tmp_ptr;                                 // Assign the true pointer
+        //PRINT1("ID after changes: %s\n", ctx.third_parties[i]->cipher->id);
+    }
+
 
     PRINT("Translation completed\n");
 }
