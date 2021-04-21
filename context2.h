@@ -14,7 +14,7 @@ enum Operation getTableOperation(enum IrpOperation irp_operation, WCHAR* app_ful
 inline struct OpTable* getTable(WCHAR* file_full_path);
 inline struct App* getApp(WCHAR* app_full_path);
 inline WCHAR getDiskType(WCHAR* file_full_path);
-inline enum Operation* getOperations(WCHAR disk_letter, enum AppType app_type, struct OpTable* table);
+inline enum Operation* getOperations(enum AppType app_type, struct OpTable* table);
 void formatPathOLD(char** full_path);
 void formatPath(WCHAR** full_path);
 int fromDeviceToLetter(WCHAR** full_path);

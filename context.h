@@ -31,6 +31,11 @@ extern "C" {
 	#define MAX_PATH 260
 	#endif //MAX_PATH
 
+	#ifndef SUBKEY_SIZE
+	#define SUBKEY_SIZE 64
+	#endif //SUBKEY_SIZE
+
+
 	#define NOOP ((void)0)
 	#define ENABLE_PRINTS 1					// Affects the PRINT() functions. If 0 does not print anything. If 1 traces are printed.
 	#define PRINT(...) do { if (ENABLE_PRINTS) printf(__VA_ARGS__); else NOOP;} while (0)
@@ -111,7 +116,6 @@ extern "C" {
 
 	struct Tuple {
 		enum AppType app_type;
-		WCHAR disk;			// A letter for the manually mirrored disks. Other valid values are: '0'=sync folders, '1'=pendrives
 		enum Operation on_read;
 		enum Operation on_write;
 	};
@@ -148,13 +152,15 @@ extern "C" {
 	};
 
 	struct Challenge {
-		char* id;
+		WCHAR* file_name;
+		HINSTANCE lib_handle;
 		char* properties;		// String of properties as in a HTML query: "prop1=valor&prop2=valor..."
 	};
 
 	struct Cipher {
 		char* id;
 		WCHAR* file_name;
+		HINSTANCE lib_handle;
 		int block_size;
 		char* custom;
 	};
@@ -240,22 +246,21 @@ extern "C" {
 		PRINT("Tables:\n");
 		for (int i = 0; i < _msize(ctx.tables) / sizeof(struct OpTable*); i++) {	// Iterate over tables
 			PRINT1("Table id: %s \n", ctx.tables[i]->id);
-			PRINT2(" ______________________________________________________ \n");
-			PRINT2("|       |            |        |           |            |\n");
-			PRINT2("|  Row  |  App Type  |  Disk  |  On Read  |  On Write  |\n");
-			PRINT2("|_______|____________|________|___________|____________|\n");
-			PRINT2("|       |            |        |           |            |\n");
+			PRINT2(" _____________________________________________ \n");
+			PRINT2("|       |            |           |            |\n");
+			PRINT2("|  Row  |  App Type  |  On Read  |  On Write  |\n");
+			PRINT2("|_______|____________|___________|____________|\n");
+			PRINT2("|       |            |           |            |\n");
 
 			for (int j = 0; j < _msize(ctx.tables[i]->tuples) / sizeof(struct Tuple*); j++) {	// Iterate over rows of each table (the so called "table tuples")
-				PRINT2("|  %2d   |     %2d     |    %wc   |    %2d     |     %2d     |\n",
+				PRINT2("|  %2d   |     %2d     |    %2d     |     %2d     |\n",
 					j,
 					ctx.tables[i]->tuples[j]->app_type,
-					ctx.tables[i]->tuples[j]->disk,
 					ctx.tables[i]->tuples[j]->on_read,
 					ctx.tables[i]->tuples[j]->on_write
 				);
 			}
-			PRINT2("|_______|____________|________|___________|____________|\n");
+			PRINT2("|_______|____________|___________|____________|\n");
 		}
 
 		// Apps
@@ -357,7 +362,7 @@ extern "C" {
 	**/
 	static void printChallenge(struct Challenge* challenge) {
 		PRINT3("Challenge:\n");
-		PRINT4("Id: %s \n", challenge->id);
+		PRINT4("Filename: %ws \n", challenge->file_name);
 		PRINT4("Properties: %s \n", challenge->properties);
 	}
 

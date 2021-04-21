@@ -50,6 +50,6 @@ int threadWinFSP(struct ThreadData* th_data);
 void decipherFileMenu();
 void uvaFileMenu();
 void initLetterDeviceMapping();
-
+void initChallenges();
 
 #endif // !__MAIN_H

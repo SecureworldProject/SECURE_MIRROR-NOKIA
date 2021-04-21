@@ -74,13 +74,11 @@
 		"Table1": [
 			{
 				"AppType": "BROWSER",
-				"Disk": "F",
 				"READ": "CIPHER",
 				"WRITE": "NOTHING"
 			},
 			{
 				"AppType": "MAILER",
-				"Disk": "G",
 				"READ": "DECIPHER",
 				"WRITE": "MARK"
 			}
@@ -88,13 +86,11 @@
 		"Table2": [
 			{
 				"AppType": "BROWSER",
-				"Disk": "F",
 				"READ": "CIPHER",
 				"WRITE": "NOTHING"
 			},
 			{
 				"AppType": "MAILER",
-				"Disk": "G",
 				"READ": "MARK",
 				"WRITE": "UNMARK"
 			}
@@ -119,20 +115,17 @@
 		}
 	],
 
-	"ChallengeEqGroups":
-	{
+	"ChallengeEqGroups": {
 		"Group1": {
-			"SubKey": "hola",
-			"Expires": "20210909145232",
 			"ChallengeList": [
 				{
-					"Id": "ch1",
+					"FileName": "ch_example.dll",
 					"Description": "Here goes the description",
 					"Props": "one=1,two=2",
 					"Requirements": "camera, microphone"
 				},
 				{
-					"Id": "ch2",
+					"FileName": "time_challenge.dll",
 					"Description": "The challenge checks if it working time.",
 					"Props": "one=1,two=2",
 					"Requirements": "none"
@@ -140,17 +133,15 @@
 			]
 		},
 		"Group2": {
-			"SubKey": "adios",
-			"Expires": "20210909145232",
 			"ChallengeList": [
 				{
-					"Id": "ch4",
+					"FileName": "wall_pattern.dll",
 					"Description": "This challenge looks for a certain pattern in the wall.",
 					"Props": "pattern_type=4",
 					"Requirements": "camera"
 				},
 				{
-					"Id": "ch25",
+					"FileName": "tone_background.dll",
 					"Description": "Checks the existence of an unaudible tone in the background.",
 					"Props": "freq=40000hz",
 					"Requirements": "microphone"
@@ -169,6 +160,11 @@
 			"FileName": "AES128.dll",
 			"BlockSize": 128,
 			"Custom": ""
+		},
+		"AES-128bitv2": {
+			"FileName": "AES128.dll",
+			"BlockSize": 128,
+			"Custom": "version=2"
 		},
 		"RSA": {
 			"FileName": "RSA.dll",

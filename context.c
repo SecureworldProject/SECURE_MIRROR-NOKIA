@@ -99,10 +99,10 @@ enum Operation getTableOperation(enum IrpOperation irp_operation, WCHAR* app_ful
 	app_type = (getApp(app_full_path))->type;
 
 	// Gets the disk for the given file path
-	disk_letter = getDiskType(file_full_path);
+	//disk_letter = getDiskType(file_full_path);
 
 	// Gets the operation for the disk and app_type in the table given. The irp_operation is an enum that is used as index
-	result_operation = getOperations(disk_letter, app_type, table);
+	result_operation = getOperations(app_type, table);
 	if (result_operation) {
 		return result_operation[irp_operation];
 	}
@@ -206,19 +206,29 @@ inline WCHAR getDiskType(WCHAR* file_full_path) {
 	return letter;
 }
 
-inline enum Operation* getOperations(WCHAR disk_letter, enum AppType app_type, struct OpTable* table) {
+inline enum Operation* getOperations(enum AppType app_type, struct OpTable* table) {
 	enum Operation* operations = NULL;
+	struct Tuple* tab_tuple_default = NULL;
 
 	operations = malloc(NUM_IRP_OPERATIONS * sizeof(enum Operation));
 	if (operations) {
-		operations[ON_READ] = NOTHING;
-		operations[ON_WRITE] = NOTHING;
 
 		for (int i = 0; i < _msize(table->tuples) / sizeof(struct Tuple*); i++) {
-			if (table->tuples[i]->app_type == app_type && table->tuples[i]->disk == disk_letter) {
+			if (table->tuples[i]->app_type == app_type) {
 				operations[ON_READ] = table->tuples[i]->on_read;
 				operations[ON_WRITE] = table->tuples[i]->on_write;
+				return operations;
 			}
+			if (table->tuples[i]->app_type == ANY) {
+				tab_tuple_default = table->tuples[i];
+			}
+		}
+		if (tab_tuple_default != NULL) {
+			operations[ON_READ] = tab_tuple_default->on_read;
+			operations[ON_WRITE] = tab_tuple_default->on_write;
+		} else {
+			free(operations);
+			operations = NULL;
 		}
 	}
 

@@ -68,6 +68,9 @@ int main(int argc, char* argv[]) {
 		}
 		Sleep(1000);
 	}
+
+	// Initialize the parameters for the challenges
+	initChallenges();
 	
 	// Forever loop checking for new pendrives
 	Sleep(5000);
@@ -172,7 +175,7 @@ void uvaFileMenu() {
 	printf("   You have entered the .uva creation menu.\n");
 	printf("   Enter the full path of the file from which you want to create a .uva file below.\n");
 	printf("   --> ");
-	// TO DO: ask also for allowed_time_begin and allowed_time_end
+	// TO DO: ask also for allowed_time_begin, allowed_time_end and the enterprise to share with
 	if (fgets(file_path, sizeof(file_path), stdin)) {
 		file_path[strlen(file_path) - 1] = '\0';
 		if (PathFileExistsA(file_path) && !PathIsDirectoryA(file_path)) {
@@ -241,5 +244,28 @@ void initLetterDeviceMapping() {
 	PRINT("\nletter_device_table:\n");
 	for (size_t i = 0; i < count; i++) {
 		PRINT("%wc: --> %ws\n", letter_device_table[i].letter, letter_device_table[i].device);
+	}
+}
+
+void initChallenges() {
+	typedef int(__stdcall* init_func_type)();
+
+	int result = 0;
+	BOOL group_initialized;
+	init_func_type dll_init_func;
+
+	for (size_t i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
+		for (size_t j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct Challenge*); j++) {
+			// define function pointer corresponding with init() input and output types
+			dll_init_func = (init_func_type)GetProcAddress(ctx.groups[i]->challenges[j]->lib_handle, "init");
+
+			// Add parameters if necessary
+			result = dll_init_func();
+			if (result!=0) {
+				PRINT("WARNING: error trying to initialize the\n");
+			} else {
+				break;		// Stop initializing more challenges in the group when one is already working
+			}
+		}
 	}
 }

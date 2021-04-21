@@ -381,16 +381,7 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
                 ctx.tables[table_index]->tuples[row_index]->app_type = app_type;
             }
 
-            if (strcmp(value->u.object.values[x].name, "Disk") == 0) {
-                if (value->u.object.values[x].value->u.string.length >= 1) {
-                    ctx.tables[table_index]->tuples[row_index]->disk = btowc(toupper(value->u.object.values[x].value->u.string.ptr[0]));
-                } else {
-                    ctx.tables[table_index]->tuples[row_index]->disk = L'\0';
-                    fprintf(stderr, "WARNING: incorrect Disk.\n");
-                }
-            }
-
-            if (strcmp(value->u.object.values[x].name, "READ") == 0) {
+            else if (strcmp(value->u.object.values[x].name, "READ") == 0) {
                 op_str = value->u.object.values[x].value->u.string.ptr;
                 if (strcmp(op_str, "NOTHING") == 0)         op = NOTHING;
                 else if (strcmp(op_str, "CIPHER") == 0)     op = CIPHER;
@@ -406,7 +397,7 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
                 ctx.tables[table_index]->tuples[row_index]->on_read = op;
             }
 
-            if (strcmp(value->u.object.values[x].name, "WRITE") == 0) {
+            else if (strcmp(value->u.object.values[x].name, "WRITE") == 0) {
                 op_str = value->u.object.values[x].value->u.string.ptr;
                 if (strcmp(op_str, "NOTHING") == 0)         op = NOTHING;
                 else if (strcmp(op_str, "CIPHER") == 0)     op = CIPHER;
@@ -536,10 +527,14 @@ static void processChallenge(int group_index, int challenge_index, json_value* v
         for (i = 0; i < num_fields; i++) {
             // NOTE: Description and Requirements fields are merely informative. They are not passed to the context in any form.
 
-            if (strcmp(value->u.object.values[i].name, "Id") == 0) {
-                ctx.groups[group_index]->challenges[challenge_index]->id = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
-                if (ctx.groups[group_index]->challenges[challenge_index]->id) {
-                    strcpy(ctx.groups[group_index]->challenges[challenge_index]->id, value->u.object.values[i].value->u.string.ptr);
+            if (strcmp(value->u.object.values[i].name, "FileName") == 0) {
+                ctx.groups[group_index]->challenges[challenge_index]->file_name = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[i].value->u.string.length) + 1));
+                if (ctx.groups[group_index]->challenges[challenge_index]->file_name) {
+                    mbstowcs(ctx.groups[group_index]->challenges[challenge_index]->file_name, value->u.object.values[i].value->u.string.ptr, SIZE_MAX);
+                    ctx.groups[group_index]->challenges[challenge_index]->lib_handle = LoadLibraryW(ctx.groups[group_index]->challenges[challenge_index]->file_name);
+                    if (ctx.groups[group_index]->challenges[challenge_index]->lib_handle == NULL) {
+                        fprintf(stderr, "ERROR: could not load library '%ws'\n", ctx.groups[group_index]->challenges[challenge_index]->file_name);
+                    }
                 } // else --> The pointer is null because it was not possible to allocate memory
             }
 
@@ -560,19 +555,7 @@ static void processChallengeEqGroup(int index, json_value* value, int depth) {
 
     num_elems = value->u.object.length;
     for (i = 0; i < num_elems; i++) {
-
-        if (strcmp(value->u.object.values[i].name, "SubKey") == 0) {
-            ctx.groups[index]->subkey = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
-            if (ctx.groups[index]->subkey) {
-                strcpy(ctx.groups[index]->subkey, value->u.object.values[i].value->u.string.ptr);
-            } // else --> The pointer is null because it was not possible to allocate memory
-        }
-
-        else if (strcmp(value->u.object.values[i].name, "Expires") == 0) {
-            ctx.groups[index]->expires = (time_t)0;         // Subkey expired in 1970
-        }
-
-        else if (strcmp(value->u.object.values[i].name, "ChallengeList") == 0) {
+        if (strcmp(value->u.object.values[i].name, "ChallengeList") == 0) {
             num_challenges = value->u.object.values[i].value->u.array.length;
             if (num_challenges <= 0) {      // Fixes warning C6386 (Visual Studio bug)
                 ctx.groups[index]->challenges = NULL;
@@ -587,6 +570,9 @@ static void processChallengeEqGroup(int index, json_value* value, int depth) {
             }
         }
     }
+    ctx.groups[index]->subkey = (char*)malloc(sizeof(char) * SUBKEY_SIZE);
+    ctx.groups[index]->expires = (time_t)0;         // Subkey expired in 1970
+
 }
 
 static void processChallengeEqGroups(json_value* value, int depth) {
@@ -627,6 +613,10 @@ static void processCipher(int index, json_value* value, int depth) {
             ctx.ciphers[index]->file_name = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[i].value->u.string.length) + 1));
             if (ctx.ciphers[index]->file_name) {
                 mbstowcs(ctx.ciphers[index]->file_name, value->u.object.values[i].value->u.string.ptr, SIZE_MAX);
+                ctx.ciphers[index]->lib_handle = LoadLibraryW(ctx.ciphers[index]->file_name);
+                if (ctx.ciphers[index]->lib_handle == NULL) {
+                    fprintf(stderr, "ERROR: could not load library '%ws'\n", ctx.ciphers[index]->file_name);
+                }
             } // else --> The pointer is null because it was not possible to allocate memory
         }
 
