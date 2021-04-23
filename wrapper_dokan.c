@@ -14,7 +14,7 @@
 #include "context2.h"
 #include "wrapper_dokan.h"
 #include "main.h"
-
+#include "logic.h"
 
 
 
@@ -797,7 +797,6 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	// Adjust buffers
 	//preReadLogic(12, op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux);
-	PRINT("aaaaaaaaaaaaaaa\n");
 	int chrome = 0;
 	HANDLE hProcess;
 	CHAR nameProc[MAX_PATH];
@@ -810,7 +809,6 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 			chrome = 1;
 		}
 	}
-	PRINT("bbbbbbbbbbbbbbbbbbbbbbbbbb\n");
 
 	//==========================================================
 	/*if (!ReadFile(handle, buffer_aux, buffer_length_aux, read_length_aux, NULL)) {
@@ -828,7 +826,6 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 			CloseHandle(handle);
 		return DokanNtStatusFromWin32(error);
 	}
-	PRINT("ccccccccccccccccccccccccc\n");
 
 
 	// Do the operations
@@ -938,9 +935,11 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	//VER EL PATH
 	//wprintf(L"Path: %s, Op: WriteFile\n", file_path);
 	//==========================================================
+	preWriteLogic(3, CIPHER, filePath, &Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset);
+
 	int local_op = 1;
 	LPCVOID Buffer2 = Buffer;
-	if (wcsncmp(filePath, L"C:", 2) == 0)
+	/*if (wcsncmp(filePath, L"C:", 2) == 0)
 		//printf("Ocurre en C:\n");
 		local_op = 1;
 	else {
@@ -951,7 +950,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 			//xor
 			((char*)Buffer2)[i] = ((char*)Buffer)[i] ^ 0xFF;
 		}
-	}
+	}*/
 	//==========================================================
 	if (!WriteFile(handle, Buffer2, NumberOfBytesToWrite, NumberOfBytesWritten,
 		NULL)) {

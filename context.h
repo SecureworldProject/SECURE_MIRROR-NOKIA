@@ -95,6 +95,13 @@ extern "C" {
 		struct OpTable* op_table;
 		struct ChallengeEquivalenceGroup** challenge_groups;
 		struct Cipher* cipher;
+		struct KeyData* key;
+	};
+
+	struct KeyData {
+		byte* data;
+		int size;
+		time_t expires;
 	};
 
 	struct Pendrive {
@@ -146,8 +153,7 @@ extern "C" {
 
 	struct ChallengeEquivalenceGroup {
 		char* id;
-		char* subkey;			// Not obtained from json
-		time_t expires;			// Not obtained from json
+		struct KeyData* subkey;	// Not obtained from json
 		struct Challenge** challenges;
 	};
 
@@ -316,9 +322,10 @@ extern "C" {
 		for (int i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
 			PRINT1("EqGroup:\n");
 			PRINT2("Id: %s \n", ctx.groups[i]->id);
-			PRINT2("Subkey: %s \n", ctx.groups[i]->subkey);
-			time_info = localtime(&(ctx.groups[i]->expires));
-			PRINT2("Expires: %lld (", ctx.groups[i]->expires); printDateNice(time_info); PRINT(")\n");
+			PRINT2("Subkey data: %s \n", ctx.groups[i]->subkey->data);
+			PRINT2("Subkey size: %s \n", ctx.groups[i]->subkey->size);
+			time_info = localtime(&(ctx.groups[i]->subkey->expires));
+			PRINT2("Subkey expires: %lld (", ctx.groups[i]->subkey->expires); printDateNice(time_info); PRINT(")\n");
 			PRINT2("Challenges: \n");
 			for (int j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct Challenge*); j++) {
 				printChallenge(ctx.groups[i]->challenges[j]);
@@ -340,13 +347,14 @@ extern "C" {
 		if (group == NULL) {
 			PRINT("ERROR\n");
 		} else {
-			PRINT("EqGroup:\n");
-			PRINT1("Id: %s \n", group->id);
-			PRINT1("Subkey: %s \n", group->subkey);
-			time_info = localtime(&(group->expires));
-			PRINT1("Expires: %lld (", group->expires); printDateNice(time_info); PRINT(")\n");
-			PRINT1("Challenges: \n");
-			for (int j = 0; j < _msize(group->challenges) / sizeof(struct ChallengeEquivalenceGroup*); j++) {
+			PRINT1("EqGroup:\n");
+			PRINT2("Id: %s \n", group->id);
+			PRINT2("Subkey data: %s \n", group->subkey->data);
+			PRINT2("Subkey size: %s \n", group->subkey->size);
+			time_info = localtime(&(group->subkey->expires));
+			PRINT2("Subkey expires: %lld (", group->subkey->expires); printDateNice(time_info); PRINT(")\n");
+			PRINT2("Challenges: \n");
+			for (int j = 0; j < _msize(group->challenges) / sizeof(struct Challenge*); j++) {
 				printChallenge(group->challenges[j]);
 			}
 		}

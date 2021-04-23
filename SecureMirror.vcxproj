@@ -163,6 +163,7 @@
     <ClInclude Include="config.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="context2.h" />
+    <ClInclude Include="logic.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="wrapper_dokan.h" />
   </ItemGroup>

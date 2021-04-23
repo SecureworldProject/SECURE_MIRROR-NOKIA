@@ -53,5 +53,8 @@
     <ClInclude Include="wrapper_dokan.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="logic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

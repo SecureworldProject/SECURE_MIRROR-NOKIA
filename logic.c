@@ -9,23 +9,14 @@ Nokia Febrero 2021
 
 /////  FILE INCLUDES  /////
 
-#include "dokan.h"
-#include "context.h"
-#include "winnt.h"
-#include <psapi.h>
-#include "context.h"
-#include "wrapper_dokan.h"
-//#include "wrapper_winfsp.h"
+#include "logic.h"
 
 
 
+/////  FUNCTION PROTOTYPES  /////
 
-/////  FUNCTION HEADERS  /////
-
-int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
-int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
-int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
-int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
+void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size);
+void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size);
 
 
 
@@ -38,12 +29,27 @@ void fixBuffer() {
 void fixBufferLimitsPre() {
 	// TO DO
 }
-void cipher() {
-	// TO DO
+
+void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size) {
+	typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD);
+
+	cipher_func_type cipher_func;
+
+	cipher_func = (cipher_func_type)GetProcAddress(p_cipher->lib_handle, "cipher");
+
+	cipher_func(out_buf, in_buf, buf_size);
 }
-void decipher() {
-	// TO DO
+
+void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size) {
+	typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD);
+
+	decipher_func_type decipher_func;
+
+	decipher_func = (decipher_func_type)GetProcAddress(p_cipher->lib_handle, "decipher");
+
+	decipher_func(out_buf, in_buf, buf_size);
 }
+
 BOOL checkMark() {
 	// TO DO
 	return TRUE;
@@ -56,9 +62,9 @@ void unmark() {
 }
 
 
-int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
 	PRINT("preCreateLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld \n", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
 
 	PRINT("TO DO \n");
 
@@ -66,9 +72,9 @@ int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer
 }
 
 // This function allocates buffers to a memory size adjusted to the blocksize and other parameters. If blocksize is 0, allocates buffers of the same size.
-int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
 	// Change offset and bytes_to_do
-	switch (op) {
+	/*switch (op) {
 		case NOTHING:
 		case MARK:
 		case UNMARK:
@@ -100,17 +106,17 @@ int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, 
 			break;
 		default:
 			break;
-	}
+	}*/
 	return 0;
 }
 
-int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
 	PRINT("postReadLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld \n", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
 
 	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
 	// If write, execute operation
-	switch (op) {
+	/*switch (op) {
 		case NOTHING:
 			break;
 		case CIPHER:	// Call cipher
@@ -147,19 +153,26 @@ int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer,
 			break;
 		default:
 			break;
-	}
+	}*/
 
 	return 0;
 }
 
 
-int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
 	PRINT("preWriteLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
+	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld \n", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
 
+	LPVOID ciph_buf = malloc(*bytes_to_do);
+	if (ciph_buf==NULL) {
+		printf("ERROR\n");
+	}
+	PRINT("antes de cipher \n");
+
+	cipher(ctx.ciphers[0], *buffer, ciph_buf, *bytes_to_do);
 	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
 	// If write, execute operation
-	switch (op) {
+	/*switch (op) {
 		case NOTHING:
 			break;
 		case CIPHER:	// Call cipher
@@ -196,7 +209,7 @@ int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPVOID* buffer,
 			break;
 		default:
 			break;
-	}
+	}*/
 
 	return 0;
 }

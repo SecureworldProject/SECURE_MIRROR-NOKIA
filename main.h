@@ -51,5 +51,6 @@ void decipherFileMenu();
 void uvaFileMenu();
 void initLetterDeviceMapping();
 void initChallenges();
+void initCiphers();
 
 #endif // !__MAIN_H

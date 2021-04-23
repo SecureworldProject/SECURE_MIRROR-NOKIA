@@ -119,7 +119,7 @@
 		"Group1": {
 			"ChallengeList": [
 				{
-					"FileName": "ch_example.dll",
+					"FileName": "simple_challenge.dll",
 					"Description": "Here goes the description",
 					"Props": "one=1,two=2",
 					"Requirements": "camera, microphone"
@@ -152,7 +152,7 @@
 
 	"Ciphers": {
 		"simple": {
-			"FileName": "cipher_simple.dll",
+			"FileName": "simple_cipher.dll",
 			"BlockSize": 0,
 			"Custom": ""
 		},

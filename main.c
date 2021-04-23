@@ -71,7 +71,10 @@ int main(int argc, char* argv[]) {
 
 	// Initialize the parameters for the challenges
 	initChallenges();
-	
+
+	// Initialize the parameters for the ciphers
+	initCiphers();
+
 	// Forever loop checking for new pendrives
 	Sleep(5000);
 
@@ -135,7 +138,6 @@ int threadWinFSP(struct ThreadData *th_data) {
 
 void decipherFileMenu() {
 	char file_path[MAX_PATH] = { 0 };
-	char line[500] = { 0 };
 	int result = 0;
 
 	printf("   You have entered Decipher menu.\n");
@@ -167,7 +169,6 @@ void decipherFileMenu() {
 
 void uvaFileMenu() {
 	char file_path[MAX_PATH] = { 0 };
-	char line[500] = { 0 };
 	int result = 0;
 	time_t allowed_time_begin;
 	time_t allowed_time_end;
@@ -248,24 +249,53 @@ void initLetterDeviceMapping() {
 }
 
 void initChallenges() {
-	typedef int(__stdcall* init_func_type)();
+	typedef int(__stdcall* init_func_type)(struct ChallengeEquivalenceGroup*, struct Challenge*);
 
 	int result = 0;
-	BOOL group_initialized;
-	init_func_type dll_init_func;
+	init_func_type init_func;
+
 
 	for (size_t i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
 		for (size_t j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct Challenge*); j++) {
 			// define function pointer corresponding with init() input and output types
-			dll_init_func = (init_func_type)GetProcAddress(ctx.groups[i]->challenges[j]->lib_handle, "init");
+			init_func = (init_func_type)GetProcAddress(ctx.groups[i]->challenges[j]->lib_handle, "init");
 
 			// Add parameters if necessary
-			result = dll_init_func();
-			if (result!=0) {
-				PRINT("WARNING: error trying to initialize the\n");
+			if (init_func!=NULL) {
+				result = init_func(ctx.groups[i], ctx.groups[i]->challenges[j]);
+				if (result != 0) {
+					PRINT("WARNING: error trying to initialize the challenge '%ws'\n", ctx.groups[i]->challenges[j]->file_name);
+				} else {
+					break;		// Stop initializing more challenges in the group when one is already working
+				}
+			} else{
+				PRINT("WARNING: error accessing the address to the init() function of the challenge '%ws' (error: %d)\n", ctx.groups[i]->challenges[j]->file_name, GetLastError());
+			}
+		}
+	}
+}
+
+
+void initCiphers() {
+	typedef int(__stdcall* init_func_type)(struct Cipher*);
+
+	int result = 0;
+	init_func_type init_func;
+
+	for (size_t i = 0; i < _msize(ctx.ciphers) / sizeof(struct Cipher*); i++) {
+		// define function pointer corresponding with init() input and output types
+		init_func = (init_func_type)GetProcAddress(ctx.ciphers[i]->lib_handle, "init");
+
+		// Add parameters if necessary
+		if (init_func != NULL) {
+			result = init_func(ctx.ciphers[i]);
+			if (result != 0) {
+				PRINT("WARNING: error trying to initialize the cipher '%ws'\n", ctx.ciphers[i]->file_name);
 			} else {
 				break;		// Stop initializing more challenges in the group when one is already working
 			}
+		} else {
+			PRINT("WARNING: error accessing the address to the init() function of the cipher '%ws' (error: %d)\n", ctx.ciphers[i]->file_name, GetLastError());
 		}
 	}
 }

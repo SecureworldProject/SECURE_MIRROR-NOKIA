@@ -148,6 +148,14 @@ static void processProtection(struct Protection* ctx_value, json_value* value, i
         }
     }
 
+    // Allocate the key
+    ctx_value->key = (struct KeyData*)malloc(sizeof(struct KeyData) * 1);
+    struct KeyData* key = ctx_value->key;
+    if (key) {
+        key->size = 0;                                            // Obtain from config.json?
+        key->data = (byte*)malloc(sizeof(byte) * key->size);      // Key data is allocated as many space as indicated by the size member of the struct
+        key->expires = (time_t)0;                                 // Key expired in 1970
+    } // else --> The pointer is null because it was not possible to allocate memory
 
 }
 
@@ -533,7 +541,7 @@ static void processChallenge(int group_index, int challenge_index, json_value* v
                     mbstowcs(ctx.groups[group_index]->challenges[challenge_index]->file_name, value->u.object.values[i].value->u.string.ptr, SIZE_MAX);
                     ctx.groups[group_index]->challenges[challenge_index]->lib_handle = LoadLibraryW(ctx.groups[group_index]->challenges[challenge_index]->file_name);
                     if (ctx.groups[group_index]->challenges[challenge_index]->lib_handle == NULL) {
-                        fprintf(stderr, "ERROR: could not load library '%ws'\n", ctx.groups[group_index]->challenges[challenge_index]->file_name);
+                        fprintf(stderr, "ERROR: could not load library '%ws' (code: %d)\n", ctx.groups[group_index]->challenges[challenge_index]->file_name, GetLastError());
                     }
                 } // else --> The pointer is null because it was not possible to allocate memory
             }
@@ -570,8 +578,15 @@ static void processChallengeEqGroup(int index, json_value* value, int depth) {
             }
         }
     }
-    ctx.groups[index]->subkey = (char*)malloc(sizeof(char) * SUBKEY_SIZE);
-    ctx.groups[index]->expires = (time_t)0;         // Subkey expired in 1970
+
+    // Allocate the key
+    ctx.groups[index]->subkey = (struct KeyData*)malloc(sizeof(struct KeyData) * 1);
+    struct KeyData *key = ctx.groups[index]->subkey;
+    if (key) {
+        key->size = 0;                                            // Obtain from config.json?
+        key->data = (byte*)malloc(sizeof(byte) * key->size);      // Key data is allocated as many space as indicated by the size member of the struct
+        key->expires = (time_t)0;                                 // Key expired in 1970
+    } // else --> The pointer is null because it was not possible to allocate memory
 
 }
 
