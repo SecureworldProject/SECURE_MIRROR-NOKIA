@@ -12,7 +12,8 @@
 #include "config.h"
 #include <Shlwapi.h>
 #pragma comment( lib, "shlwapi.lib")
-#include <fileapi.h>
+
+
 
 
 /////  DEFINITIONS  /////
@@ -36,9 +37,12 @@ struct LetterDeviceMap {
 };
 
 
+
+
 /////  GLOBAL VARS  /////
 
 struct LetterDeviceMap* letter_device_table;
+
 
 
 

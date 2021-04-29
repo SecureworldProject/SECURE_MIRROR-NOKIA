@@ -157,14 +157,15 @@
     <ClCompile Include="keymaker.c" />
     <ClCompile Include="logic.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="sharing_app.c" />
     <ClCompile Include="wrapper_dokan.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h" />
     <ClInclude Include="context.h" />
-    <ClInclude Include="context2.h" />
     <ClInclude Include="logic.h" />
     <ClInclude Include="main.h" />
+    <ClInclude Include="sharing_app.h" />
     <ClInclude Include="wrapper_dokan.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

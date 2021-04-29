@@ -11,10 +11,10 @@
 //includes propios
 #include "config.h"
 #include "context.h"
-#include "context2.h"
 #include "wrapper_dokan.h"
 #include "main.h"
 #include "logic.h"
+
 
 
 
@@ -30,8 +30,9 @@
 
 #define MirrorCheckFlag(val, flag) if (val & flag) { DbgPrint(L"\t" L#flag L"\n"); };
 
-
+// This macro uses a parameter name from mirror functions (only works inside them)
 #define THREAD_INDEX DokanFileInfo->DokanOptions->thread_index
+
 
 
 
@@ -118,7 +119,7 @@ int dokanMapAndLaunch(WCHAR* path, WCHAR letter, int index) {
 	DOKAN_OPTIONS dokan_options;
 	DOKAN_OPERATIONS dokan_operations;
 
-	PRINT("DokanMapAndLaunch parameters: index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
+	PRINT("DokanMapAndLaunch parameters:    index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
 
 	// Fill dokan options
 	ZeroMemory(&dokan_options, sizeof(DOKAN_OPTIONS));

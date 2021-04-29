@@ -1,4 +1,3 @@
-#pragma once
 #ifndef WRAPPER_DOKAN_H
 #define WRAPPER_DOKAN_H
 
@@ -23,4 +22,4 @@ int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer
 int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
 
 
-#endif //WRAPPER_DOKAN_H
+#endif //!WRAPPER_DOKAN_H

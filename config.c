@@ -12,7 +12,6 @@ Nokia Febrero 2021
 #include "config.h"
 //#include "json.h"         // Already in config.h
 //#include "context.h"      // Already in config.h
-#include "context2.h"
 #include <sys/stat.h>
 #include <stdio.h>
 #include <inttypes.h>

@@ -2,7 +2,6 @@
 #define WRAPPER_DOKAN_H
 
 
-
 /////  FUNCTION PROTOTYPES  /////
 
 int dokanMapAndLaunch(WCHAR* path, WCHAR letter, int index);

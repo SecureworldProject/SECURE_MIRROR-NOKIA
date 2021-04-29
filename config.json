@@ -121,8 +121,8 @@
 				{
 					"FileName": "simple_challenge.dll",
 					"Description": "Here goes the description",
-					"Props": "one=1,two=2",
-					"Requirements": "camera, microphone"
+					"Props": "",
+					"Requirements": "none"
 				},
 				{
 					"FileName": "time_challenge.dll",
@@ -142,7 +142,7 @@
 				},
 				{
 					"FileName": "tone_background.dll",
-					"Description": "Checks the existence of an unaudible tone in the background.",
+					"Description": "Checks the existence of an inaudible tone in the background.",
 					"Props": "freq=40000hz",
 					"Requirements": "microphone"
 				}

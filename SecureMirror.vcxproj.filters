@@ -36,6 +36,9 @@
     <ClCompile Include="json.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="sharing_app.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
@@ -47,13 +50,13 @@
     <ClInclude Include="main.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="context2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="wrapper_dokan.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="logic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sharing_app.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
