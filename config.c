@@ -16,7 +16,7 @@ Nokia Febrero 2021
 #include <stdio.h>
 #include <inttypes.h>
 //#include <stdint.h>       // Already in inttypes.h
-
+#include <wchar.h>
 
 
 
@@ -249,6 +249,7 @@ static void processPendrive(json_value* value, int depth) {
 				for (size_t i = 0; i < value->u.object.values[x].value->u.string.length; i++) 		{
 					ctx.pendrive->mount_points[i] = btowc(toupper(value->u.object.values[x].value->u.string.ptr[i]));
 				}
+				#pragma warning(suppress: 6386)
 				ctx.pendrive->mount_points[value->u.object.values[x].value->u.string.length] = L'\0';
 			} // else --> The pointer is null because it was not possible to allocate memory
 		}
@@ -682,6 +683,7 @@ static void processThirdParty(int index, json_value* value, int depth) {
 	for (i = 0; i < num_elems; i++) {
 
 		if (strcmp(value->u.object.values[i].name, "Cipher") == 0) {
+			#pragma warning(suppress: 4133)
 			ctx.third_parties[index]->cipher = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
 			if (ctx.third_parties[index]->cipher) {
 				#pragma warning(suppress: 4133)

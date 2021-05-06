@@ -359,7 +359,7 @@ extern "C" {
 			PRINT1("EqGroup:\n");
 			PRINT2("Id: %s \n", ctx.groups[i]->id);
 			PRINT2("Subkey data: %s \n", ctx.groups[i]->subkey->data);
-			PRINT2("Subkey size: %s \n", ctx.groups[i]->subkey->size);
+			PRINT2("Subkey size: %d \n", ctx.groups[i]->subkey->size);
 			time_info = localtime(&(ctx.groups[i]->subkey->expires));
 			PRINT2("Subkey expires: %lld (", ctx.groups[i]->subkey->expires); printDateNice(time_info); PRINT(")\n");
 			PRINT2("Challenges: \n");
@@ -386,7 +386,7 @@ extern "C" {
 			PRINT1("EqGroup:\n");
 			PRINT2("Id: %s \n", group->id);
 			PRINT2("Subkey data: %s \n", group->subkey->data);
-			PRINT2("Subkey size: %s \n", group->subkey->size);
+			PRINT2("Subkey size: %d \n", group->subkey->size);
 			time_info = localtime(&(group->subkey->expires));
 			PRINT2("Subkey expires: %lld (", group->subkey->expires); printDateNice(time_info); PRINT(")\n");
 			PRINT2("Challenges: \n");

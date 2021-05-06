@@ -4,7 +4,7 @@
 #include "main.h"
 #include "context.h"
 #include "sharing_app.h"
-
+#include "wrapper_dokan.h"
 
 
 
@@ -126,7 +126,9 @@ void initLetterDeviceMapping() {
 		index = 0;
 		for (size_t j = 0; j < NUM_LETTERS; j++) {
 			if (logical_drives_mask & (1 << j)) {
+				#pragma warning(suppress: 6386)
 				letter_device_table[index].letter = (WCHAR)('A' + j);
+				#pragma warning(suppress: 6385)
 				tmp_str[0] = letter_device_table[index].letter;
 				if (QueryDosDeviceW(tmp_str, letter_device_table[index].device, MAX_PATH) == 0) {
 					fprintf(stderr, "ERROR: device path translation of letter %wc: is longer than %d.\n", letter_device_table[index].letter, MAX_PATH);

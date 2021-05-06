@@ -150,7 +150,7 @@ inline struct App* getApp(WCHAR* app_full_path) {
 
 	// Fill app path and name
 	*tmp_str = L'\0';
-	len = strlen(app_full_path);
+	len = wcslen(app_full_path);
 	wcscpy(app->path, app_full_path);
 	app->path[len] = L'/';
 	app->path[len + 1] = L'\0';
@@ -293,6 +293,7 @@ int fromDeviceToLetter(WCHAR** full_path) {
 					// Fill new full path
 					PRINT("Allocate success: Fill new full path\n");
 					new_full_path[0] = letter_device_table[i].letter;
+					#pragma warning(suppress: 6386)
 					new_full_path[1] = L':';
 					wcscpy(&(new_full_path[2]), &((*full_path)[device_len-1+1]));	// -1 because indexes start on 0 and +1 to start on the next slot
 					// Free old full path
