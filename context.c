@@ -82,20 +82,20 @@ static void destroyApp(struct App** app) {
 * @return enum Operation
 *		The logic that must be done for the given irp operation, appfile
 **/
-enum Operation getTableOperation(enum IrpOperation irp_operation, WCHAR* app_full_path, WCHAR* file_full_path) {
+enum Operation getTableOperation(enum IrpOperation irp_operation, WCHAR** app_full_path, WCHAR mount_point) {
 	enum Operation *result_operation = NULL;
 	struct OpTable* table = NULL;
 	enum AppType app_type = ANY;
-	char disk_letter = '\0';
-
-	formatPath(&app_full_path);
-	formatPath(&file_full_path);
+	//char disk_letter = '\0';
 
 	// Gets the table to apply to the file path
-	table = getTable(file_full_path);
+	table = getTable(mount_point);
 
 	// Gets the app_type for the given app_full_path
-	app_type = (getApp(app_full_path))->type;
+	if (*app_full_path != NULL) {
+		formatPath(app_full_path);
+		app_type = (getApp(*app_full_path))->type;
+	}
 
 	// Gets the disk for the given file path
 	//disk_letter = getDiskType(file_full_path);
@@ -110,28 +110,30 @@ enum Operation getTableOperation(enum IrpOperation irp_operation, WCHAR* app_ful
 }
 
 
-inline struct OpTable* getTable(WCHAR* file_full_path) {
-	WCHAR letter = L'\0';
+inline struct OpTable* getTable(WCHAR mount_point) {
+	//WCHAR letter = L'\0';
 
 	// For the moment assume the path is good and then letter is position 0 of the string.
-	letter = file_full_path[0];
-	letter = towupper(letter);
+	//letter = file_full_path[4];
+	//letter = towupper(letter);
+
 
 	// Return the table from the context folder which MountPoint matches the letter
 	for (int i = 0; i < _msize(ctx.folders) / sizeof(char*); i++) {
-		if (ctx.folders[i]->mount_point == letter) {
+		if (ctx.folders[i]->mount_point == mount_point) {
 			return ctx.folders[i]->protection->op_table;
 		}
 	}
 
 	// Check if the letter is a pendrive
 	for (int i = 0; i < wcslen(ctx.pendrive->mount_points); i++) {
-		if (ctx.pendrive->mount_points[i] == letter) {
+		if (ctx.pendrive->mount_points[i] == mount_point) {
 			return ctx.pendrive->protection->op_table;
 		}
 	}
 
 	// If not found, return NULL (this should never happen)
+	fprintf(stderr, "ERROR returning NULL in getTable().\n");
 	return NULL;
 }
 
@@ -144,15 +146,18 @@ inline struct App* getApp(WCHAR* app_full_path) {
 
 	// Initialize an app
 	app = createApp();
+	if (app_full_path == NULL) {
+		return app;
+	}
 
 	// Find last position of a forward slash, which divides string in "path" and "name" (e.g.:  C:/path/to/folder/name.exe)
-	tmp_str = wcsrchr(app_full_path, L'/');
+	tmp_str = wcsrchr(app_full_path, L'\\');
 
 	// Fill app path and name
 	*tmp_str = L'\0';
 	len = wcslen(app_full_path);
 	wcscpy(app->path, app_full_path);
-	app->path[len] = L'/';
+	app->path[len] = L'\\';
 	app->path[len + 1] = L'\0';
 	wcscpy(app->name, tmp_str + 1);
 
@@ -177,7 +182,7 @@ inline struct App* getApp(WCHAR* app_full_path) {
 	return app;
 }
 
-inline WCHAR getDiskType(WCHAR* file_full_path) {
+__declspec(deprecated) inline WCHAR getDiskType(WCHAR* file_full_path) {
 	// It can be '0' (sync folders), '1' (pendrives) or any letter ('a', 'b', 'c', etc.)
 	WCHAR* tmp_str = NULL;
 	WCHAR letter = L'\0';
@@ -234,7 +239,7 @@ inline enum Operation* getOperations(enum AppType app_type, struct OpTable* tabl
 	return operations;
 }
 
-void formatPathOLD(char** full_path) {
+__declspec(deprecated) void formatPathOLD(char** full_path) {
 	char* tmp_str = NULL;
 
 	// WARNING!!!  read below
@@ -287,20 +292,20 @@ int fromDeviceToLetter(WCHAR** full_path) {
 		if (initial_len > device_len) {
 			match_ptr = wcsstr(*full_path, letter_device_table[i].device);
 			if (match_ptr && match_ptr == *full_path) {
-				PRINT("Match found, allocating %lld * sizeof(WCHAR)\n", (initial_len - device_len + 2));
-				new_full_path = malloc((initial_len - device_len + 2) * sizeof(WCHAR));
+				//PRINT("Match found, allocating %lld * sizeof(WCHAR)\n", (initial_len - device_len + 2 + 1));
+				new_full_path = malloc((initial_len - device_len + 2 + 1) * sizeof(WCHAR));					// +2 for "X:" and +1 for null char
 				if (new_full_path) {
 					// Fill new full path
-					PRINT("Allocate success: Fill new full path\n");
+					//PRINT("Allocate success: Fill new full path\n");
 					new_full_path[0] = letter_device_table[i].letter;
 					#pragma warning(suppress: 6386)
 					new_full_path[1] = L':';
 					wcscpy(&(new_full_path[2]), &((*full_path)[device_len-1+1]));	// -1 because indexes start on 0 and +1 to start on the next slot
 					// Free old full path
-					PRINT("Allocate success: Free old full path\n");
+					//PRINT("Allocate success: Free old full path\n");
 					free(*full_path);
 					// Assign new full path
-					PRINT("Allocate success: Assign new full path\n");
+					//PRINT("Allocate success: Assign new full path\n");
 					*full_path = new_full_path;
 					return 0;
 				} else {
@@ -314,6 +319,12 @@ int fromDeviceToLetter(WCHAR** full_path) {
 }
 
 void formatPath(WCHAR** full_path) {
+	HANDLE handle = NULL;
+	WCHAR* new_full_path = NULL;
+	DWORD result = 0;
+	DWORD attributes_flags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS;
+
+
 	PRINT("Function formatPath() starts with '%ws'\n", *full_path);
 	if (wcsstr(*full_path, L"Device") != NULL) {	//== &((*full_path)[1])) {
 		PRINT("Starting fromDeviceToLetter() function on '%ws'\n", *full_path);
@@ -337,16 +348,9 @@ void formatPath(WCHAR** full_path) {
 
 	if (!PathFileExistsW(*full_path)) {
 		fprintf(stderr, "ERROR: path does not exist.\n");
-		wchar_t err_buf[256];
-		FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_buf, (sizeof(err_buf) / sizeof(wchar_t)), NULL);
-		fprintf(stderr, "ErrorMessage=%ws\n", err_buf);
+		printLastError(GetLastError());
 		return;
 	}
-
-	HANDLE handle = NULL;
-	WCHAR* new_full_path = NULL;
-	DWORD result = 0;
-	DWORD attributes_flags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS;
 
 	/*if (PathIsDirectoryW(*full_path)) {
 		PRINT("directory!!!!\n");
@@ -376,10 +380,16 @@ void formatPath(WCHAR** full_path) {
 		} else {
 			fprintf(stderr, "ERROR: something went wrong obtaining the path by handle (%lu)\n", GetLastError());
 		}
-	CloseHandle(handle);
+		CloseHandle(handle);
 	} else {
 		fprintf(stderr, "ERROR: invalid file handle (%lu)\n", GetLastError());
 	}
 
 	PRINT("Function formatPath() ends with '%ws'\n", *full_path);
+}
+
+void printLastError(DWORD error_value){
+	wchar_t err_buf[256];
+	FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error_value, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_buf, (sizeof(err_buf) / sizeof(wchar_t)), NULL);
+	fprintf(stderr, "ErrorMessage=%ws\n", err_buf);
 }

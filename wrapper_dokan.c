@@ -49,6 +49,7 @@ BOOL g_SecureLogs;	//Variable para logs de SecureWorld
 static WCHAR RootDirectory[NUM_LETTERS][DOKAN_MAX_PATH] = { L"C:" };
 static WCHAR MountPoint[NUM_LETTERS][DOKAN_MAX_PATH] = { L"M:\\" };
 static WCHAR UNCName[NUM_LETTERS][DOKAN_MAX_PATH] = { L"" };
+static struct Cipher* ciphers[NUM_LETTERS] = { NULL };
 
 
 
@@ -115,7 +116,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorUnmounted(PDOKAN_FILE_INFO DokanFileInfo);
 
 /////  FUNCTION DEFINITIONS  /////
 
-int dokanMapAndLaunch(WCHAR* path, WCHAR letter, int index) {
+int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, struct Cipher* cipher) {
 	DOKAN_OPTIONS dokan_options;
 	DOKAN_OPERATIONS dokan_operations;
 
@@ -132,6 +133,8 @@ int dokanMapAndLaunch(WCHAR* path, WCHAR letter, int index) {
 	letter_and_null[0] = letter;
 	wcscpy_s(MountPoint[index], 2, letter_and_null);
 	dokan_options.MountPoint = MountPoint[index];
+
+	ciphers[index] = cipher;
 
 	// Fill dokan operations
 	ZeroMemory(&dokan_operations, sizeof(DOKAN_OPERATIONS));
@@ -222,6 +225,7 @@ WCHAR* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info) {
 			CloseHandle(process_handle);
 			return process_full_path;
 		}
+		CloseHandle(process_handle);
 		free(process_full_path);
 	}
 
@@ -740,17 +744,38 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	LPDWORD ReadLength,
 	LONGLONG Offset,
 	PDOKAN_FILE_INFO DokanFileInfo) {
+
 	WCHAR file_path[DOKAN_MAX_PATH];
 	HANDLE handle = (HANDLE)DokanFileInfo->Context;
 	ULONG offset = (ULONG)Offset;
 	BOOL opened = FALSE;
 	GetFilePath(file_path, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 
-	//==========================================================
 	//VER EL PATH
-	//wprintf(L"Path: %s, Op: ReadFile\n", file_path);
-	//SecureLog(L"Path de lectura: %s\n", file_path);
-	//==========================================================
+	printf("Path: %ws, Op: MIRROR READ FILE\n", file_path);
+
+	LPVOID buffer_aux = NULL;
+	DWORD buffer_length_aux = BufferLength;		// Only for the block cipher
+	LPDWORD read_length_aux = ReadLength;		// Only for the block cipher
+	LONGLONG offset_aux = Offset;				// Only for the block cipher
+
+	WCHAR* full_app_path;
+	enum Operation op;
+
+	full_app_path = getAppPathDokan(DokanFileInfo);
+	printf("APP_Path: %ws, Op: MIRROR READ FILE\n", full_app_path);
+
+	op = getTableOperation(ON_READ, &full_app_path, MountPoint[THREAD_INDEX][0]); // pass MountPoint[THREAD_INDEX] as parameter for the getOperation. NO, better directly create global variable with pointer to table in this mounted disk
+
+	if (op != NOTHING) {
+		buffer_aux = malloc(BufferLength);
+	}
+
+	PRINT("Obtained operation: %d\n", op);
+
+	// Adjust buffers for block cipher
+	//preReadLogic(op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux);
+
 
 	DbgPrint(L"ReadFile : %s\n", file_path);
 
@@ -767,7 +792,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	}
 
 	LARGE_INTEGER distanceToMove;
-	distanceToMove.QuadPart = Offset;
+	distanceToMove.QuadPart = (op == NOTHING) ? Offset : offset_aux;		// Changed for block cipher
 	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 		DWORD error = GetLastError();
 		DbgPrint(L"\tseek error, offset = %d\n\n", offset);
@@ -776,51 +801,15 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 		return DokanNtStatusFromWin32(error);
 	}
 
-	//==========================================================
-	//Capturo el proceso que realiza la peticion
-	// Init an App struct
-	/*struct App app;
-	app.name = malloc(MAX_PATH * sizeof(char));
-	app.name[0] = '\0';
-	app.path = malloc(MAX_PATH * sizeof(char));
-	app.path[0] = '\0';
-	app.type = ANY;*/
 
-	char* full_app_path;
-	full_app_path = getAppPathDokan(DokanFileInfo);
-
-	//enum Operation op = getTableOperation(ON_READ, full_app_path, file_path);
-
-	LPVOID buffer_aux = Buffer;
-	DWORD buffer_length_aux = BufferLength;
-	LPDWORD read_length_aux = ReadLength;
-	LONGLONG offset_aux = Offset;		// This does not work check above, the "SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN) {...}"
-
-	// Adjust buffers
-	//preReadLogic(12, op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux);
-	int chrome = 0;
-	HANDLE hProcess;
-	CHAR nameProc[MAX_PATH];
-
-	hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, DokanFileInfo->ProcessId);
-	if (GetProcessImageFileNameA(hProcess, nameProc,
-		sizeof(nameProc) / sizeof(*nameProc)) != 0) {
-		if (strstr(nameProc, "chrome.exe") != NULL) {
-			//printf(" Lectura en chrome, %s\n", nameProc);
-			chrome = 1;
-		}
-	}
-
-	//==========================================================
-	/*if (!ReadFile(handle, buffer_aux, buffer_length_aux, read_length_aux, NULL)) {
-		DWORD error = GetLastError();
-		DbgPrint(L"\tread error = %u, buffer length = %d, read length = %d\n\n",
-			error, BufferLength, *ReadLength);
-		if (opened)
-			CloseHandle(handle);
-		return DokanNtStatusFromWin32(error);
-	}*/
-	if (!ReadFile(handle, Buffer, BufferLength, ReadLength, NULL)) {	// this if can be removed ONLY TESTING //////////
+	// Original read: 	if (!ReadFile(handle, Buffer, BufferLength, ReadLength, NULL)) {...}
+	if (!ReadFile(
+			handle,
+			(op == NOTHING) ? Buffer : buffer_aux,
+			(op == NOTHING) ? BufferLength : buffer_length_aux,
+			(op == NOTHING) ? ReadLength : read_length_aux,
+			NULL)
+		) {
 		DWORD error = GetLastError();
 		DbgPrint(L"\tread error = %u, buffer length = %d, read length = %d\n\n", error, BufferLength, *ReadLength);
 		if (opened)
@@ -829,11 +818,12 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	}
 
 
-	// Do the operations
-	//postReadLogic(4615, op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux);
-
-	// Reassign buffers TO DO
-
+	if (op != NOTHING) {
+		// Do the operations
+		postReadLogic(op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux, ciphers[THREAD_INDEX], Buffer);
+		free(buffer_aux);
+		free(full_app_path);
+	}
 
 	DbgPrint(L"\tByte to read: %d, Byte read %d, offset %d\n\n", BufferLength, *ReadLength, offset);
 
@@ -843,25 +833,42 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	return STATUS_SUCCESS;
 }
 
+
 static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	DWORD NumberOfBytesToWrite,
 	LPDWORD NumberOfBytesWritten,
 	LONGLONG Offset,
 	PDOKAN_FILE_INFO DokanFileInfo) {
-	WCHAR filePath[DOKAN_MAX_PATH];
+	WCHAR file_path[DOKAN_MAX_PATH];
 	HANDLE handle = (HANDLE)DokanFileInfo->Context;
 	BOOL opened = FALSE;
 
-	GetFilePath(filePath, DOKAN_MAX_PATH, FileName, DokanFileInfo);
+	GetFilePath(file_path, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 
-	DbgPrint(L"WriteFile : %s, offset %I64d, length %d\n", filePath, Offset,
-		NumberOfBytesToWrite);
+	LPCVOID buffer_aux = NULL;
+	DWORD bytes_to_write = NumberOfBytesToWrite;		// Only for the block cipher
+	LPDWORD bytes_written = NumberOfBytesWritten;		// Only for the block cipher
+	LONGLONG offset_aux = Offset;						// Only for the block cipher
+
+	WCHAR* full_app_path;
+	enum Operation op;
+
+	full_app_path = getAppPathDokan(DokanFileInfo);
+	printf("APP_Path: %ws, Op: MIRROR WRITE FILE\n", full_app_path);
+
+	op = getTableOperation(ON_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
+
+	if (op != NOTHING) {
+		buffer_aux = malloc(NumberOfBytesToWrite);
+	}
+	PRINT("Obtained operation: %d\n", op);
+
+	DbgPrint(L"WriteFile : %s, offset %I64d, length %d\n", file_path, Offset, NumberOfBytesToWrite);
 
 	// reopen the file
 	if (!handle || handle == INVALID_HANDLE_VALUE) {
 		DbgPrint(L"\tinvalid handle, cleanuped?\n");
-		handle = CreateFile(filePath, GENERIC_WRITE, FILE_SHARE_WRITE, NULL,
-			OPEN_EXISTING, 0, NULL);
+		handle = CreateFile(file_path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 		if (handle == INVALID_HANDLE_VALUE) {
 			DWORD error = GetLastError();
 			DbgPrint(L"\tCreateFile error : %d\n\n", error);
@@ -936,25 +943,17 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	//VER EL PATH
 	//wprintf(L"Path: %s, Op: WriteFile\n", file_path);
 	//==========================================================
-	preWriteLogic(3, CIPHER, filePath, &Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset);
+	if (op != NOTHING) {
+		preWriteLogic(op, file_path, &buffer_aux, &bytes_to_write, &bytes_written, &offset_aux, ciphers[THREAD_INDEX], Buffer);
+	}
 
-	int local_op = 1;
-	LPCVOID Buffer2 = Buffer;
-	/*if (wcsncmp(filePath, L"C:", 2) == 0)
-		//printf("Ocurre en C:\n");
-		local_op = 1;
-	else {
-		local_op = 0;
-		Buffer2 = malloc(sizeof(char) * NumberOfBytesToWrite);
-		//printf("Ocurre fuera de C:\n");
-		for (unsigned int i = 0; i < NumberOfBytesToWrite; i++) {
-			//xor
-			((char*)Buffer2)[i] = ((char*)Buffer)[i] ^ 0xFF;
-		}
-	}*/
-	//==========================================================
-	if (!WriteFile(handle, Buffer2, NumberOfBytesToWrite, NumberOfBytesWritten,
-		NULL)) {
+	if (!WriteFile(
+			handle,
+			(op == NOTHING) ? Buffer : buffer_aux,
+			(op == NOTHING) ? NumberOfBytesToWrite : bytes_to_write,
+			(op == NOTHING) ? NumberOfBytesWritten : bytes_written,
+			NULL)
+		) {
 		DWORD error = GetLastError();
 		DbgPrint(L"\twrite error = %u, buffer length = %d, write length = %d\n", error, NumberOfBytesToWrite, *NumberOfBytesWritten);
 		if (opened)
@@ -965,10 +964,13 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		DbgPrint(L"\twrite %d, offset %I64d\n\n", *NumberOfBytesWritten, Offset);
 	}
 
+	if (op != NOTHING) {
+		free(buffer_aux);
+		free(full_app_path);
+	}
+
+
 	// close the file when it is reopened
-	if (local_op == 0)
-		free(Buffer2);
-	//free(Buffer2);
 	if (opened)
 		CloseHandle(handle);
 

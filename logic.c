@@ -13,15 +13,63 @@ Nokia Febrero 2021
 
 
 
+
 /////  FUNCTION PROTOTYPES  /////
 
 void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size);
 void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size);
+enum Operation operationAddition(enum Operation op1, enum Operation op2);
 
 
 
 
 /////  FUNCTION IMPLEMENTATIONS  /////
+
+enum Operation operationAddition(enum Operation op1, enum Operation op2) {
+	switch (op1) {
+		case NOTHING:
+			switch (op1) {
+				case NOTHING:
+					return NOTHING;
+				case CIPHER:
+					return CIPHER;
+				case DECIPHER:
+					return DECIPHER;
+				default:
+					break;
+			}
+			break;
+		case CIPHER:
+			switch (op1) {
+				case NOTHING:
+					return CIPHER;
+				case CIPHER:
+					fprintf(stderr, "ERROR: case where chiphering has to be done on top of another ciphering is not allowed");
+					return NOTHING;		// CIPHER 2 times
+				case DECIPHER:
+					return NOTHING;
+				default:
+					break;
+			}
+			break;
+		case DECIPHER:
+			switch (op1) {
+				case NOTHING:
+					return DECIPHER;
+				case CIPHER:
+					return NOTHING;
+				case DECIPHER:
+					fprintf(stderr, "ERROR: case where dechiphering has to be done on top of another deciphering is not allowed");
+					return NOTHING;		// DECIPHER 2 times
+				default:
+					break;
+			}
+			break;
+		default:
+			break;
+	}
+	return NOTHING;
+}
 
 void fixBuffer() {
 	// TO DO
@@ -72,7 +120,7 @@ int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffe
 }
 
 // This function allocates buffers to a memory size adjusted to the blocksize and other parameters. If blocksize is 0, allocates buffers of the same size.
-int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
+int preReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
 	// Change offset and bytes_to_do
 	/*switch (op) {
 		case NOTHING:
@@ -110,9 +158,24 @@ int preReadLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer,
 	return 0;
 }
 
-int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
-	PRINT("postReadLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld \n", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
+int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* buffer_length, LPDWORD* bytes_done, LONGLONG* offset, struct Cipher *p_cipher, LPCVOID out_buffer) {
+	PRINT("postReadLogic!!\n");
+	PRINT(" - Operation: %d\n - File path: %ws\n - InBuffer: %p\n - Buffer length: %lu\n - Bytes done: %lu\n - Offset: %lld\n - Cipher: %s\n - OutBuffer: %p\n",
+		op, file_path, *in_buffer, *buffer_length, **bytes_done, *offset, p_cipher->id, out_buffer);
+
+	switch (op) {
+		case NOTHING:
+			break;
+		case CIPHER:	// Call cipher
+			cipher(p_cipher, *in_buffer, out_buffer, *buffer_length);
+			break;
+		case DECIPHER:	// Call decipher
+			decipher(p_cipher, *in_buffer, out_buffer, *buffer_length);
+			break;
+		default:
+			break;
+	}
+
 
 	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
 	// If write, execute operation
@@ -159,17 +222,25 @@ int postReadLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer
 }
 
 
-int preWriteLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
-	PRINT("preWriteLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld \n", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
+int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* bytes_to_write, LPDWORD* bytes_written, LONGLONG* offset, struct Cipher* p_cipher, LPCVOID out_buffer) {
+	PRINT("preWriteLogic!!\n");
+	PRINT(" - Operation: %d\n - File path: %ws\n - InBuffer: %p\n - Bytes to write: %lu\n - Bytes written: %lu\n - Offset: %lld\n - Cipher: %s\n - OutBuffer: %p\n",
+		op, file_path, *in_buffer, *bytes_to_write, **bytes_written, *offset, p_cipher->id, out_buffer);
 
-	LPVOID ciph_buf = malloc(*bytes_to_do);
-	if (ciph_buf==NULL) {
-		printf("ERROR\n");
+	switch (op) {
+		case NOTHING:
+			break;
+		case CIPHER:	// Call cipher
+			cipher(p_cipher, *in_buffer, out_buffer, *bytes_to_write);
+			break;
+		case DECIPHER:	// Call decipher
+			decipher(p_cipher, *in_buffer, out_buffer, *bytes_to_write);
+			break;
+		default:
+			break;
 	}
-	PRINT("antes de cipher \n");
 
-	cipher(ctx.ciphers[0], *buffer, ciph_buf, *bytes_to_do);
+
 	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
 	// If write, execute operation
 	/*switch (op) {

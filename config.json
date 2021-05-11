@@ -15,7 +15,7 @@
 			"MountPoint": "G",
 			"Driver": "WinFSP",
 			"Protection": {
-				"OpTable": "Table2",
+				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1","Group2"],
 				"Cipher": "AES-128bit"
 			}
@@ -25,7 +25,7 @@
 			"MountPoint": "H",
 			"Driver": "Dokan",
 			"Protection": {
-				"OpTable": "Table2",
+				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1","Group2"],
 				"Cipher": "AES-128bit"
 			}
@@ -35,7 +35,7 @@
 			"MountPoint": "I",
 			"Driver": "Dokan",
 			"Protection": {
-				"OpTable": "Table2",
+				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1","Group2"],
 				"Cipher": "AES-128bit"
 			}
@@ -79,20 +79,20 @@
 			},
 			{
 				"AppType": "MAILER",
-				"READ": "DECIPHER",
-				"WRITE": "MARK"
+				"READ": "CIPHER",
+				"WRITE": "DECIPHER"
+			},
+			{
+				"AppType": "ANY",
+				"READ": "NOTHING",
+				"WRITE": "NOTHING"
 			}
 		],
 		"Table2": [
 			{
-				"AppType": "BROWSER",
-				"READ": "CIPHER",
+				"AppType": "ANY",
+				"READ": "DECIPHER",
 				"WRITE": "NOTHING"
-			},
-			{
-				"AppType": "MAILER",
-				"READ": "MARK",
-				"WRITE": "UNMARK"
 			}
 		]
 	},

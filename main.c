@@ -47,10 +47,11 @@ int main(int argc, char* argv[]) {
 
 	// For each folder create and launch a thread and make it call threadDokan() or threadWinFSP()
 	for (int i = 0; i < _msize(ctx.folders) / sizeof(struct Folder*); i++) {
-	//for (i = 0; i < 1; i++) {
+	//for (int i = 0; i < 1; i++) {
 		th_data[i].index = i;
 		th_data[i].letter = ctx.folders[i]->mount_point;
 		th_data[i].path = ctx.folders[i]->path;
+		th_data[i].cipher = ctx.folders[i]->protection->cipher;
 
 		switch (ctx.folders[i]->driver) {
 			case DOKAN:
@@ -80,7 +81,7 @@ int main(int argc, char* argv[]) {
 
 
 int threadDokan(struct ThreadData *th_data) {
-	dokanMapAndLaunch(th_data->path, th_data->letter, th_data->index);		////////////////// TO DO UNCOMMENT
+	dokanMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->cipher);
 	/*while (TRUE) {
 		printf("Hello, Dokan thread with id=%d reporting alive.\n", th_data->index);
 		Sleep(8000);

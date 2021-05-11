@@ -29,6 +29,7 @@ struct ThreadData {
 	int index;
 	WCHAR letter;
 	WCHAR* path;
+	struct Cipher* cipher;
 };
 
 struct LetterDeviceMap {

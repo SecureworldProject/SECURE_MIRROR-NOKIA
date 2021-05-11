@@ -54,9 +54,9 @@ extern "C" {
 	static struct App* createApp();
 	static void destroyApp(struct App** app);
 
-	enum Operation getTableOperation(enum IrpOperation irp_operation, WCHAR* app_full_path, WCHAR* file_full_path);
+	enum Operation getTableOperation(enum IrpOperation irp_operation, WCHAR** app_full_path, WCHAR mount_point);
 
-	inline struct OpTable* getTable(WCHAR* file_full_path);
+	inline struct OpTable* getTable(WCHAR mount_point);
 	inline struct App* getApp(WCHAR* app_full_path);
 	inline WCHAR getDiskType(WCHAR* file_full_path);
 	inline enum Operation* getOperations(enum AppType app_type, struct OpTable* table);
@@ -72,6 +72,8 @@ extern "C" {
 	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id);
 	static struct Cipher* getCipherById(char* group_id);
 	static struct OpTable* getOpTableById(char* table_id);
+
+	void printLastError(DWORD error_value);
 
 
 
