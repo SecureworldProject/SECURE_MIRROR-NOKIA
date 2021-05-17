@@ -10,6 +10,7 @@ Nokia Febrero 2021
 /////  FILE INCLUDES  /////
 
 #include "logic.h"
+#include <Lmcons.h>	// to get UNLEN
 
 
 
@@ -110,13 +111,49 @@ void unmark() {
 }
 
 
-int preCreateLogic(int num, enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset) {
-	PRINT("preCreateLogic!!  %d \n", num);
-	PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld \n", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
+int preCreateLogic(WCHAR file_path_param[]) {
+	WCHAR* tmp_str;
 
-	PRINT("TO DO \n");
+	PRINT("preCreateLogic!!\n");
+	//PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld \n", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
+	WCHAR* user = NULL;
+	DWORD user_size = 0;
+	LPDWORD p_user_size = &user_size;
 
-	return 0;
+	// This is much slower but more secure
+	//WCHAR* file_path = malloc(MAX_PATH * sizeof(WCHAR));
+	//wcscpy(file_path, file_path_param);
+	//formatPath(&file_path);
+	// If we format the string like this, save it in PDOKAN_FILE_INFO DokanFileInfo->Context (so it is done only once per handle)
+
+	// This is much faster but less secure
+	WCHAR* file_path = file_path_param;
+	size_t len = wcslen(file_path);
+	if (file_path[len-1] == L'\\') {
+		file_path[len-1] = L'\0';
+	}
+
+	for (size_t i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
+		//PRINT("comparing parental: %ws \n", ctx.parentals[i]->folder);
+		tmp_str = wcsstr(file_path, ctx.parentals[i]->folder);
+		if (tmp_str && tmp_str == file_path) {
+			// if check user and challenges
+			if (user == NULL){
+				user_size = UNLEN + 1;
+				user = malloc(sizeof(WCHAR) * user_size);
+				if (GetUserNameW(user, p_user_size) != 0) {
+					PRINT("UserName is: %ws", user);
+				} else {
+					PRINT("ERROR getting user name. Blocking access by default...\n");
+					return TRUE;
+				}
+			}
+			//PRINT("returning TRUE for folder %ws\n", tmp_str);
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 // This function allocates buffers to a memory size adjusted to the blocksize and other parameters. If blocksize is 0, allocates buffers of the same size.

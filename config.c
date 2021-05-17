@@ -829,10 +829,10 @@ void loadContext() {
 	formatCtxPaths();
 
 	// Convert sync folder paths to use secure-mirror letters
-	convertSyncFolderPaths();
+	//convertSyncFolderPaths();
 
 	// Convert parental paths to use secure-mirror letters
-	convertParentalFolderPaths();
+	//convertParentalFolderPaths();	// TO DO
 
 	return;
 }

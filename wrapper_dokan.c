@@ -377,7 +377,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 	ULONG ShareAccess, ULONG CreateDisposition,
 	ULONG CreateOptions, PDOKAN_FILE_INFO DokanFileInfo) {
 
-	WCHAR filePath[DOKAN_MAX_PATH];
+	WCHAR file_path[DOKAN_MAX_PATH];
 	HANDLE handle;
 	DWORD fileAttr;
 	NTSTATUS status = STATUS_SUCCESS;
@@ -396,13 +396,19 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 		DesiredAccess, FileAttributes, CreateOptions, CreateDisposition,
 		&genericDesiredAccess, &fileAttributesAndFlags, &creationDisposition);
 
-	GetFilePath(filePath, DOKAN_MAX_PATH, FileName, DokanFileInfo);
+	GetFilePath(file_path, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 
-	DbgPrint(L"CreateFile : %s\n", filePath);
+	DbgPrint(L"CreateFile : %s\n", file_path);
 	//==========================================================
 	//VER EL PATH
 	//wprintf(L"Path: %s, Op: CreateFile\n", filePath);
 	//==========================================================
+
+	if (preCreateLogic(file_path)) {
+		return STATUS_IO_PRIVILEGE_FAILED; /////////////////////////////////////////////////////////////////////
+	};
+
+
 
 	PrintUserName(DokanFileInfo);
 
@@ -443,7 +449,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 	MirrorCheckFlag(DesiredAccess, STANDARD_RIGHTS_EXECUTE);
 
 	// When filePath is a directory, needs to change the flag so that the file can be opened.
-	fileAttr = GetFileAttributes(filePath);
+	fileAttr = GetFileAttributes(file_path);
 
 	if (fileAttr != INVALID_FILE_ATTRIBUTES
 		&& fileAttr & FILE_ATTRIBUTE_DIRECTORY) {
@@ -535,7 +541,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 			}
 
 			//We create folder
-			if (!CreateDirectory(filePath, &securityAttrib)) {
+			if (!CreateDirectory(file_path, &securityAttrib)) {
 				error = GetLastError();
 				// Fail to create folder for OPEN_ALWAYS is not an error
 				if (error != ERROR_ALREADY_EXISTS || creationDisposition == CREATE_NEW) {
@@ -572,7 +578,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 			}
 
 			// FILE_FLAG_BACKUP_SEMANTICS is required for opening directory handles
-			handle = CreateFile(filePath, genericDesiredAccess, ShareAccess, &securityAttrib, OPEN_EXISTING, fileAttributesAndFlags | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+			handle = CreateFile(file_path, genericDesiredAccess, ShareAccess, &securityAttrib, OPEN_EXISTING, fileAttributesAndFlags | FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
 			if (g_ImpersonateCallerUser && userTokenHandle != INVALID_HANDLE_VALUE) {
 				// Clean Up operation for impersonate
@@ -630,7 +636,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 		}
 
 		handle = CreateFile(
-			filePath,
+			file_path,
 			genericDesiredAccess, // GENERIC_READ|GENERIC_WRITE|GENERIC_EXECUTE,
 			ShareAccess,
 			&securityAttrib, // security attribute
@@ -656,7 +662,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 			//Need to update FileAttributes with previous when Overwrite file
 			if (fileAttr != INVALID_FILE_ATTRIBUTES &&
 				creationDisposition == TRUNCATE_EXISTING) {
-				SetFileAttributes(filePath, fileAttributesAndFlags | fileAttr);
+				SetFileAttributes(file_path, fileAttributesAndFlags | fileAttr);
 			}
 
 			DokanFileInfo->Context = (ULONG64)handle; // save the file handle in Context
