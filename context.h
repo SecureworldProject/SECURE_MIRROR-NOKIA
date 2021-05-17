@@ -120,6 +120,7 @@ extern "C" {
 	struct Folder {
 		WCHAR* path;
 		WCHAR mount_point;
+		WCHAR* name;
 		enum Driver driver;
 		struct Protection* protection;
 	};
@@ -239,6 +240,7 @@ extern "C" {
 			PRINT1("Folder:\n");
 			PRINT2("Path: %ws\n", ctx.folders[i]->path);
 			PRINT2("Mount point: %wc\n", ctx.folders[i]->mount_point);
+			PRINT2("Name: %ws\n", ctx.folders[i]->name);
 			PRINT2("Driver: %d\n", ctx.folders[i]->driver);
 			PRINT2("Protection\n");
 			PRINT3("Op table: %s\n", ctx.folders[i]->protection->op_table->id);

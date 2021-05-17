@@ -3,6 +3,7 @@
 		{
 			"Path": "C:/Users/Pepito/Documents/",
 			"MountPoint": "F",
+			"Name": "PepitoDocuments (dokan)",
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
@@ -13,6 +14,7 @@
 		{
 			"Path": "C:/Users/Pepito/",
 			"MountPoint": "G",
+			"Name": "Pepito (winfsp)",
 			"Driver": "WinFSP",
 			"Protection": {
 				"OpTable": "Table1",
@@ -23,6 +25,7 @@
 		{
 			"Path": "C:/Users/Pepito/OneDrive/cosa1/",
 			"MountPoint": "H",
+			"Name": "Cosa1 (dokan)",
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
@@ -33,6 +36,7 @@
 		{
 			"Path": "C:/Users/Pepito/OneDrive/cosa2/",
 			"MountPoint": "I",
+			"Name": "Cosa2 (dokan)",
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",

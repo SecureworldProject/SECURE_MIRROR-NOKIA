@@ -137,19 +137,34 @@ int preCreateLogic(WCHAR file_path_param[]) {
 		//PRINT("comparing parental: %ws \n", ctx.parentals[i]->folder);
 		tmp_str = wcsstr(file_path, ctx.parentals[i]->folder);
 		if (tmp_str && tmp_str == file_path) {
-			// if check user and challenges
+			// Initialize user name if not done yet
 			if (user == NULL){
 				user_size = UNLEN + 1;
 				user = malloc(sizeof(WCHAR) * user_size);
 				if (GetUserNameW(user, p_user_size) != 0) {
-					PRINT("UserName is: %ws", user);
+					PRINT("UserName is: %ws\n", user);
 				} else {
 					PRINT("ERROR getting user name. Blocking access by default...\n");
 					return TRUE;
 				}
 			}
 			//PRINT("returning TRUE for folder %ws\n", tmp_str);
-			return TRUE;
+			return TRUE;			// TO DO remove this
+
+			// TO DO check all this stuff: the parental challenges must set a key like true/false or something like that
+			// Check if user name is allowed for this folder and challenges are correct.
+			/*for (size_t j = 0; j < _msize(ctx.parentals[i]->users) / sizeof(char*); j++) {			// TO DO fix users should use WCHAR* not char*
+				if (wcscmp(ctx.parentals[i]->users, user) == 0) {		// If current user is in allowed users, test the challenges
+					// Test the challenges, if they are correct, resturn FALSE (allow access) if not, return TRUE
+					for (size_t k = 0; k < _msize(ctx.parentals[i]->challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*); k++) {
+						if () {	// check parental challenges
+							return FALSE;	// Allow access
+						} else {
+							return TRUE;	// Block access
+						}
+					}
+				}
+			}*/
 		}
 	}
 

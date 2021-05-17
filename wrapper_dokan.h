@@ -4,7 +4,7 @@
 
 /////  FUNCTION PROTOTYPES  /////
 
-int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, struct Cipher* cipher);
+int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Cipher* cipher);
 WCHAR* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info);
 
 

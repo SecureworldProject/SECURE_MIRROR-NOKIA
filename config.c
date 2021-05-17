@@ -187,6 +187,13 @@ static void processFolder(int index, json_value* value, int depth) {
 			}
 		}
 
+		else if (strcmp(value->u.object.values[x].name, "Name") == 0) {
+			ctx.folders[index]->name = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[x].value->u.string.length) + 1));
+			if (ctx.folders[index]->name) {
+				mbstowcs(ctx.folders[index]->name, value->u.object.values[x].value->u.string.ptr, SIZE_MAX);
+			} // else --> The pointer is null because it was not possible to allocate memory
+		}
+
 		else if (strcmp(value->u.object.values[x].name, "Driver") == 0) {
 			driver_str = value->u.object.values[x].value->u.string.ptr;
 			if (strcmp(driver_str, "WinFSP") == 0)          driver = WINFSP;

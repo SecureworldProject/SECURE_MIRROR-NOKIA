@@ -27,8 +27,9 @@
 
 struct ThreadData {
 	int index;
-	WCHAR letter;
 	WCHAR* path;
+	WCHAR letter;
+	WCHAR* name;
 	struct Cipher* cipher;
 };
 

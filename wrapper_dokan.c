@@ -49,6 +49,7 @@ BOOL g_SecureLogs;	//Variable para logs de SecureWorld
 static WCHAR RootDirectory[NUM_LETTERS][DOKAN_MAX_PATH] = { L"C:" };
 static WCHAR MountPoint[NUM_LETTERS][DOKAN_MAX_PATH] = { L"M:\\" };
 static WCHAR UNCName[NUM_LETTERS][DOKAN_MAX_PATH] = { L"" };
+static WCHAR* volume_names[NUM_LETTERS] = { NULL };
 static struct Cipher* ciphers[NUM_LETTERS] = { NULL };
 
 
@@ -116,7 +117,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorUnmounted(PDOKAN_FILE_INFO DokanFileInfo);
 
 /////  FUNCTION DEFINITIONS  /////
 
-int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, struct Cipher* cipher) {
+int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Cipher* cipher) {
 	DOKAN_OPTIONS dokan_options;
 	DOKAN_OPERATIONS dokan_operations;
 
@@ -135,6 +136,7 @@ int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, struct Cipher* ciphe
 	dokan_options.MountPoint = MountPoint[index];
 
 	ciphers[index] = cipher;
+	volume_names[index] = volume_name;
 
 	// Fill dokan operations
 	ZeroMemory(&dokan_operations, sizeof(DOKAN_OPERATIONS));
@@ -405,8 +407,8 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 	//==========================================================
 
 	if (preCreateLogic(file_path)) {
-		return STATUS_IO_PRIVILEGE_FAILED; /////////////////////////////////////////////////////////////////////
-	};
+		return STATUS_IO_PRIVILEGE_FAILED;						// TO DO complete
+	}
 
 
 
@@ -1593,7 +1595,12 @@ static NTSTATUS DOKAN_CALLBACK MirrorGetVolumeInformation(
 	WCHAR volumeRoot[4];
 	DWORD fsFlags = 0;
 
-	wcscpy_s(VolumeNameBuffer, VolumeNameSize, L"DOKAN");
+	// Set the name of the volume shown in file explorer
+	if (volume_names[THREAD_INDEX]) {
+		wcscpy_s(VolumeNameBuffer, VolumeNameSize, volume_names[THREAD_INDEX]);
+	} else {
+		wcscpy_s(VolumeNameBuffer, VolumeNameSize, L"DOKAN");
+	}
 
 	if (VolumeSerialNumber)
 		*VolumeSerialNumber = 0x19831116;
