@@ -282,7 +282,7 @@ static void processPendrive(json_value* value, int depth) {
 
 static void processParentalControls(json_value* value, int depth) {
 	PRINT(" - processParentalControls() starts\n");
-	int array_length, dict_length, users_array_length;
+	int array_length, dict_length, users_array_length, groups_array_length;
 	json_value* array_value;
 
 	array_length = value->u.array.length;
@@ -310,12 +310,12 @@ static void processParentalControls(json_value* value, int depth) {
 							if (users_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
 								ctx.parentals[i]->users = NULL;
 							} else {
-								ctx.parentals[i]->users = (char**)malloc(users_array_length * sizeof(char*));
+								ctx.parentals[i]->users = (WCHAR**)malloc(users_array_length * sizeof(WCHAR*));
 								if (ctx.parentals[i]->users) {
 									for (int k = 0; k < users_array_length; k++) {
-										ctx.parentals[i]->users[k] = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));
+										ctx.parentals[i]->users[k] = (WCHAR*)malloc(sizeof(WCHAR) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));
 										if (ctx.parentals[i]->users[k]) {
-											strcpy(ctx.parentals[i]->users[k], array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr);
+											mbstowcs(ctx.parentals[i]->users[k], array_value->u.object.values[j].value->u.array.values[k]->u.string.ptr, SIZE_MAX);
 										} // else --> The pointer is null because it was not possible to allocate memory
 									}
 								} // else --> The pointer is null because it was not possible to allocate memory
@@ -323,15 +323,15 @@ static void processParentalControls(json_value* value, int depth) {
 						}
 
 						else if (strcmp(array_value->u.object.values[j].name, "ChallengeEqGroups") == 0) {
-							users_array_length = array_value->u.object.values[j].value->u.array.length;
-							if (users_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
-								ctx.parentals[i]->users = NULL;
+							groups_array_length = array_value->u.object.values[j].value->u.array.length;
+							if (groups_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+								ctx.parentals[i]->challenge_groups = NULL;
 							} else {
 								// This will be a ChallengeEquivalenceGroup pointer pointer but for now it will hold ids, so force it to char pointer pointer
 								#pragma warning(suppress: 4133)
-								ctx.parentals[i]->challenge_groups = (char**)malloc(users_array_length * sizeof(char*));
+								ctx.parentals[i]->challenge_groups = (char**)malloc(groups_array_length * sizeof(char*));
 								if (ctx.parentals[i]->challenge_groups) {
-									for (int k = 0; k < users_array_length; k++) {
+									for (int k = 0; k < groups_array_length; k++) {
 										// This will be a ChallengeEquivalenceGroup pointer but for now it will hold is, so force it to char pointer
 										#pragma warning(suppress: 4133)
 										ctx.parentals[i]->challenge_groups[k] = (char*)malloc(sizeof(char) * ((array_value->u.object.values[j].value->u.array.values[k]->u.string.length) + 1));

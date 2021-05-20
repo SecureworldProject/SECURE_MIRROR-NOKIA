@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
 		th_data[i].path = ctx.folders[i]->path;
 		th_data[i].letter = ctx.folders[i]->mount_point;
 		th_data[i].name = ctx.folders[i]->name;
-		th_data[i].cipher = ctx.folders[i]->protection->cipher;
+		th_data[i].protection = ctx.folders[i]->protection;
 
 		switch (ctx.folders[i]->driver) {
 			case DOKAN:
@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
 
 
 int threadDokan(struct ThreadData *th_data) {
-	dokanMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->name, th_data->cipher);
+	dokanMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->name, th_data->protection);
 	/*while (TRUE) {
 		printf("Hello, Dokan thread with id=%d reporting alive.\n", th_data->index);
 		Sleep(8000);

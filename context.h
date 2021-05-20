@@ -140,7 +140,7 @@ extern "C" {
 	struct KeyData {
 		byte* data;
 		int size;
-		time_t expires;
+		time_t expires;		// In the case of the full key we will take the first expire date
 	};
 
 	struct Pendrive {
@@ -151,7 +151,7 @@ extern "C" {
 
 	struct ParentalControl {
 		WCHAR* folder;
-		char** users;
+		WCHAR** users;
 		struct ChallengeEquivalenceGroup** challenge_groups;
 	};
 
@@ -184,7 +184,7 @@ extern "C" {
 		IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING
 	};
 
-	struct App {
+	struct App {		// We search by path and name, not by type
 		WCHAR* path;
 		WCHAR* name;
 		enum AppType type;
@@ -192,7 +192,7 @@ extern "C" {
 
 	struct ChallengeEquivalenceGroup {
 		char* id;
-		struct KeyData* subkey;	// Not obtained from json
+		struct KeyData* subkey;		// Not obtained from json
 		struct Challenge** challenges;
 	};
 
@@ -275,8 +275,8 @@ extern "C" {
 				PRINT("%s%s", ctx.parentals[i]->challenge_groups[j]->id, (j + 1 < _msize(ctx.parentals[i]->challenge_groups) / sizeof(char*)) ? ", " : "\n");
 			}
 			PRINT2("Users: ");
-			for (int j = 0; j < _msize(ctx.parentals[i]->users) / sizeof(char*); j++) {
-				PRINT("%s%s", ctx.parentals[i]->users[j], (j + 1 < _msize(ctx.parentals[i]->users) / sizeof(char*)) ? ", " : "\n");
+			for (int j = 0; j < _msize(ctx.parentals[i]->users) / sizeof(WCHAR*); j++) {
+				PRINT("%ws%s", ctx.parentals[i]->users[j], (j + 1 < _msize(ctx.parentals[i]->users) / sizeof(WCHAR*)) ? ", " : "\n");
 			}
 		}
 

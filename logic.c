@@ -10,6 +10,7 @@ Nokia Febrero 2021
 /////  FILE INCLUDES  /////
 
 #include "logic.h"
+#include "keymaker.h"
 #include <Lmcons.h>	// to get UNLEN
 
 
@@ -17,8 +18,8 @@ Nokia Febrero 2021
 
 /////  FUNCTION PROTOTYPES  /////
 
-void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size);
-void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size);
+void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key);
+void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key);
 enum Operation operationAddition(enum Operation op1, enum Operation op2);
 
 
@@ -79,24 +80,24 @@ void fixBufferLimitsPre() {
 	// TO DO
 }
 
-void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size) {
-	typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD);
+void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key) {
+	typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD, struct KeyData*);
 
 	cipher_func_type cipher_func;
 
 	cipher_func = (cipher_func_type)GetProcAddress(p_cipher->lib_handle, "cipher");
 
-	cipher_func(out_buf, in_buf, buf_size);
+	cipher_func(out_buf, in_buf, buf_size, composed_key);
 }
 
-void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size) {
-	typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD);
+void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key) {
+	typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD, struct KeyData*);
 
 	decipher_func_type decipher_func;
 
 	decipher_func = (decipher_func_type)GetProcAddress(p_cipher->lib_handle, "decipher");
 
-	decipher_func(out_buf, in_buf, buf_size);
+	decipher_func(out_buf, in_buf, buf_size, composed_key);
 }
 
 BOOL checkMark() {
@@ -111,7 +112,7 @@ void unmark() {
 }
 
 
-int preCreateLogic(WCHAR file_path_param[]) {
+BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 	WCHAR* tmp_str;
 
 	PRINT("preCreateLogic!!\n");
@@ -119,6 +120,9 @@ int preCreateLogic(WCHAR file_path_param[]) {
 	WCHAR* user = NULL;
 	DWORD user_size = 0;
 	LPDWORD p_user_size = &user_size;
+	struct App* app = NULL;
+	int result = 0;
+	BOOL block_access = FALSE;	// Allow by default
 
 	// This is much slower but more secure
 	//WCHAR* file_path = malloc(MAX_PATH * sizeof(WCHAR));
@@ -133,6 +137,13 @@ int preCreateLogic(WCHAR file_path_param[]) {
 		file_path[len-1] = L'\0';
 	}
 
+	// Check blocked apps
+	app = getApp(full_app_path);
+	if (app->type == BLOCKED) {
+		return TRUE;	// Block access
+	}
+
+	// Check parental control
 	for (size_t i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
 		//PRINT("comparing parental: %ws \n", ctx.parentals[i]->folder);
 		tmp_str = wcsstr(file_path, ctx.parentals[i]->folder);
@@ -141,34 +152,37 @@ int preCreateLogic(WCHAR file_path_param[]) {
 			if (user == NULL){
 				user_size = UNLEN + 1;
 				user = malloc(sizeof(WCHAR) * user_size);
-				if (GetUserNameW(user, p_user_size) != 0) {
-					PRINT("UserName is: %ws\n", user);
-				} else {
+				if (user == NULL || GetUserNameW(user, p_user_size) == 0) {		// If the function fails, the return value is zero.
 					PRINT("ERROR getting user name. Blocking access by default...\n");
-					return TRUE;
+					free(user);
+					return TRUE;	// Block access
+				} else {
+					PRINT("UserName is: %ws\n", user);
 				}
 			}
-			//PRINT("returning TRUE for folder %ws\n", tmp_str);
-			return TRUE;			// TO DO remove this
 
-			// TO DO check all this stuff: the parental challenges must set a key like true/false or something like that
 			// Check if user name is allowed for this folder and challenges are correct.
-			/*for (size_t j = 0; j < _msize(ctx.parentals[i]->users) / sizeof(char*); j++) {			// TO DO fix users should use WCHAR* not char*
-				if (wcscmp(ctx.parentals[i]->users, user) == 0) {		// If current user is in allowed users, test the challenges
-					// Test the challenges, if they are correct, resturn FALSE (allow access) if not, return TRUE
-					for (size_t k = 0; k < _msize(ctx.parentals[i]->challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*); k++) {
-						if () {	// check parental challenges
-							return FALSE;	// Allow access
-						} else {
-							return TRUE;	// Block access
-						}
+			for (size_t j = 0; j < _msize(ctx.parentals[i]->users) / sizeof(WCHAR*); j++) {
+				if (wcscmp(ctx.parentals[i]->users[j], user) == 0) {
+					// The path is a parental controlled folder and the user matches, then check the challenges to block or allow.
+					result = makeParentalKey(ctx.parentals[i]->challenge_groups, &block_access);
+					if (result != 0) {
+						fprintf(stderr, "ERROR in preCreateLogic (%d)", result);
+						return TRUE;	// Something went wrong, block access (should never happen)
 					}
+					return block_access;
 				}
-			}*/
+			}
+
+			// The path is a parental controlled folder but the user does not match with any of the ones with access, then block.
+			//PRINT("returning TRUE for folder %ws\n", tmp_str);
+			free(user);
+			return TRUE;	// Block access
 		}
 	}
 
-	return FALSE;
+	// The path is not a parental controlled folder, then allow.
+	return FALSE;	// Allow access
 }
 
 // This function allocates buffers to a memory size adjusted to the blocksize and other parameters. If blocksize is 0, allocates buffers of the same size.
@@ -210,19 +224,36 @@ int preReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* b
 	return 0;
 }
 
-int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* buffer_length, LPDWORD* bytes_done, LONGLONG* offset, struct Cipher *p_cipher, LPCVOID out_buffer) {
+int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* buffer_length, LPDWORD* bytes_done, LONGLONG* offset, struct Protection *protection, LPCVOID out_buffer) {
+	struct KeyData* composed_key = NULL;
+	int result = 0;
+
 	PRINT("postReadLogic!!\n");
 	PRINT(" - Operation: %d\n - File path: %ws\n - InBuffer: %p\n - Buffer length: %lu\n - Bytes done: %lu\n - Offset: %lld\n - Cipher: %s\n - OutBuffer: %p\n",
-		op, file_path, *in_buffer, *buffer_length, **bytes_done, *offset, p_cipher->id, out_buffer);
+		op, file_path, *in_buffer, *buffer_length, **bytes_done, *offset, protection->cipher->id, out_buffer);
+
+	composed_key = protection->key;
 
 	switch (op) {
 		case NOTHING:
 			break;
 		case CIPHER:	// Call cipher
-			cipher(p_cipher, *in_buffer, out_buffer, *buffer_length);
+			result = makeComposedKey(protection->challenge_groups, composed_key);
+			if (result == 0) {
+				cipher(protection->cipher, *in_buffer, out_buffer, *buffer_length, composed_key);
+			} else {
+				fprintf(stderr, "ERROR in postReadLogic (%d)", result);
+				return 1;
+			}
 			break;
 		case DECIPHER:	// Call decipher
-			decipher(p_cipher, *in_buffer, out_buffer, *buffer_length);
+			result = makeComposedKey(protection->challenge_groups, composed_key);
+			if (result == 0) {
+				decipher(protection->cipher, *in_buffer, out_buffer, *buffer_length, composed_key);
+			} else {
+				fprintf(stderr, "ERROR in postReadLogic (%d)", result);
+				return 1;
+			}
 			break;
 		default:
 			break;
@@ -274,23 +305,41 @@ int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWOR
 }
 
 
-int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* bytes_to_write, LPDWORD* bytes_written, LONGLONG* offset, struct Cipher* p_cipher, LPCVOID out_buffer) {
+int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* bytes_to_write, LPDWORD* bytes_written, LONGLONG* offset, struct Protection* protection, LPCVOID out_buffer) {
+	struct KeyData* composed_key = NULL;
+	int result = 0;
+
 	PRINT("preWriteLogic!!\n");
 	PRINT(" - Operation: %d\n - File path: %ws\n - InBuffer: %p\n - Bytes to write: %lu\n - Bytes written: %lu\n - Offset: %lld\n - Cipher: %s\n - OutBuffer: %p\n",
-		op, file_path, *in_buffer, *bytes_to_write, **bytes_written, *offset, p_cipher->id, out_buffer);
+		op, file_path, *in_buffer, *bytes_to_write, **bytes_written, *offset, protection->cipher->id, out_buffer);
+
+	composed_key = protection->key;
 
 	switch (op) {
 		case NOTHING:
 			break;
 		case CIPHER:	// Call cipher
-			cipher(p_cipher, *in_buffer, out_buffer, *bytes_to_write);
+			result = makeComposedKey(protection->challenge_groups, composed_key);
+			if (result == 0) {
+				cipher(protection->cipher, *in_buffer, out_buffer, *bytes_to_write, composed_key);
+			} else {
+				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
+				return 1;
+			}
 			break;
 		case DECIPHER:	// Call decipher
-			decipher(p_cipher, *in_buffer, out_buffer, *bytes_to_write);
+			result = makeComposedKey(protection->challenge_groups, composed_key);
+			if (result == 0) {
+				decipher(protection->cipher, *in_buffer, out_buffer, *bytes_to_write, composed_key);
+			} else {
+				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
+				return 1;
+			}
 			break;
 		default:
 			break;
 	}
+
 
 
 	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)

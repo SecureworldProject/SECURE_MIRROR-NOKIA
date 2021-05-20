@@ -60,12 +60,12 @@
 		{
 			"Folder": "C:/Users/Pepito/Documents/playboy_files/",
 			"Users": ["Pepito", "Admin"],
-			"ChallengeEqGroups": ["Group1"]
+			"ChallengeEqGroups": ["GroupParental1"]
 		},
 		{
 			"Folder": "C:/Users/Pepito/Documents/TOP_SECRET/",
 			"Users": ["Pepito", "Admin"],
-			"ChallengeEqGroups": ["Group2"]
+			"ChallengeEqGroups": ["GroupParental2"]
 		}
 	],
 
@@ -116,6 +116,11 @@
 			"AppPath": "C:\\Windows",
 			"AppName": "notepad.exe",
 			"AppType": "ANY"
+		},
+		{
+			"AppPath": "C:\\Windows",
+			"AppName": "notepad2.exe",
+			"AppType": "BLOCKED"
 		}
 	],
 
@@ -149,6 +154,26 @@
 					"Description": "Checks the existence of an inaudible tone in the background.",
 					"Props": "freq=40000hz",
 					"Requirements": "microphone"
+				}
+			]
+		},
+		"GroupParental1": {
+			"ChallengeList": [
+				{
+					"FileName": "set_key_1.dll",
+					"Description": "Always set the key to true.",
+					"Props": "",
+					"Requirements": "none"
+				}
+			]
+		},
+		"GroupParental2": {
+			"ChallengeList": [
+				{
+					"FileName": "check_age.dll",
+					"Description": "Checks the age of the user using the pc is higher or equal to the given as parameter.",
+					"Props": "min_age=18",
+					"Requirements": "camera"
 				}
 			]
 		}

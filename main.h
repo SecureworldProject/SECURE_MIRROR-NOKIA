@@ -30,7 +30,7 @@ struct ThreadData {
 	WCHAR* path;
 	WCHAR letter;
 	WCHAR* name;
-	struct Cipher* cipher;
+	struct Protection* protection;
 };
 
 struct LetterDeviceMap {

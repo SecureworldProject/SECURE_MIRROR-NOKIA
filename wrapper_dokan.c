@@ -50,7 +50,9 @@ static WCHAR RootDirectory[NUM_LETTERS][DOKAN_MAX_PATH] = { L"C:" };
 static WCHAR MountPoint[NUM_LETTERS][DOKAN_MAX_PATH] = { L"M:\\" };
 static WCHAR UNCName[NUM_LETTERS][DOKAN_MAX_PATH] = { L"" };
 static WCHAR* volume_names[NUM_LETTERS] = { NULL };
-static struct Cipher* ciphers[NUM_LETTERS] = { NULL };
+//static struct VolumeInfo* volume_info[NUM_LETTERS] = { NULL };
+// TO DO protections here instead of Cipher or others
+static struct Protection* protections[NUM_LETTERS] = { NULL };
 
 
 
@@ -117,7 +119,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorUnmounted(PDOKAN_FILE_INFO DokanFileInfo);
 
 /////  FUNCTION DEFINITIONS  /////
 
-int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Cipher* cipher) {
+int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
 	DOKAN_OPTIONS dokan_options;
 	DOKAN_OPERATIONS dokan_operations;
 
@@ -135,7 +137,7 @@ int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, 
 	wcscpy_s(MountPoint[index], 2, letter_and_null);
 	dokan_options.MountPoint = MountPoint[index];
 
-	ciphers[index] = cipher;
+	protections[index] = protection;
 	volume_names[index] = volume_name;
 
 	// Fill dokan operations
@@ -216,7 +218,7 @@ int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, 
 WCHAR* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info) {
 	HANDLE process_handle;
 	WCHAR* process_full_path = NULL;
-	size_t process_full_path_length = 0;
+	DWORD process_full_path_length = 0;
 
 	process_full_path_length = MAX_PATH;
 	process_full_path = malloc(process_full_path_length * sizeof(WCHAR));
@@ -406,7 +408,11 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 	//wprintf(L"Path: %s, Op: CreateFile\n", filePath);
 	//==========================================================
 
-	if (preCreateLogic(file_path)) {
+	WCHAR* full_app_path;
+	full_app_path = getAppPathDokan(DokanFileInfo);
+
+
+	if (preCreateLogic(file_path, full_app_path)) {
 		return STATUS_IO_PRIVILEGE_FAILED;						// TO DO complete
 	}
 
@@ -828,7 +834,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	if (op != NOTHING) {
 		// Do the operations
-		postReadLogic(op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux, ciphers[THREAD_INDEX], Buffer);
+		postReadLogic(op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux, protections[THREAD_INDEX], Buffer);
 		free(buffer_aux);
 		free(full_app_path);
 	}
@@ -952,7 +958,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	//wprintf(L"Path: %s, Op: WriteFile\n", file_path);
 	//==========================================================
 	if (op != NOTHING) {
-		preWriteLogic(op, file_path, &buffer_aux, &bytes_to_write, &bytes_written, &offset_aux, ciphers[THREAD_INDEX], Buffer);
+		preWriteLogic(op, file_path, &buffer_aux, &bytes_to_write, &bytes_written, &offset_aux, protections[THREAD_INDEX], Buffer);
 	}
 
 	if (!WriteFile(
