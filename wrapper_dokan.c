@@ -765,8 +765,6 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	BOOL opened = FALSE;
 	GetFilePath(file_path, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 
-	//VER EL PATH
-	printf("Path: %ws, Op: MIRROR READ FILE\n", file_path);
 
 	LPVOID buffer_aux = NULL;
 	DWORD buffer_length_aux = BufferLength;		// Only for the block cipher
@@ -774,18 +772,20 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	LONGLONG offset_aux = Offset;				// Only for the block cipher
 
 	WCHAR* full_app_path;
-	enum Operation op;
+	enum Operation op_final, op1, op2;
 
 	full_app_path = getAppPathDokan(DokanFileInfo);
-	printf("APP_Path: %ws, Op: MIRROR READ FILE\n", full_app_path);
+	printf("Op: MIRROR READ FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-	op = getTableOperation(ON_READ, &full_app_path, MountPoint[THREAD_INDEX][0]); // pass MountPoint[THREAD_INDEX] as parameter for the getOperation. NO, better directly create global variable with pointer to table in this mounted disk
+	op1 = getTableOperation(ON_READ, &full_app_path, MountPoint[THREAD_INDEX][0]); // pass MountPoint[THREAD_INDEX] as parameter for the getOperation. NO, better directly create global variable with pointer to table in this mounted disk
+	op2 = getOpSyncFolder(ON_READ, file_path);
 
-	if (op != NOTHING) {
+	op_final = operationAddition(op1, op2);
+	PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);
+
+	if (op_final != NOTHING) {
 		buffer_aux = malloc(BufferLength);
 	}
-
-	PRINT("Obtained operation: %d\n", op);
 
 	// Adjust buffers for block cipher
 	//preReadLogic(op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux);
@@ -806,7 +806,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	}
 
 	LARGE_INTEGER distanceToMove;
-	distanceToMove.QuadPart = (op == NOTHING) ? Offset : offset_aux;		// Changed for block cipher
+	distanceToMove.QuadPart = (op_final == NOTHING) ? Offset : offset_aux;		// Changed for block cipher
 	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 		DWORD error = GetLastError();
 		DbgPrint(L"\tseek error, offset = %d\n\n", offset);
@@ -819,9 +819,9 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	// Original read: 	if (!ReadFile(handle, Buffer, BufferLength, ReadLength, NULL)) {...}
 	if (!ReadFile(
 			handle,
-			(op == NOTHING) ? Buffer : buffer_aux,
-			(op == NOTHING) ? BufferLength : buffer_length_aux,
-			(op == NOTHING) ? ReadLength : read_length_aux,
+			(op_final == NOTHING) ? Buffer : buffer_aux,
+			(op_final == NOTHING) ? BufferLength : buffer_length_aux,
+			(op_final == NOTHING) ? ReadLength : read_length_aux,
 			NULL)
 		) {
 		DWORD error = GetLastError();
@@ -832,9 +832,9 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	}
 
 
-	if (op != NOTHING) {
+	if (op_final != NOTHING) {
 		// Do the operations
-		postReadLogic(op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux, protections[THREAD_INDEX], Buffer);
+		postReadLogic(op_final, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux, protections[THREAD_INDEX], Buffer);
 		free(buffer_aux);
 		free(full_app_path);
 	}
@@ -865,17 +865,20 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	LONGLONG offset_aux = Offset;						// Only for the block cipher
 
 	WCHAR* full_app_path;
-	enum Operation op;
+	enum Operation op_final, op1, op2;
 
 	full_app_path = getAppPathDokan(DokanFileInfo);
-	printf("APP_Path: %ws, Op: MIRROR WRITE FILE\n", full_app_path);
+	printf("Op: MIRROR WRITE FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-	op = getTableOperation(ON_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
+	op1 = getTableOperation(ON_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
+	op2 = getOpSyncFolder(ON_WRITE, file_path);
 
-	if (op != NOTHING) {
+	op_final = operationAddition(op1, op2);
+	PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);
+
+	if (op_final != NOTHING) {
 		buffer_aux = malloc(NumberOfBytesToWrite);
 	}
-	PRINT("Obtained operation: %d\n", op);
 
 	DbgPrint(L"WriteFile : %s, offset %I64d, length %d\n", file_path, Offset, NumberOfBytesToWrite);
 
@@ -957,15 +960,15 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	//VER EL PATH
 	//wprintf(L"Path: %s, Op: WriteFile\n", file_path);
 	//==========================================================
-	if (op != NOTHING) {
-		preWriteLogic(op, file_path, &buffer_aux, &bytes_to_write, &bytes_written, &offset_aux, protections[THREAD_INDEX], Buffer);
+	if (op_final != NOTHING) {
+		preWriteLogic(op_final, file_path, &buffer_aux, &bytes_to_write, &bytes_written, &offset_aux, protections[THREAD_INDEX], Buffer);
 	}
 
 	if (!WriteFile(
 			handle,
-			(op == NOTHING) ? Buffer : buffer_aux,
-			(op == NOTHING) ? NumberOfBytesToWrite : bytes_to_write,
-			(op == NOTHING) ? NumberOfBytesWritten : bytes_written,
+			(op_final == NOTHING) ? Buffer : buffer_aux,
+			(op_final == NOTHING) ? NumberOfBytesToWrite : bytes_to_write,
+			(op_final == NOTHING) ? NumberOfBytesWritten : bytes_written,
 			NULL)
 		) {
 		DWORD error = GetLastError();
@@ -978,7 +981,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		DbgPrint(L"\twrite %d, offset %I64d\n\n", *NumberOfBytesWritten, Offset);
 	}
 
-	if (op != NOTHING) {
+	if (op_final != NOTHING) {
 		free(buffer_aux);
 		free(full_app_path);
 	}

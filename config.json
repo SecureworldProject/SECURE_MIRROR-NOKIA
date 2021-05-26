@@ -30,7 +30,7 @@
 			"Protection": {
 				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1","Group2"],
-				"Cipher": "AES-128bit"
+				"Cipher": "simple"
 			}
 		},
 		{

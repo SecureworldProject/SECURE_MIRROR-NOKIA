@@ -4,7 +4,6 @@
 #include "context.h"
 #include "string.h"
 #include <ctype.h>
-#include <string.h>
 #include <Windows.h>
 #include "main.h"
 

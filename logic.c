@@ -20,17 +20,37 @@ Nokia Febrero 2021
 
 void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key);
 void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key);
-enum Operation operationAddition(enum Operation op1, enum Operation op2);
 
 
 
 
 /////  FUNCTION IMPLEMENTATIONS  /////
 
+enum Operation getOpSyncFolder(enum IrpOperation irp_op, WCHAR file_path[]) {
+	enum operation op = NOTHING;
+	WCHAR* tmp_str = NULL;
+	PRINT("Checking if path (%ws) is in any syncfolder\n", file_path);
+
+	for (size_t i = 0; i < _msize(ctx.sync_folders) / sizeof(WCHAR*); i++) {
+		PRINT1("Checking sync folder (%ws) \n", ctx.sync_folders[i]);
+		tmp_str = wcsstr(file_path, ctx.sync_folders[i]);
+		if (tmp_str != NULL && tmp_str == file_path) {
+			// Match found
+			PRINT("Match found - Irp op (%s) in syncfolder (%ws)\n", (irp_op == 0) ? "READ":"WRITE", file_path);
+			if (irp_op == ON_READ) {
+				op = DECIPHER;
+			} else if (irp_op == ON_WRITE) {
+				op = CIPHER;
+			}
+		}
+	}
+	return op;
+}
+
 enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 	switch (op1) {
 		case NOTHING:
-			switch (op1) {
+			switch (op2) {
 				case NOTHING:
 					return NOTHING;
 				case CIPHER:
@@ -42,7 +62,7 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 			}
 			break;
 		case CIPHER:
-			switch (op1) {
+			switch (op2) {
 				case NOTHING:
 					return CIPHER;
 				case CIPHER:
@@ -55,7 +75,7 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 			}
 			break;
 		case DECIPHER:
-			switch (op1) {
+			switch (op2) {
 				case NOTHING:
 					return DECIPHER;
 				case CIPHER:
@@ -81,23 +101,43 @@ void fixBufferLimitsPre() {
 }
 
 void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key) {
+	PRINT("Calling cipher dll......\n");
+
 	typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD, struct KeyData*);
 
 	cipher_func_type cipher_func;
+	int result;
 
 	cipher_func = (cipher_func_type)GetProcAddress(p_cipher->lib_handle, "cipher");
+	if (cipher_func != NULL) {
+		result = cipher_func(out_buf, in_buf, buf_size, composed_key);
+		if (result != 0) {
+			PRINT("WARNING: error \n");
+		}
+	} else {
+		PRINT("WARNING: error accessing the address to the cipher() function of the cipher '%ws' (error: %d)\n", p_cipher->file_name, GetLastError());
+	}
 
-	cipher_func(out_buf, in_buf, buf_size, composed_key);
 }
 
 void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key) {
+	PRINT("Calling decipher dll......\n");
+
 	typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD, struct KeyData*);
 
 	decipher_func_type decipher_func;
+	int result;
 
 	decipher_func = (decipher_func_type)GetProcAddress(p_cipher->lib_handle, "decipher");
+	if (decipher_func != NULL) {
+		result = decipher_func(out_buf, in_buf, buf_size, composed_key);
+		if (result != 0) {
+			PRINT("WARNING: error \n");
+		}
+	} else {
+		PRINT("WARNING: error accessing the address to the cipher() function of the cipher '%ws' (error: %d)\n", p_cipher->file_name, GetLastError());
+	}
 
-	decipher_func(out_buf, in_buf, buf_size, composed_key);
 }
 
 BOOL checkMark() {
@@ -115,7 +155,7 @@ void unmark() {
 BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 	WCHAR* tmp_str;
 
-	PRINT("preCreateLogic!!\n");
+	//PRINT("preCreateLogic!!\n");
 	//PRINT(" - Operation: %d\n - File path: %ws\n - Buffer: %p\n - Bytes to do: %lu\n - Bytes done: %lu\n - Offset: %lld \n", op, file_path, *buffer, *bytes_to_do, **bytes_done, *offset);
 	WCHAR* user = NULL;
 	DWORD user_size = 0;
@@ -234,13 +274,15 @@ int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWOR
 
 	composed_key = protection->key;
 
+
+	// Execute real logic associated
 	switch (op) {
 		case NOTHING:
 			break;
 		case CIPHER:	// Call cipher
 			result = makeComposedKey(protection->challenge_groups, composed_key);
 			if (result == 0) {
-				cipher(protection->cipher, *in_buffer, out_buffer, *buffer_length, composed_key);
+				cipher(protection->cipher, *in_buffer, out_buffer, **bytes_done, composed_key);
 			} else {
 				fprintf(stderr, "ERROR in postReadLogic (%d)", result);
 				return 1;
@@ -249,7 +291,7 @@ int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWOR
 		case DECIPHER:	// Call decipher
 			result = makeComposedKey(protection->challenge_groups, composed_key);
 			if (result == 0) {
-				decipher(protection->cipher, *in_buffer, out_buffer, *buffer_length, composed_key);
+				decipher(protection->cipher, *in_buffer, out_buffer, **bytes_done, composed_key);
 			} else {
 				fprintf(stderr, "ERROR in postReadLogic (%d)", result);
 				return 1;
@@ -305,23 +347,24 @@ int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWOR
 }
 
 
-int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* bytes_to_write, LPDWORD* bytes_written, LONGLONG* offset, struct Protection* protection, LPCVOID out_buffer) {
+int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* out_buffer, DWORD* bytes_to_write, LPDWORD* bytes_written, LONGLONG* offset, struct Protection* protection, LPCVOID in_buffer) {
 	struct KeyData* composed_key = NULL;
 	int result = 0;
 
 	PRINT("preWriteLogic!!\n");
 	PRINT(" - Operation: %d\n - File path: %ws\n - InBuffer: %p\n - Bytes to write: %lu\n - Bytes written: %lu\n - Offset: %lld\n - Cipher: %s\n - OutBuffer: %p\n",
-		op, file_path, *in_buffer, *bytes_to_write, **bytes_written, *offset, protection->cipher->id, out_buffer);
+		op, file_path, in_buffer, *bytes_to_write, **bytes_written, *offset, protection->cipher->id, *out_buffer);
 
 	composed_key = protection->key;
 
+	// Execute real logic associated
 	switch (op) {
 		case NOTHING:
 			break;
 		case CIPHER:	// Call cipher
 			result = makeComposedKey(protection->challenge_groups, composed_key);
 			if (result == 0) {
-				cipher(protection->cipher, *in_buffer, out_buffer, *bytes_to_write, composed_key);
+				cipher(protection->cipher, in_buffer, *out_buffer, *bytes_to_write, composed_key);
 			} else {
 				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
 				return 1;
@@ -330,7 +373,7 @@ int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWOR
 		case DECIPHER:	// Call decipher
 			result = makeComposedKey(protection->challenge_groups, composed_key);
 			if (result == 0) {
-				decipher(protection->cipher, *in_buffer, out_buffer, *bytes_to_write, composed_key);
+				decipher(protection->cipher, in_buffer, *out_buffer, *bytes_to_write, composed_key);
 			} else {
 				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
 				return 1;
