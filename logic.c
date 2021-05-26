@@ -15,6 +15,8 @@ Nokia Febrero 2021
 
 
 
+#define MARK_LENGTH 512
+
 
 /////  FUNCTION PROTOTYPES  /////
 
@@ -140,13 +142,87 @@ void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_
 
 }
 
+int getFileSize(UINT64* file_size, HANDLE handle, WCHAR* file_path) {
+	// check GetFileSizeEx()...
+	BOOL opened = FALSE;
+
+
+	// reopen the file
+	if (!handle || handle == INVALID_HANDLE_VALUE) {
+		PRINT("invalid handle, cleanuped?\n");
+		handle = CreateFile(file_path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+		if (handle == INVALID_HANDLE_VALUE) {
+			DWORD error = GetLastError();
+			PRINT("\tCreateFile error : %d\n\n", error);
+			return -1;
+		}
+		opened = TRUE;
+	}
+
+	*file_size = 0;
+	DWORD fileSizeLow = 0;
+	DWORD fileSizeHigh = 0;
+	fileSizeLow = GetFileSize(handle, &fileSizeHigh);
+	if (fileSizeLow == INVALID_FILE_SIZE) {
+		DWORD error = GetLastError();
+		PRINT("\tcan not get a file size error = %d\n", error);
+		if (opened)
+			CloseHandle(handle);
+		return -1;
+	}
+
+	*file_size = ((UINT64)fileSizeHigh << 32) | fileSizeLow;
+
+	return 0;
+}
+
+
 BOOL checkMark() {
 	// TO DO
+
+	// Check if the file is smaller than MARK_LENGTH
+	HANDLE handle = (HANDLE)dokan_file_info->Context;
+	UINT64 file_size;
+
+	getFileSize(&file_size, handle, file_path);
+	if (file_size < MARK_LENGTH) {
+		return FALSE;
+	}
+
+	// Read first 2 bytes and interpret it as a number C (size of the compressed stream).
+	LPVOID buf;
+	DWORD bytes_to_read = 2;
+	LPDWORD bytes_read;
+	buf = malloc(bytes_to_read);
+
+	if (!ReadFile(handle, buf, bytes_to_read, bytes_read, NULL)) {
+		DWORD error = GetLastError();
+		if (opened)
+			CloseHandle(handle);
+		return DokanNtStatusFromWin32(error);
+	}
+
+
+	// If from position C+2 until position M (end of stream) the apearing sequence does not match the filling sequece, then it is nor marked.
+	// Read C bytes starting on position 3 and uncompress them. If the size of uncompressed is excactly M, we suppose file is marked.
+
+
+
+
 	return TRUE;
 }
+
 void mark() {
 	// TO DO
+
+	// Check if the file is smaller than MARK_LENGTH
+	// Get first M bytes (stream) from file and compress them (resulting a compressed stream of C bytes).
+	// Check if (C > M - 2), in that case, mark is omitted. Else:
+	// Substitute first 2 bytes of the file with a codification of the C number. Then, substitute next C bytes with the compressed stream. Finally, fill the rest of the bytes until completing the M bytes with the filling sequence.
+
+
 }
+
 void unmark() {
 	// TO DO
 }
