@@ -39,6 +39,9 @@
     <ClCompile Include="sharing_app.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="huffman.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
@@ -60,6 +63,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="keymaker.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="huffman.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

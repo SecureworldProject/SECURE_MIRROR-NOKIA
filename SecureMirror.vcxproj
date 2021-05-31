@@ -153,6 +153,7 @@
   <ItemGroup>
     <ClCompile Include="config.c" />
     <ClCompile Include="context.c" />
+    <ClCompile Include="huffman.c" />
     <ClCompile Include="json.c" />
     <ClCompile Include="keymaker.c" />
     <ClCompile Include="logic.c" />
@@ -163,6 +164,7 @@
   <ItemGroup>
     <ClInclude Include="config.h" />
     <ClInclude Include="context.h" />
+    <ClInclude Include="huffman.h" />
     <ClInclude Include="keymaker.h" />
     <ClInclude Include="logic.h" />
     <ClInclude Include="main.h" />

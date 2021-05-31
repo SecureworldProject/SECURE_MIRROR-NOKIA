@@ -12,16 +12,48 @@ Nokia Febrero 2021
 #include "logic.h"
 #include "keymaker.h"
 #include <Lmcons.h>	// to get UNLEN
+#include "huffman.h"
 
 
+
+
+/////  DEFINITIONS  /////
 
 #define MARK_LENGTH 512
+
+// This is a byte array of length 'MARK_LENGTH'
+byte FILLING_SEQUENCE[] = {
+	// Each line contains 8*8 = 64 zeros
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,	// +64 zeros ( 64)
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,	// +64 zeros (128)
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,	// +64 zeros (192)
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,	// +64 zeros (256)
+
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,	// +64 zeros (320)
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,	// +64 zeros (384)
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,	// +64 zeros (448)
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0	// +64 zeros (512)
+};
+
+union UNION_UINT16 {
+	struct {
+		uint8_t low;
+		uint8_t high;
+	} part;
+	uint16_t full;
+};
+
+
 
 
 /////  FUNCTION PROTOTYPES  /////
 
 void cipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key);
 void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_size, struct KeyData* composed_key);
+
+BOOL checkMark(uint8_t* input);
+BOOL mark(uint8_t* input);
+BOOL unmark(uint8_t* input);
 
 
 
@@ -142,7 +174,8 @@ void decipher(struct Cipher* p_cipher, LPVOID in_buf, LPVOID out_buf, DWORD buf_
 
 }
 
-int getFileSize(UINT64* file_size, HANDLE handle, WCHAR* file_path) {
+/*
+int getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path) {
 	// check GetFileSizeEx()...
 	BOOL opened = FALSE;
 
@@ -171,51 +204,54 @@ int getFileSize(UINT64* file_size, HANDLE handle, WCHAR* file_path) {
 		return -1;
 	}
 
-	*file_size = ((UINT64)fileSizeHigh << 32) | fileSizeLow;
+	*file_size = ((uint64_t)fileSizeHigh << 32) | fileSizeLow;
 
 	return 0;
 }
 
+BOOL checkMarkOLD(HANDLE handle, WCHAR* file_path, uint8_t* input) {
+	// TO DO
 
-BOOL checkMark() {
+
+	// Read first MARK_LENGTH bytes
+	DWORD bytes_to_read = MARK_LENGTH;
+	DWORD bytes_read;
+
+	if (!ReadFile(handle, (LPVOID) input, bytes_to_read, &bytes_read, NULL)) {
+		return FALSE;
+	}
+
+	// Get first 2 bytes and interpret it as a number C (size of the compressed stream).
+	uint16_t compressed_stream_size = 0;
+	compressed_stream_size = ((uint16_t)input[0])<<8 + ((uint16_t)input[1]);
+
+	// If from position C+2 until position M (end of stream) the apearing sequence does not match the filling sequece, then it is not marked.
+	if (compressed_stream_size > MARK_LENGTH) {
+		return FALSE;
+	}
+	if (memcmp(&(input[2 + compressed_stream_size - 1]), FILLING_SEQUENCE, MARK_LENGTH - (2 + compressed_stream_size - 1)) != 0) {
+		return FALSE;
+	}
+									//  6 is  HEADER_BASE_SIZE
+	if ((uint16_t)(*(uint16_t*)&input[4] + (6 << 3)) != (uint16_t)MARK_LENGTH) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+void markOLD() {
 	// TO DO
 
 	// Check if the file is smaller than MARK_LENGTH
 	HANDLE handle = (HANDLE)dokan_file_info->Context;
-	UINT64 file_size;
+	uint64_t file_size;
 
 	getFileSize(&file_size, handle, file_path);
 	if (file_size < MARK_LENGTH) {
 		return FALSE;
 	}
 
-	// Read first 2 bytes and interpret it as a number C (size of the compressed stream).
-	LPVOID buf;
-	DWORD bytes_to_read = 2;
-	LPDWORD bytes_read;
-	buf = malloc(bytes_to_read);
-
-	if (!ReadFile(handle, buf, bytes_to_read, bytes_read, NULL)) {
-		DWORD error = GetLastError();
-		if (opened)
-			CloseHandle(handle);
-		return DokanNtStatusFromWin32(error);
-	}
-
-
-	// If from position C+2 until position M (end of stream) the apearing sequence does not match the filling sequece, then it is nor marked.
-	// Read C bytes starting on position 3 and uncompress them. If the size of uncompressed is excactly M, we suppose file is marked.
-
-
-
-
-	return TRUE;
-}
-
-void mark() {
-	// TO DO
-
-	// Check if the file is smaller than MARK_LENGTH
 	// Get first M bytes (stream) from file and compress them (resulting a compressed stream of C bytes).
 	// Check if (C > M - 2), in that case, mark is omitted. Else:
 	// Substitute first 2 bytes of the file with a codification of the C number. Then, substitute next C bytes with the compressed stream. Finally, fill the rest of the bytes until completing the M bytes with the filling sequence.
@@ -223,8 +259,124 @@ void mark() {
 
 }
 
-void unmark() {
+BOOL unmarkOLD(HANDLE handle, WCHAR* file_path) {	//input output (app buffers)
+	// Check if the file is smaller than MARK_LENGTH
+	uint64_t file_size;
+	getFileSize(&file_size, handle, file_path);
+	if (file_size < MARK_LENGTH) {
+		return FALSE;
+	}
+
+
+	uint8_t* input;
+	uint8_t* output;
+	input = malloc(MARK_LENGTH * sizeof(uint8_t));
+
+	if (!checkMark(handle, file_path, input)) {
+		return FALSE;
+	}
+
+	// Read C bytes starting on position 3 and uncompress them. If the size of uncompressed is excactly M, we suppose file is marked.
+
+	if (huffman_decode(input, &output) != EXIT_SUCCESS) {
+		return FALSE;
+	}
+	// copy output-buffer into output-app-buffer
+
+
+	free(input);
+	free(output);
 	// TO DO
+}
+*/
+
+/**
+* Returns if the input buffer is marked.
+* Assumes that the input buffer is long enough.
+*
+* @param uint8_t* input
+*		The buffer to be checked.
+*
+* @return BOOL
+*		TRUE if the buffer is marked. FALSE otherwise.
+**/
+BOOL checkMark(uint8_t* input) {
+	// Get first 2 bytes and interpret it as a number C (size of the compressed stream).
+	union UNION_UINT16 compressed_stream_size;
+	compressed_stream_size.part.high = input[0];
+	compressed_stream_size.part.low = input[1];
+
+	// If from position C+2 until position M (end of stream) the apearing sequence does not match the filling sequece, then it is nor marked.
+	if (compressed_stream_size.full > MARK_LENGTH) {
+		return FALSE;
+	}
+	if (memcmp(&(input[2 + compressed_stream_size.full - 1]), FILLING_SEQUENCE, MARK_LENGTH - (2 + compressed_stream_size.full - 1)) != 0) {
+		return FALSE;
+	}
+	if ((uint16_t)(*(uint16_t*)&input[4] + (6 /*HEADER_BASE_SIZE*/ << 3)) != (uint16_t)MARK_LENGTH) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/**
+* Marks the buffer if it is possible. Returns if the resulting input buffer was marked.
+* Assumes that the input buffer is long enough and it is not marked.
+*
+* @param uint8_t* input
+*		The buffer to be marked. In case it cannot be marked, it is not modified.
+* @return BOOL
+*		TRUE if the buffer was marked. FALSE if it could not.
+**/
+BOOL mark(uint8_t* input) {
+	uint8_t* output;
+	uint32_t compressed_length;
+
+	// Get first M bytes (stream) from file and compress them (resulting a compressed stream of C bytes).
+	// Check if (C > M - 2), in that case, mark is omitted. Else:
+	if (huffman_encode(input, &output, (uint32_t)MARK_LENGTH, &compressed_length) != 0 || compressed_length >= MARK_LENGTH-2) {
+		return FALSE;
+	}
+
+	// Substitute first 2 bytes with a codification of the C number
+	union UNION_UINT16 dummy;
+	dummy.full = compressed_length;
+	input[0] = dummy.part.high;
+	input[1] = dummy.part.low;
+
+	// Then, substitute next C bytes with the compressed stream
+	memcpy(&(input[2]), output, compressed_length);
+
+	// Fill the rest of the bytes until completing the M bytes with the filling sequence
+	memcpy(&(input[2 + compressed_length - 1]), FILLING_SEQUENCE, MARK_LENGTH - (2 + compressed_length - 1));
+
+	return TRUE;
+}
+
+/**
+* Unmarks the buffer if it is possible. Returns if the resulting input buffer was unmarked.
+* Assumes that the input buffer is long enough and it is marked.
+*
+* @param uint8_t* input
+*		The buffer to be unmarked. In case it cannot be unmarked, it is not modified.
+* @return BOOL
+*		TRUE if the buffer was unmarked. FALSE if it could not.
+**/
+BOOL unmark(uint8_t* input) {
+	uint8_t* output;		// Allocated inside huffman_decode
+
+	// Uncompress bytes from position 3 of the input
+	if (huffman_decode(&(input[2]), &output) != 0) {
+		return FALSE;
+	}
+
+	// Copy decoded buffer into input buffer
+	memcpy(input, output, MARK_LENGTH);
+
+	free(output);
+
+	return TRUE;
 }
 
 
@@ -421,7 +573,6 @@ int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWOR
 
 	return 0;
 }
-
 
 int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* out_buffer, DWORD* bytes_to_write, LPDWORD* bytes_written, LONGLONG* offset, struct Protection* protection, LPCVOID in_buffer) {
 	struct KeyData* composed_key = NULL;
