@@ -14,6 +14,7 @@ Nokia Febrero 2021
 #include <stdio.h>
 #include <stdlib.h>
 #include "windows.h"
+#include <stdint.h>
 
 
 #ifdef __cplusplus

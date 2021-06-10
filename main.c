@@ -5,6 +5,7 @@
 #include "context.h"
 #include "sharing_app.h"
 #include "wrapper_dokan.h"
+//#include "wrapper_winfsp.h"
 
 
 
@@ -92,7 +93,7 @@ int threadDokan(struct ThreadData *th_data) {
 }
 
 int threadWinFSP(struct ThreadData *th_data) {
-	//winFSPMapAndLaunch(...);		////////////////// TO DO UNCOMMENT
+	//winfspMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->name, th_data->protection);		////////////////// TO DO UNCOMMENT
 	PRINT("WinFSPMapAndLaunch parameters:   index=%2d     letter=%wc     path='%ws' \t\t\t (not implemented yet)\n", th_data->index, th_data->letter, th_data->path);
 
 	/*while (TRUE) {

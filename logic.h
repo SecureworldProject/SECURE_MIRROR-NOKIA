@@ -1,5 +1,5 @@
-#ifndef WRAPPER_DOKAN_H
-#define WRAPPER_DOKAN_H
+#ifndef LOGIC_H
+#define LOGIC_H
 
 /////  FILE INCLUDES  /////
 
@@ -18,9 +18,31 @@
 
 enum Operation operationAddition(enum Operation op1, enum Operation op2);
 enum Operation getOpSyncFolder(enum IrpOperation irp_op, WCHAR file_path[]);
-BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path);
-int preReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* buffer, DWORD* bytes_to_do, LPDWORD* bytes_done, LONGLONG* offset);
-int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* buffer_length, LPDWORD* bytes_done, LONGLONG* offset, struct Protection* protection, LPCVOID out_buffer);
-int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* bytes_to_write, LPDWORD* bytes_written, LONGLONG* offset, struct Protection* protection, LPCVOID out_buffer);
+DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path);
 
-#endif //!WRAPPER_DOKAN_H
+// Logic functions
+
+BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path);
+
+int preReadLogic(
+	uint64_t file_size, enum Operation op,
+	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
+	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
+);
+
+//int postReadLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* buffer_length, LPDWORD* bytes_done, LONGLONG* offset, struct Protection* protection, LPCVOID out_buffer);
+int postReadLogic(
+	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection,
+	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
+	LPVOID* aux_buffer,  DWORD* aux_buffer_length,  LPDWORD* aux_read_length,  LONGLONG* aux_offset
+);
+
+//int preWriteLogic(enum Operation op, WCHAR file_path[], LPCVOID* in_buffer, DWORD* bytes_to_write, LPDWORD* bytes_written, LONGLONG* offset, struct Protection* protection, LPCVOID out_buffer);
+int preWriteLogic(
+	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
+	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
+);
+
+
+#endif //!LOGIC_H

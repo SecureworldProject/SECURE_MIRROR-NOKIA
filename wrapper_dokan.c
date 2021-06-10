@@ -59,6 +59,8 @@ static struct Protection* protections[NUM_LETTERS] = { NULL };
 
 /////  FUNCTION PROTOTYPES  /////
 
+WCHAR* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info);
+
 static void DbgPrint(LPCWSTR format, ...);
 static void GetFilePath(PWCHAR filePath, ULONG numberOfElements, LPCWSTR FileName, PDOKAN_FILE_INFO DokanFileInfo);
 static void PrintUserName(PDOKAN_FILE_INFO DokanFileInfo);
@@ -761,88 +763,129 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	WCHAR file_path[DOKAN_MAX_PATH];
 	HANDLE handle = (HANDLE)DokanFileInfo->Context;
-	ULONG offset = (ULONG)Offset;
+	//ULONG offset = (ULONG)Offset;
 	BOOL opened = FALSE;
 	GetFilePath(file_path, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 
+	// Create auxiliar parameters for internal modification of the operation (mark and possible block cipher)
+	LPVOID aux_buffer = NULL;
+	DWORD aux_buffer_length = 0;
+	LPDWORD aux_read_length = NULL;
+	LONGLONG aux_offset = 0;
 
-	LPVOID buffer_aux = NULL;
-	DWORD buffer_length_aux = BufferLength;		// Only for the block cipher
-	LPDWORD read_length_aux = ReadLength;		// Only for the block cipher
-	LONGLONG offset_aux = Offset;				// Only for the block cipher
+	DWORD error_code = 0;
 
-	WCHAR* full_app_path;
-	enum Operation op_final, op1, op2;
+	WCHAR* full_app_path = NULL;
+	enum Operation op1;
+	enum Operation op2;
+	enum Operation op_final = NOTHING;
 
 	full_app_path = getAppPathDokan(DokanFileInfo);
-	printf("Op: MIRROR READ FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
+	PRINT("Op: MIRROR READ FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-	op1 = getTableOperation(ON_READ, &full_app_path, MountPoint[THREAD_INDEX][0]); // pass MountPoint[THREAD_INDEX] as parameter for the getOperation. NO, better directly create global variable with pointer to table in this mounted disk
+	op1 = getTableOperation(ON_READ, &full_app_path, MountPoint[THREAD_INDEX][0]);
 	op2 = getOpSyncFolder(ON_READ, file_path);
 
 	op_final = operationAddition(op1, op2);
 	PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);
 
-	if (op_final != NOTHING) {
-		buffer_aux = malloc(BufferLength);
+	// Get file size
+	uint64_t file_size;
+	error_code = getFileSize(&file_size, handle, file_path);
+	if (error_code != 0) {
+		PRINT("ERROR getting file size\n");
+		goto READ_CLEANUP;			// Handle case where file size cannot be obtained. Abort operation??
 	}
 
-	// Adjust buffers for block cipher
-	//preReadLogic(op, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux);
-
+	// Initialize new read variables with updated values adjusted for the mark and possible block cipher
+	error_code = preReadLogic(
+		file_size, op_final,
+		&Buffer, &BufferLength, &ReadLength, &Offset,
+		&aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
+	);
+	if (error_code != 0) {
+		PRINT("ERROR in preRead\n");
+		goto READ_CLEANUP;
+	}
 
 	DbgPrint(L"ReadFile : %s\n", file_path);
+	PRINT("Vamos al handle\n");
 
 	if (!handle || handle == INVALID_HANDLE_VALUE) {
 		DbgPrint(L"\tinvalid handle, cleanuped?\n");
-		handle = CreateFile(file_path, GENERIC_READ, FILE_SHARE_READ, NULL,
-			OPEN_EXISTING, 0, NULL);
+		handle = CreateFile(file_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 		if (handle == INVALID_HANDLE_VALUE) {
-			DWORD error = GetLastError();
-			DbgPrint(L"\tCreateFile error : %d\n\n", error);
-			return DokanNtStatusFromWin32(error);
+			error_code = GetLastError();
+			DbgPrint(L"\tCreateFile error : %d\n\n", error_code);
+			goto READ_CLEANUP;
 		}
 		opened = TRUE;
 	}
 
+	PRINT("Vamos al distance to move\n");
+
 	LARGE_INTEGER distanceToMove;
-	distanceToMove.QuadPart = (op_final == NOTHING) ? Offset : offset_aux;		// Changed for block cipher
+	distanceToMove.QuadPart = aux_offset;
 	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 		DWORD error = GetLastError();
-		DbgPrint(L"\tseek error, offset = %d\n\n", offset);
-		if (opened)
-			CloseHandle(handle);
-		return DokanNtStatusFromWin32(error);
+		DbgPrint(L"\tseek error, offset = %lld\n\n", aux_offset);
+		goto READ_CLEANUP;
 	}
 
+	PRINT("Vamos al read\n");
 
-	// Original read: 	if (!ReadFile(handle, Buffer, BufferLength, ReadLength, NULL)) {...}
+	// Read
 	if (!ReadFile(
-			handle,
-			(op_final == NOTHING) ? Buffer : buffer_aux,
-			(op_final == NOTHING) ? BufferLength : buffer_length_aux,
-			(op_final == NOTHING) ? ReadLength : read_length_aux,
-			NULL)
+		handle,
+		aux_buffer,
+		aux_buffer_length,
+		aux_read_length,
+		NULL)
 		) {
-		DWORD error = GetLastError();
-		DbgPrint(L"\tread error = %u, buffer length = %d, read length = %d\n\n", error, BufferLength, *ReadLength);
-		if (opened)
-			CloseHandle(handle);
-		return DokanNtStatusFromWin32(error);
+		error_code = GetLastError();
+		DbgPrint(L"\tread error = %u, buffer length = %d, read length = %d\n\n", error_code, aux_buffer_length, *aux_read_length);
+		goto READ_CLEANUP;
 	}
 
 
-	if (op_final != NOTHING) {
-		// Do the operations
-		postReadLogic(op_final, file_path, &buffer_aux, &buffer_length_aux, &read_length_aux, &offset_aux, protections[THREAD_INDEX], Buffer);
-		free(buffer_aux);
+	// Initialize new read variables with updated values adjusted for the mark and possible block cipher
+	error_code = postReadLogic(
+		file_size, op_final, file_path, protections[THREAD_INDEX],
+		&Buffer, &BufferLength, &ReadLength, &Offset,
+		&aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
+	);
+	if (error_code != 0) {
+		PRINT("ERROR in postRead\n");
+		goto READ_CLEANUP;
+	}
+
+
+	DbgPrint(L"\tByte to read: %d, Byte read %d, offset %lld\n\n", BufferLength, *ReadLength, Offset);
+
+	READ_CLEANUP:
+	if (opened) {
+		PRINT("close handle\n");
+		CloseHandle(handle);
+	}
+	if (aux_buffer != Buffer && aux_buffer != NULL) {
+		PRINT("free aux_buffer\n");
+		free(aux_buffer);
+	}
+	if (full_app_path != NULL) {
+		PRINT("free full app path\n");
 		free(full_app_path);
 	}
+	if (error_code) {
+		PRINT("Devuelvo error\n");
+		return DokanNtStatusFromWin32(error_code);
+	}
 
-	DbgPrint(L"\tByte to read: %d, Byte read %d, offset %d\n\n", BufferLength, *ReadLength, offset);
-
-	if (opened)
-		CloseHandle(handle);
+	PRINT("Hemos leido 3: %.520s END\n", (char*)Buffer);
+	PRINT("Hemos leido 3: %.50s END\n", &(((char*)Buffer)[513]));
+	/*for (size_t i = 0; i < 520; i++) {
+		((char*)Buffer)[i] = 'x';
+	}*/
+	PRINT("Final\n");
 
 	return STATUS_SUCCESS;
 }
@@ -859,13 +902,18 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 
 	GetFilePath(file_path, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 
-	LPCVOID buffer_aux = NULL;
-	DWORD bytes_to_write = NumberOfBytesToWrite;		// Only for the block cipher
-	LPDWORD bytes_written = NumberOfBytesWritten;		// Only for the block cipher
-	LONGLONG offset_aux = Offset;						// Only for the block cipher
+	// Create aux params
+	LPVOID aux_buffer = NULL;
+	DWORD aux_bytes_to_write = 0;
+	LPDWORD aux_bytes_written = NULL;
+	LONGLONG aux_offset = 0;
 
-	WCHAR* full_app_path;
-	enum Operation op_final, op1, op2;
+	DWORD error_code = 0;
+
+	WCHAR* full_app_path = NULL;
+	enum Operation op1;
+	enum Operation op2;
+	enum Operation op_final = NOTHING;
 
 	full_app_path = getAppPathDokan(DokanFileInfo);
 	printf("Op: MIRROR WRITE FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
@@ -876,9 +924,21 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	op_final = operationAddition(op1, op2);
 	PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);
 
-	if (op_final != NOTHING) {
-		buffer_aux = malloc(NumberOfBytesToWrite);
+
+	// Get file size
+	uint64_t file_size;
+	error_code = getFileSize(&file_size, handle, file_path);
+	if (error_code != 0) {
+		PRINT("ERROR getting file size\n");
+		goto WRITE_CLEANUP;			// Handle case where file size cannot be obtained. Abort operation??
 	}
+
+	preWriteLogic(
+		file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
+		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
+		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
+	);
+
 
 	DbgPrint(L"WriteFile : %s, offset %I64d, length %d\n", file_path, Offset, NumberOfBytesToWrite);
 
@@ -887,9 +947,9 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		DbgPrint(L"\tinvalid handle, cleanuped?\n");
 		handle = CreateFile(file_path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 		if (handle == INVALID_HANDLE_VALUE) {
-			DWORD error = GetLastError();
-			DbgPrint(L"\tCreateFile error : %d\n\n", error);
-			return DokanNtStatusFromWin32(error);
+			error_code = GetLastError();
+			DbgPrint(L"\tCreateFile error : %d\n\n", error_code);
+			goto WRITE_CLEANUP;
 		}
 		opened = TRUE;
 	}
@@ -899,11 +959,12 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	DWORD fileSizeHigh = 0;
 	fileSizeLow = GetFileSize(handle, &fileSizeHigh);
 	if (fileSizeLow == INVALID_FILE_SIZE) {
-		DWORD error = GetLastError();
-		DbgPrint(L"\tcan not get a file size error = %d\n", error);
-		if (opened)
+		error_code = GetLastError();
+		DbgPrint(L"\tcan not get a file size error = %d\n", error_code);
+		/*if (opened)
 			CloseHandle(handle);
-		return DokanNtStatusFromWin32(error);
+		return DokanNtStatusFromWin32(error);*/
+		goto WRITE_CLEANUP;
 	}
 
 	fileSize = ((UINT64)fileSizeHigh << 32) | fileSizeLow;
@@ -913,20 +974,22 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		LARGE_INTEGER z;
 		z.QuadPart = 0;
 		if (!SetFilePointerEx(handle, z, NULL, FILE_END)) {
-			DWORD error = GetLastError();
-			DbgPrint(L"\tseek error, offset = EOF, error = %d\n", error);
-			if (opened)
+			DWORD error_code = GetLastError();
+			DbgPrint(L"\tseek error, offset = EOF, error = %d\n", error_code);
+			/*if (opened)
 				CloseHandle(handle);
-			return DokanNtStatusFromWin32(error);
+			return DokanNtStatusFromWin32(error);*/
+			goto WRITE_CLEANUP;
 		}
 	} else {
 		// Paging IO cannot write after allocate file size.
 		if (DokanFileInfo->PagingIo) {
 			if ((UINT64)Offset >= fileSize) {
 				*NumberOfBytesWritten = 0;
-				if (opened)
+				/*if (opened)
 					CloseHandle(handle);
-				return STATUS_SUCCESS;
+				return STATUS_SUCCESS;*/
+				goto WRITE_CLEANUP;
 			}
 
 			if (((UINT64)Offset + NumberOfBytesToWrite) > fileSize) {
@@ -948,11 +1011,12 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 
 		distanceToMove.QuadPart = Offset;
 		if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
-			DWORD error = GetLastError();
-			DbgPrint(L"\tseek error, offset = %I64d, error = %d\n", Offset, error);
-			if (opened)
+			DWORD error_code = GetLastError();
+			DbgPrint(L"\tseek error, offset = %I64d, error = %d\n", Offset, error_code);
+			/*if (opened)
 				CloseHandle(handle);
-			return DokanNtStatusFromWin32(error);
+			return DokanNtStatusFromWin32(error);*/
+			goto WRITE_CLEANUP;
 		}
 	}
 
@@ -960,36 +1024,40 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	//VER EL PATH
 	//wprintf(L"Path: %s, Op: WriteFile\n", file_path);
 	//==========================================================
-	if (op_final != NOTHING) {
-		preWriteLogic(op_final, file_path, &buffer_aux, &bytes_to_write, &bytes_written, &offset_aux, protections[THREAD_INDEX], Buffer);
-	}
 
 	if (!WriteFile(
 			handle,
-			(op_final == NOTHING) ? Buffer : buffer_aux,
-			(op_final == NOTHING) ? NumberOfBytesToWrite : bytes_to_write,
-			(op_final == NOTHING) ? NumberOfBytesWritten : bytes_written,
+			aux_buffer,
+			aux_bytes_to_write,
+			aux_bytes_written,
 			NULL)
 		) {
-		DWORD error = GetLastError();
-		DbgPrint(L"\twrite error = %u, buffer length = %d, write length = %d\n", error, NumberOfBytesToWrite, *NumberOfBytesWritten);
-		if (opened)
+		DWORD error_code = GetLastError();
+		DbgPrint(L"\twrite error = %u, buffer length = %d, write length = %d\n", error_code, NumberOfBytesToWrite, *NumberOfBytesWritten);
+		/*if (opened)
 			CloseHandle(handle);
-		return DokanNtStatusFromWin32(error);
+		return DokanNtStatusFromWin32(error);*/
+		goto WRITE_CLEANUP;
 
 	} else {
 		DbgPrint(L"\twrite %d, offset %I64d\n\n", *NumberOfBytesWritten, Offset);
 	}
 
-	if (op_final != NOTHING) {
-		free(buffer_aux);
+
+	WRITE_CLEANUP:
+	if (opened) {
+		CloseHandle(handle);
+	}
+	if (aux_buffer != Buffer && aux_buffer != NULL) {
+		free(aux_buffer);
+	}
+	if (full_app_path != NULL) {
 		free(full_app_path);
 	}
+	if (error_code) {
+		return DokanNtStatusFromWin32(error_code);
+	}
 
-
-	// close the file when it is reopened
-	if (opened)
-		CloseHandle(handle);
 
 	return STATUS_SUCCESS;
 }

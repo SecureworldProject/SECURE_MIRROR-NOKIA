@@ -7,7 +7,8 @@
 #include "context.h"
 
 
-
+#define READ_BUF_SIZE 1024 * 1024	// 1 MB
+#define DECIPHERED_APPENDIX_STR "_deciphered"
 
 /////  FUNCTION PROTOTYPES  /////
 void decipherFileMenu();
@@ -247,8 +248,101 @@ int createDecipheredFileCopy(char* file_path) {
 	// - Create a file in the same path adding "_deciphered" at the end (but before extension).
 	// - Read the original file and call decipher() for all the content.
 	// - Add blockchain traces
-	// - If everything goes well, returns 0. In case something goes wrong, removes newly created file and returns -1.
-	return 0;
+	// - If everything goes well, returns 0. In case something goes wrong, removes newly created file and returns an error code.
+
+
+	FILE* read_file_stream = NULL;
+	FILE* write_file_stream = NULL;
+	byte* read_buf = NULL;
+	size_t file_size = 0;
+	size_t actually_read_size = 0;
+	int result = 0;
+	char* file_path_write;
+	int file_path_write_len;
+	/*
+	// Open original file
+	read_file_stream = fopen(file_path, 'rb');
+	if (read_file_stream == NULL) {
+		PRINT("ERROR opening read file (%s)\n", file_path);
+		result = 1;
+		goto CLEAN_RETURN;
+	}
+
+	// Get file size
+	fseek(read_file_stream, 0, SEEK_END);
+	file_size = ftell(read_file_stream);
+	rewind(read_file_stream);
+	if (file_size == 0) {
+		PRINT("File size is 0\n");
+		result = 2;
+		goto CLEAN_RETURN;
+	}
+
+	// Allocate read buffer
+	read_buf = calloc(file_size, sizeof(byte));
+	if (read_buf == NULL) {
+		PRINT("ERROR allocate memory fir reading.\n");
+		result = 3;
+		goto CLEAN_RETURN;
+	}
+
+	// Open write file
+	file_path_write_len = strlen(file_path) + strlen(DECIPHERED_APPENDIX_STR);
+	file_path_write = malloc(file_path_write_len);
+	strcpy_s(file_path_write, strlen(file_path), file_path);	// TO DO check
+	strcpy_s(&file_path_write[strlen(file_path)-1], strlen(DECIPHERED_APPENDIX_STR), DECIPHERED_APPENDIX_STR);	// TO DO check
+	write_file_stream = fopen(file_path_write, 'rb');
+	if (write_file_stream == NULL) {
+		PRINT("ERROR opening write file (%s)\n", file_path_write);
+		result = 4;
+		goto CLEAN_RETURN;
+	}
+
+
+	// Read original file
+	while (!feof(read_file_stream)) {
+		actually_read_size = fread_s(read_buf, file_size, sizeof(byte), file_size, read_file_stream);
+		if (ferror(read_file_stream)) {
+			PRINT("ERROR reading file.\n");
+			result = 5;
+			goto CLEAN_RETURN;
+		}
+
+		// TO DO ///////////////////////////////////
+
+	}
+
+
+	// Cycle until end of file reached:
+	while (!feof(stream)) {
+		// Attempt to read in 100 bytes:
+		count = fread(buffer, sizeof(char), 100, stream);
+		if (ferror(stream)) {
+			perror("Read error");
+			break;
+		}
+
+		// Total up actual bytes read
+		total += count;
+	}
+	// TO DO ///////////////////////////////////
+
+
+
+
+	// Make sure of freeing everything before leaving the function
+	CLEAN_RETURN:
+	if (read_file_stream != NULL) {
+		fclose(read_file_stream);
+	}
+	if (write_file_stream != NULL) {
+		fclose(write_file_stream);
+	}
+	if (read_buf != NULL) {
+		free(read_buf);
+	}
+	*/
+	return result;
 }
 
 int createUvaFileCopy(char* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party) {
