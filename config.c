@@ -389,6 +389,7 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
 				if (strcmp(app_type_str, "BROWSER") == 0) app_type = BROWSER;
 				else if (strcmp(app_type_str, "MAILER") == 0) app_type = MAILER;
 				else if (strcmp(app_type_str, "BLOCKED") == 0) app_type = BLOCKED;
+				else if (strcmp(app_type_str, "ANY") == 0) app_type = ANY;
 				else {
 					fprintf(stderr, "WARNING: incorrect apptype, defaulting to ANY.\n");
 					app_type = ANY;         // If string does not match, ANY is used by default

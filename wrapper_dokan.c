@@ -804,7 +804,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 		&aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
 	);
 	if (error_code != 0) {
-		PRINT("ERROR in preRead\n");
+		PRINT("ERROR in preReadLogic\n");
 		goto READ_CLEANUP;
 	}
 
@@ -813,10 +813,12 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	if (!handle || handle == INVALID_HANDLE_VALUE) {
 		DbgPrint(L"\tinvalid handle, cleanuped?\n");
+		PRINT("wrapper_dokan: invalid handle\n");
 		handle = CreateFile(file_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 		if (handle == INVALID_HANDLE_VALUE) {
 			error_code = GetLastError();
 			DbgPrint(L"\tCreateFile error : %d\n\n", error_code);
+			PRINT("wrapper_dokan: cannot create handle\n");
 			goto READ_CLEANUP;
 		}
 		opened = TRUE;
@@ -843,22 +845,21 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 		NULL)
 		) {
 		error_code = GetLastError();
-		DbgPrint(L"\tread error = %u, buffer length = %d, read length = %d\n\n", error_code, aux_buffer_length, *aux_read_length);
+		DbgPrint(L"\tread error = %u, buffer length = %u, read length = %u\n\n", error_code, aux_buffer_length, *aux_read_length);
 		goto READ_CLEANUP;
 	}
 
 
 	// Initialize new read variables with updated values adjusted for the mark and possible block cipher
 	error_code = postReadLogic(
-		file_size, op_final, file_path, protections[THREAD_INDEX],
+		file_size, op_final, protections[THREAD_INDEX], handle,
 		&Buffer, &BufferLength, &ReadLength, &Offset,
 		&aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
 	);
 	if (error_code != 0) {
-		PRINT("ERROR in postRead\n");
+		PRINT("ERROR in postReadLogic.\n");
 		goto READ_CLEANUP;
 	}
-
 
 	DbgPrint(L"\tByte to read: %d, Byte read %d, offset %lld\n\n", BufferLength, *ReadLength, Offset);
 
@@ -868,23 +869,24 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 		CloseHandle(handle);
 	}
 	if (aux_buffer != Buffer && aux_buffer != NULL) {
-		PRINT("free aux_buffer\n");
+		PRINT("free(aux_buffer)\n");
 		free(aux_buffer);
 	}
+	if (aux_read_length != ReadLength && aux_read_length != NULL) {
+		PRINT("free(aux_read_length)\n");
+		free(aux_read_length);
+	}
 	if (full_app_path != NULL) {
-		PRINT("free full app path\n");
+		PRINT("free(full app path)\n");
 		free(full_app_path);
 	}
 	if (error_code) {
-		PRINT("Devuelvo error\n");
+		PRINT("Devuelvo error (%d)\n", error_code);
 		return DokanNtStatusFromWin32(error_code);
 	}
 
-	PRINT("Hemos leido 3: %.520s END\n", (char*)Buffer);
-	PRINT("Hemos leido 3: %.50s END\n", &(((char*)Buffer)[513]));
-	/*for (size_t i = 0; i < 520; i++) {
-		((char*)Buffer)[i] = 'x';
-	}*/
+	//PRINT("Hemos leido 3: %.520s END\n", (char*)Buffer);
+	//PRINT("Hemos leido 4: %.50s END\n", &(((char*)Buffer)[513]));
 	PRINT("Final\n");
 
 	return STATUS_SUCCESS;
@@ -933,16 +935,19 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		goto WRITE_CLEANUP;			// Handle case where file size cannot be obtained. Abort operation??
 	}
 
-	preWriteLogic(
-		file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
+	error_code = preWriteLogic(
+		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);
-
+	if (error_code != 0) {
+		PRINT("ERROR in preWriteLogic. error_code = %d\n", error_code);
+		goto WRITE_CLEANUP;
+	}
 
 	DbgPrint(L"WriteFile : %s, offset %I64d, length %d\n", file_path, Offset, NumberOfBytesToWrite);
 
-	// reopen the file
+	// Reopen file handle if needed
 	if (!handle || handle == INVALID_HANDLE_VALUE) {
 		DbgPrint(L"\tinvalid handle, cleanuped?\n");
 		handle = CreateFile(file_path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
@@ -1003,10 +1008,9 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		}
 
 		if ((UINT64)Offset > fileSize) {
-			// In the mirror sample helperZeroFileData is not necessary. NTFS will
-			// zero a hole.
-			// But if user's file system is different from NTFS( or other Windows's
-			// file systems ) then  users will have to zero the hole themselves.
+			// In the mirror sample helperZeroFileData is not necessary. NTFS will zero a hole.
+			// But if user's file system is different from NTFS (or other Windows's file systems)
+			// then  users will have to zero the hole themselves.
 		}
 
 		distanceToMove.QuadPart = Offset;
@@ -1043,6 +1047,16 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		DbgPrint(L"\twrite %d, offset %I64d\n\n", *NumberOfBytesWritten, Offset);
 	}
 
+	error_code = postWriteLogic(
+		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
+		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
+		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
+	);
+	if (error_code != 0) {
+		PRINT("ERROR in postWriteLogic. error_code = %d\n", error_code);
+		goto WRITE_CLEANUP;
+	}
+
 
 	WRITE_CLEANUP:
 	if (opened) {
@@ -1051,6 +1065,9 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	if (aux_buffer != Buffer && aux_buffer != NULL) {
 		free(aux_buffer);
 	}
+	/*if (aux_bytes_written != NumberOfBytesWritten && aux_bytes_written != NULL) {
+		free(aux_bytes_written);
+	}*/
 	if (full_app_path != NULL) {
 		free(full_app_path);
 	}

@@ -303,9 +303,10 @@ int huffman_encode(const uint8_t* input, uint8_t** output, const uint32_t decomp
 		*compressed_length = total_length;
 
 	/* Write header information */
-
-	((uint32_t*)(*output))[0] = decompressed_length;
+	((uint16_t*)(*output))[0] = (uint16_t)decompressed_length;
+	((uint16_t*)(*output))[1] = (uint16_t)(*compressed_length); //(uint16_t)((*compressed_length)/8 + ((*compressed_length % 8)==0 ? 0:1));
 	((uint16_t*)(*output))[2] = header_bit_length;
+	printf("HUFFMAN:  %u,  %u,  %u \n", ((uint16_t*)(*output))[0], ((uint16_t*)(*output))[1], ((uint16_t*)(*output))[2]);
 
 	size_t bit_pos = HEADER_BASE_SIZE << 3;
 
@@ -333,7 +334,8 @@ int huffman_decode(const uint8_t* input, uint8_t** output) {
 
 	/* Extract header information */
 
-	uint32_t decompressed_length = *(uint32_t*)&input[0];
+	//uint32_t decompressed_length = *(uint32_t*)&input[0];
+	uint16_t decompressed_length = *(uint16_t*)&input[0];
 	uint16_t header_bit_length = *(uint16_t*)&input[4] + (HEADER_BASE_SIZE << 3);
 
 	/* Build decoding lookup table */

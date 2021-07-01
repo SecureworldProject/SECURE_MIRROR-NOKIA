@@ -119,7 +119,7 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 					return CIPHER;
 				case CIPHER:
 					fprintf(stderr, "ERROR: case where chiphering has to be done on top of another ciphering is not allowed");
-					return NOTHING;		// CIPHER 2 times
+					return NOTHING;		// CIPHER 2 times. This should never happen
 				case DECIPHER:
 					return NOTHING;
 				default:
@@ -134,7 +134,7 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 					return NOTHING;
 				case DECIPHER:
 					fprintf(stderr, "ERROR: case where dechiphering has to be done on top of another deciphering is not allowed");
-					return NOTHING;		// DECIPHER 2 times
+					return NOTHING;		// DECIPHER 2 times. This should never happen
 				default:
 					break;
 			}
@@ -145,19 +145,17 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 	return NOTHING;
 }
 
-void fixBuffer() {
-	// TO DO
-}
-void fixBufferLimitsPre() {
-	// TO DO
-}
 
 void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, struct KeyData* composed_key) {
 	PRINT("Calling cipher dll......\n");
 
+	PRINT("dst_buf = %p, src_buf = %p, buf_size = %d\n", dst_buf, src_buf, buf_size);
+
 	// FOR TESTING
+	uint16_t current_value = 0;
 	for (size_t i = 0; i < buf_size; i++) {
-		((byte*)dst_buf)[i] = (((byte*)src_buf)[i] + 1) % 255;
+		current_value = (uint16_t)(((uint8_t*)src_buf)[i]);
+		((byte*)dst_buf)[i] = (uint8_t)((current_value + 1) % 255);
 	}
 
 	/*typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD, struct KeyData*);
@@ -175,17 +173,19 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD
 		PRINT("WARNING: error accessing the address to the cipher() function of the cipher '%ws' (error: %d)\n", p_cipher->file_name, GetLastError());
 	}*/
 
+	PRINT("Done cipher dll......\n");
 }
 
 void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, struct KeyData* composed_key) {
 	PRINT("Calling decipher dll......\n");
 
-
 	// FOR TESTING
+	uint16_t current_value = 0;
+	PRINT("\tbuf_size = %lu \n", buf_size);
 	for (size_t i = 0; i < buf_size; i++) {
-		((byte*)dst_buf)[i] = (((byte*)src_buf)[i] - 1) % 255;
+		current_value = (uint16_t)(((uint8_t*)src_buf)[i]);
+		((byte*)dst_buf)[i] = (uint8_t)((current_value - 1) % 255);
 	}
-
 
 	/*typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD, struct KeyData*);
 
@@ -202,124 +202,37 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWO
 		PRINT("WARNING: error accessing the address to the cipher() function of the cipher '%ws' (error: %d)\n", p_cipher->file_name, GetLastError());
 	}*/
 
+	PRINT("Done decipher dll......\n");
 }
 
 
 DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path) {
-	// check GetFileSizeEx()...
 	BOOL opened = FALSE;
+	DWORD error_code = 0;
 
-
-	// reopen the file
+	// Ensure handle is valid (reopen the file if necessary)
 	if (!handle || handle == INVALID_HANDLE_VALUE) {
-		PRINT("invalid handle, cleanuped?\n");
+		PRINT("Invalid file handle\n");
 		handle = CreateFile(file_path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 		if (handle == INVALID_HANDLE_VALUE) {
-			DWORD error = GetLastError();
-			PRINT("\tCreateFile error : %d\n\n", error);
-			return error;
+			error_code = GetLastError();
+			PRINT("\tERROR creating handle to get file size (%d)\n", error_code);
+			return error_code;
 		}
 		opened = TRUE;
 	}
 
-	*file_size = 0;
-	DWORD fileSizeLow = 0;
-	DWORD fileSizeHigh = 0;
-	fileSizeLow = GetFileSize(handle, &fileSizeHigh);
-	if (fileSizeLow == INVALID_FILE_SIZE) {
-		DWORD error = GetLastError();
-		PRINT("\tcan not get a file size error = %d\n", error);
+	// Maybe should check file_size > 0 (although that would mean that file_size > 8 EiB = 2^63 Bytes)
+	if (!GetFileSizeEx(handle, file_size)) {
+		error_code = GetLastError();
+		PRINT("\tcan not get a file size error = %d\n", error_code);
 		if (opened)
 			CloseHandle(handle);
-		return error;
-	}
+		return error_code;
+	};
 
-	*file_size = ((uint64_t)fileSizeHigh << 32) | fileSizeLow;
-
-	return 0;	// Success
+	return error_code;	// 0 = Success
 }
-
-/*
-BOOL checkMarkOLD(HANDLE handle, WCHAR* file_path, uint8_t* input) {
-	// TO DO
-
-
-	// Read first MARK_LENGTH bytes
-	DWORD bytes_to_read = MARK_LENGTH;
-	DWORD bytes_read;
-
-	if (!ReadFile(handle, (LPVOID) input, bytes_to_read, &bytes_read, NULL)) {
-		return FALSE;
-	}
-
-	// Get first 2 bytes and interpret it as a number C (size of the compressed stream).
-	uint16_t compressed_stream_size = 0;
-	compressed_stream_size = ((uint16_t)input[0])<<8 + ((uint16_t)input[1]);
-
-	// If from position C+2 until position M (end of stream) the apearing sequence does not match the filling sequece, then it is not marked.
-	if (compressed_stream_size > MARK_LENGTH) {
-		return FALSE;
-	}
-	if (memcmp(&(input[2 + compressed_stream_size - 1]), FILLING_SEQUENCE, MARK_LENGTH - (2 + compressed_stream_size - 1)) != 0) {
-		return FALSE;
-	}
-									//  6 is  HEADER_BASE_SIZE
-	if ((uint16_t)(*(uint16_t*)&input[4] + (6 << 3)) != (uint16_t)MARK_LENGTH) {
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-void markOLD() {
-	// TO DO
-
-	// Check if the file is smaller than MARK_LENGTH
-	HANDLE handle = (HANDLE)dokan_file_info->Context;
-	uint64_t file_size;
-
-	getFileSize(&file_size, handle, file_path);
-	if (file_size < MARK_LENGTH) {
-		return FALSE;
-	}
-
-	// Get first M bytes (stream) from file and compress them (resulting a compressed stream of C bytes).
-	// Check if (C > M - 2), in that case, mark is omitted. Else:
-	// Substitute first 2 bytes of the file with a codification of the C number. Then, substitute next C bytes with the compressed stream. Finally, fill the rest of the bytes until completing the M bytes with the filling sequence.
-
-
-}
-
-BOOL unmarkOLD(HANDLE handle, WCHAR* file_path) {	//input output (app buffers)
-	// Check if the file is smaller than MARK_LENGTH
-	uint64_t file_size;
-	getFileSize(&file_size, handle, file_path);
-	if (file_size < MARK_LENGTH) {
-		return FALSE;
-	}
-
-
-	uint8_t* input;
-	uint8_t* output;
-	input = malloc(MARK_LENGTH * sizeof(uint8_t));
-
-	if (!checkMark(handle, file_path, input)) {
-		return FALSE;
-	}
-
-	// Read C bytes starting on position 3 and uncompress them. If the size of uncompressed is excactly M, we suppose file is marked.
-
-	if (huffman_decode(input, &output) != EXIT_SUCCESS) {
-		return FALSE;
-	}
-	// copy output-buffer into output-app-buffer
-
-
-	free(input);
-	free(output);
-	// TO DO
-}
-*/
 
 /**
 * Returns if the input buffer is marked.
@@ -333,19 +246,21 @@ BOOL unmarkOLD(HANDLE handle, WCHAR* file_path) {	//input output (app buffers)
 **/
 BOOL checkMark(uint8_t* input) {
 
-	uint32_t decompressed_length = *(uint32_t*)&input[0];
-	uint32_t compressed_length = *(uint32_t*)&input[1];
-	uint16_t header_bit_length = *(uint16_t*)&input[4] + (6 /*HEADER_BASE_SIZE*/ << 3);
+	uint16_t decompressed_length = ((uint16_t*)(input))[0];	//*(uint32_t*)&input[0];
+	uint16_t compressed_length = ((uint16_t*)(input))[1];	//*(uint32_t*)&input[1];
+	uint16_t header_bit_length = ((uint16_t*)(input))[2] + (6 /*HEADER_BASE_SIZE*/ << 3); //*(uint16_t*)&input[4] + (6 /*HEADER_BASE_SIZE*/ << 3);
+
+	PRINT("Checking mark. decompressed_length=%u, compressed_length=%u, header_bit_length=%u (%ubytes)\n", decompressed_length, compressed_length, header_bit_length, header_bit_length/8 + ((header_bit_length%8)?0:1));
+
+	if (decompressed_length != (uint16_t)MARK_LENGTH) {
+		return FALSE;
+	}
 
 	if (compressed_length > MARK_LENGTH) {
 		return FALSE;
 	}
 
-	if (memcmp(&(input[compressed_length - 1]), FILLING_SEQUENCE, MARK_LENGTH - compressed_length) != 0) {
-		return FALSE;
-	}
-
-	if (decompressed_length != (uint16_t)MARK_LENGTH) {
+	if (memcmp(&(input[compressed_length]), FILLING_SEQUENCE, MARK_LENGTH - compressed_length) != 0) {
 		return FALSE;
 	}
 
@@ -365,12 +280,16 @@ BOOL mark(uint8_t* input) {
 	uint8_t* output;
 	uint32_t total_compressed_length;
 
+	PRINT("Trying to mark...\n");
+
 	// Get first M bytes (stream) from file and compress them (resulting a compressed stream of C bytes).
 	// Check if (C > M - 2), in that case, mark is omitted. Else:
 	if (huffman_encode(input, &output, (uint32_t)MARK_LENGTH, &total_compressed_length) != 0 || total_compressed_length >= MARK_LENGTH) {
 		free(output);
+		PRINT("Could not be marked\n");
 		return FALSE;
 	}
+	PRINT("Marked\n");
 
 	/*// Substitute first 2 bytes with a codification of the C number
 	union UNION_UINT16 dummy;
@@ -382,7 +301,7 @@ BOOL mark(uint8_t* input) {
 	memcpy(input, output, total_compressed_length);
 
 	// Fill the rest of the bytes until completing the M bytes with the filling sequence
-	memcpy(&(input[total_compressed_length - 1]), FILLING_SEQUENCE, MARK_LENGTH - total_compressed_length);
+	memcpy(&(input[total_compressed_length]), FILLING_SEQUENCE, MARK_LENGTH - total_compressed_length);
 
 	free(output);
 	return TRUE;
@@ -395,15 +314,18 @@ BOOL mark(uint8_t* input) {
 * @param uint8_t* input
 *		The buffer to be unmarked. In case it cannot be unmarked, it is not modified.
 * @return BOOL
-*		TRUE if the buffer was unmarked. FALSE if it could not.
+*		TRUE if the buffer was marked and has been unmarked. FALSE if it could not.
 **/
 BOOL unmark(uint8_t* input) {
 	uint8_t* output = NULL;		// Allocated inside huffman_decode
+	PRINT("Trying to unmark...\n");
 
 	// Uncompress bytes the input
 	if (huffman_decode(input, &output) != 0) {
+		PRINT("Could not be unmarked\n");
 		return FALSE;
 	}
+	PRINT("Unmarked\n");
 
 	// Copy decoded buffer into input buffer
 	memcpy(input, output, MARK_LENGTH);
@@ -491,8 +413,13 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 int preReadLogic(
 		uint64_t file_size, enum Operation op,
 		LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
-		LPVOID* aux_buffer,  DWORD* aux_buffer_length,  LPDWORD* aux_read_length,  LONGLONG* aux_offset
+		LPVOID*  aux_buffer, DWORD*  aux_buffer_length, LPDWORD*  aux_read_length, LONGLONG*  aux_offset
 	) {
+
+	if (orig_buffer == NULL || *orig_buffer == NULL || orig_buffer_length == NULL || orig_read_length == NULL || *orig_read_length == NULL ||
+		orig_offset == NULL) {
+		return ERROR_INVALID_PARAMETER;
+	}
 
 	PRINT("preReadLogic!!\n");
 	PRINT(" - File size: %llu\n - Operation: %d\n",
@@ -503,157 +430,245 @@ int preReadLogic(
 		*aux_buffer, *aux_buffer_length, **aux_read_length, *aux_offset);*/
 
 
-	// Init all the new variables
+	BOOL small_file = file_size < MARK_LENGTH;
+
+	*aux_buffer = *orig_buffer;
+	*aux_read_length = *orig_read_length;
+
+	// Check file size and buffer position/size and fix buffer limits in consequence
+	if (small_file) {
+		// Buffer starts and ends on same place
+		*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
+		*aux_buffer_length = *orig_buffer_length;		//aux_fin = orig_fin;		// Buffer ends in same place
+		//mark_at_the_end = FALSE;						// Already false by default
+	} else {	//file_size >= MARK_LENGTH
+		if (*orig_offset >= MARK_LENGTH) {
+			// Buffer starts and ends on same place
+			*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
+			*aux_buffer_length = *orig_buffer_length;		//aux_fin = orig_fin;		// Buffer ends in same place
+		} else {	//inicio < MARK_LENGTH
+			if (*orig_buffer_length + *orig_offset < MARK_LENGTH) {
+				// Buffer starts on 0 and ends on MARK_LENGTH
+				*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
+				*aux_buffer_length = MARK_LENGTH;							//aux_fin = MARK_LENGTH;	// Buffer ends at MARK_LENGTH
+			} else {	// fin >= MARK_LENGTH
+				// Buffer starts on 0 and ends on same place
+				*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
+				*aux_buffer_length = *orig_buffer_length + *orig_offset;	//aux_fin = orig_fin;		// Buffer ends in same place
+			}
+
+			// Allocate space for the aux buffer
+			*aux_buffer = malloc(*aux_buffer_length);
+			if (*aux_buffer == NULL) {
+				return ERROR_NOT_ENOUGH_MEMORY;
+			}
+		}
+	}
+	/*// Init all the new variables
 	*aux_buffer			= *orig_buffer;
 	*aux_buffer_length	= *orig_buffer_length;
 	*aux_read_length	= *orig_read_length;
 	*aux_offset			= *orig_offset;
 
+	BOOL big_and_low_offest = (file_size >= MARK_LENGTH && *orig_offset < MARK_LENGTH);
+
 	// Check if the buffer must be modified (a mark or unmark will be done)
-	if (file_size >= MARK_LENGTH && *orig_offset < MARK_LENGTH) {
+	if (big_and_low_offest) {
+
 		// Modify buffer beginning
 		*aux_offset = 0;
-		PRINT("suma = %llu, buf_len = %llu, offset = %llu\n", *orig_buffer_length + *orig_offset, *orig_buffer_length, *orig_offset);
-		**aux_read_length = MAX(*orig_buffer_length + *orig_offset, MARK_LENGTH);
+		PRINT("suma = %llu, buf_len = %lu, offset = %llu\n", *orig_buffer_length + *orig_offset, *orig_buffer_length, *orig_offset);
 
 		// Update size and allocate space for the new buffer
-		*aux_buffer_length = **aux_read_length;
+		*aux_buffer_length = MAX(*orig_buffer_length + *orig_offset, MARK_LENGTH);
 		*aux_buffer = malloc(*aux_buffer_length);
-	}
+		if (*aux_buffer == NULL) {
+			return ERROR_NOT_ENOUGH_MEMORY;
+		}
+		*aux_read_length = malloc(1 * sizeof(DWORD));
+		if (*aux_read_length == NULL) {
+			return ERROR_NOT_ENOUGH_MEMORY;
+		}
+		**aux_read_length = 0;
+	}*/
 	PRINT("Ending preReadLogic\n");
 
 	return 0;
 }
 
 int postReadLogic(
-		uint64_t file_size, enum Operation op, WCHAR *file_path, struct Protection* protection,
+		uint64_t file_size, enum Operation op, struct Protection* protection, HANDLE handle,
 		LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
-		LPVOID* aux_buffer,  DWORD* aux_buffer_length,  LPDWORD*  aux_read_length, LONGLONG* aux_offset
+		LPVOID*  aux_buffer, DWORD*  aux_buffer_length, LPDWORD*  aux_read_length, LONGLONG*  aux_offset
 	){
-	struct KeyData* composed_key = NULL;
-	int result = 0;
+
+	// Parameter checking
+	if (orig_buffer == NULL || *orig_buffer == NULL || orig_buffer_length == NULL || orig_read_length == NULL || *orig_read_length == NULL ||
+		orig_offset == NULL || protection == NULL) {
+		return ERROR_INVALID_PARAMETER;
+	}
 
 	PRINT("postReadLogic!!\n");
-	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n",
-		file_size, op, file_path, protection, protection->cipher->id, protection->key);
+	PRINT(" - File size: %llu\n - Operation: %d\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n",
+		file_size, op, protection, protection->cipher->id, protection->key, handle);
 	PRINT(" - Orig buffer: %p\n - Orig buffer length: %lu\n - Orig bytes done: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_buffer_length, **orig_read_length, *orig_offset);
 	PRINT(" - Aux buffer: %p\n - Aux buffer length: %lu\n - Aux bytes done: %lu\n - Aux offset: %lld\n",
 		*aux_buffer, *aux_buffer_length, **aux_read_length, *aux_offset);
 
-	composed_key = protection->key;
 
-	// Fix the buffers again
-	LPVOID* tmp_buffer = aux_buffer;
+	int result = 0;
+	struct KeyData* composed_key = protection->key;
+
 	BOOL marked = FALSE;
+	BOOL mark_at_the_end = FALSE;
+	BOOL small_file = file_size < MARK_LENGTH;
 
-	// Check if the buffer must be modified (a mark or unmark will be done)
-	if (file_size >= MARK_LENGTH && *orig_offset < MARK_LENGTH) {
+	LPVOID extra_read_buffer = NULL;
+	DWORD extra_bytes_read = 0;
+	DWORD error_code = 0;
 
-		// Get if buffer is marked an unmark it
-		marked = checkMark(aux_buffer);
-		if (marked) {
-			marked = unmark(aux_buffer);
+	LPVOID aux_buffer_copy = NULL;
+
+	// Read and Check mark if necessary
+	if (!small_file) {
+		if (*orig_offset >= MARK_LENGTH) {
+			if (op == DECIPHER) {
+				// TO DO create new handle
+				// TO DO adjust offset of handle to position 0
+				PRINT("TO DO!!!!! create handle and adjust its offset to read correctly");
+
+				LARGE_INTEGER distanceToMove;
+				distanceToMove.QuadPart = 0;
+				if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
+					error_code = GetLastError();
+					PRINT(L"ERROR en seek. error=%lu\n", error_code);
+					//return error_code;
+					goto PRE_READ_CLEANUP;
+				}
+
+				// Allocate read buffer
+				extra_read_buffer = malloc(MARK_LENGTH * sizeof(byte));
+				if (extra_read_buffer == NULL) {
+					error_code = ERROR_NOT_ENOUGH_MEMORY;
+					goto PRE_READ_CLEANUP;
+				}
+
+				// Read header of file
+				if (!ReadFile(
+					handle,
+					extra_read_buffer,
+					MARK_LENGTH,
+					&extra_bytes_read,
+					NULL)
+					) {
+					error_code = 0xFFFF;
+					goto PRE_READ_CLEANUP;
+				}
+				if (extra_bytes_read != MARK_LENGTH) {
+					error_code = ERROR_CLUSTER_PARTIAL_READ;
+					goto PRE_READ_CLEANUP;
+				}
+
+				// Get if buffer is marked an unmark it
+				marked = checkMark(extra_read_buffer);
+				if (marked) {
+					marked = unmark(extra_read_buffer);
+				}
+				free(extra_read_buffer);
+				extra_read_buffer = NULL;
+			}
+		} else {	// Case where *orig_offset < MARK_LENGTH
+			// Get if buffer is marked an unmark it
+			marked = checkMark(*aux_buffer);
+			if (marked) {
+				marked = unmark(*aux_buffer);
+			}
 		}
-		PRINT("The file is%s marked\n", marked ? "": " not");
-
-		// Point to correct position of the buffer
-		tmp_buffer = &(aux_buffer[*orig_offset]);
 	}
-	PRINT("Hemos leido: %.10s\n", *aux_buffer);
-	memcpy(*orig_buffer, *aux_buffer, **orig_read_length);
-	PRINT("Hemos leido 2: %.10s\n", *orig_buffer);
 
-	// Execute real logic associated
+	PRINT("The file %s marked\n", marked ? "IS" : "is NOT");
+
+	// Nothing/Cipher/Decipher operations. Also in NOTHING case set to (re)mark if needed to leave as it was
 	switch (op) {
 		case NOTHING:
+			mark_at_the_end = marked;	// Decide to mark or not to leave it as it was
 			break;
-		case CIPHER:	// IF marked THEN cipher (omitting mark) ELSE cipher (marking)
+		case CIPHER:	// IF marked unmark THEN cipher (no marking) ELSE cipher (marking)
+			if (!marked && *orig_offset < MARK_LENGTH) {
+				mark_at_the_end = TRUE;
+			}
 			result = makeComposedKey(protection->challenge_groups, composed_key);
 			if (result == 0) {
-				if (marked) {
-					invokeCipher(protection->cipher, orig_buffer, tmp_buffer, *orig_read_length, composed_key);
-				} else {
-					invokeCipher(protection->cipher, orig_buffer, tmp_buffer, *orig_read_length, composed_key);
-					// Now we need the full beginning of file (MARK_LENGTH bytes at least)
-					memcpy(tmp_buffer, orig_buffer, *orig_read_length); // tmp_buffer is aux_buffer but in the correct position
-					if (mark(aux_buffer)) {
-						memcpy(orig_buffer, tmp_buffer, *orig_read_length);
-					}
+				aux_buffer_copy = malloc(*aux_buffer_length);
+				if (aux_buffer_copy == NULL) {
+					error_code = ERROR_NOT_ENOUGH_MEMORY;
+					goto PRE_READ_CLEANUP;
 				}
+				memcpy(aux_buffer_copy, *aux_buffer, *aux_buffer_length);
+				invokeCipher(protection->cipher, *aux_buffer, aux_buffer_copy, *aux_buffer_length, composed_key);
+				free(aux_buffer_copy);
+				aux_buffer_copy = NULL;
 			} else {
-				fprintf(stderr, "ERROR in postReadLogic (%d)", result);
-				return 1;
+				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
+				error_code = -1;
+				goto PRE_READ_CLEANUP;
 			}
 			break;
-		case DECIPHER:	// IF marked THEN decipher (omitting mark) ELSE (is cleartext) nothing
+		case DECIPHER:	// IF marked unmark THEN decipher (omitting mark) ELSE (is cleartext) nothing
 			result = makeComposedKey(protection->challenge_groups, composed_key);
 			if (result == 0) {
-				if (marked) {
-					invokeDecipher(protection->cipher, orig_buffer, tmp_buffer, *orig_read_length, composed_key);
-				}
+				if (marked) {	// && !small_file   but this is always true for marked because marked is false by default
+					aux_buffer_copy = malloc(*aux_buffer_length);
+					if (aux_buffer_copy == NULL) {
+						error_code = ERROR_NOT_ENOUGH_MEMORY;
+						goto PRE_READ_CLEANUP;
+					}
+					memcpy(aux_buffer_copy, *aux_buffer, *aux_buffer_length);
+					invokeDecipher(protection->cipher, *aux_buffer, aux_buffer_copy, *aux_buffer_length, composed_key);
+					free(aux_buffer_copy);
+					aux_buffer_copy = NULL;
+				} // else --> do nothing, but copy buffer to orig at the end
 			} else {
-				fprintf(stderr, "ERROR in postReadLogic (%d)", result);
-				return 1;
+				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
+				error_code = 0xFFFF;
+				goto PRE_READ_CLEANUP;
 			}
 			break;
 		default:
 			break;
 	}
 
+	// Mark if needed
+	if (!small_file && mark_at_the_end) {
+		mark(*aux_buffer);
+	}
 
-	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
-	// If write, execute operation
-	/*switch (op) {
-		case NOTHING:
-			break;
-		case CIPHER:	// Call cipher
-			fixBuffer();	// In case of block cipher
-			cipher();
-			break;
-		case DECIPHER:	// Call decipher
-			fixBuffer();	// In case of block cipher
-			decipher();
-			break;
-		case MARK:		// Call mark
-			mark();
-			break;
-		case UNMARK:	// Call unmark
-			unmark();
-			break;
-		case IF_MARK_UNMARK_ELSE_CIPHER:	// Call check mark, if it is true, then unmark, else cipher
-			if (checkMark()) {
-				unmark();
-			} else {
-				fixBuffer();	// In case of block cipher
-				cipher();
-			}
-			break;
-		case IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING:		// Call check mark, if it is true, then unmark and decipher, else cipher
-			if (checkMark()) {
-				unmark();
-				fixBuffer();	// In case of block cipher
-				decipher();
-			} else {
-				fixBuffer();	// In case of block cipher
-				cipher();
-			}
-			break;
-		default:
-			break;
-	}*/
+	// Copy buffer aux to orig
+	if (*orig_buffer != *aux_buffer) {
+		memcpy(*orig_buffer, &(((byte*)*aux_buffer)[*orig_offset-*aux_offset]), *orig_buffer_length);
+	}
 
-	return 0;
+	// Copy aux_read_length to orig (the corresponding number, may be less)
+	**orig_read_length = MIN(*orig_buffer_length, **aux_read_length - (*orig_offset - *aux_offset));
+
+	PRE_READ_CLEANUP:
+	if (extra_read_buffer != NULL) {
+		free(extra_read_buffer);
+	}
+	if (aux_buffer_copy != NULL) {
+		free(aux_buffer_copy);
+	}
+
+	return error_code;	// 0 = Success
 }
 
 
 int preWriteLogic(
-		uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+		uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 		LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
-		LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
+		LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 	){
-	struct KeyData* composed_key = NULL;
-	int result = 0;
 
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
 		orig_offset == NULL || protection == NULL) {
@@ -661,13 +676,310 @@ int preWriteLogic(
 	}
 
 	PRINT("preWriteLogic!!\n");
-	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n",
-		file_size, op, file_path, protection, protection->cipher->id, protection->key, handle);
+	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n - Write_to_eof: %u\n",
+		*file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
 	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
 	/*PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
 		*aux_buffer, *aux_bytes_to_write, **aux_bytes_written, *aux_offset);*/
 
+	// Create other temporal variables
+	struct KeyData* composed_key = composed_key = protection->key;
+	int result = 0;
+
+	LPVOID read_buffer = NULL;
+	DWORD bytes_read = 0;
+
+	BOOL marked = FALSE;
+	BOOL mark_at_the_end = FALSE;
+	BOOL small_file = FALSE;
+
+	// Case when taking into account the mark in the buffer instead of in the file
+	if (*file_size == 0 && *orig_offset == 0 && *orig_bytes_to_write >= MARK_LENGTH) {
+		PRINT("SPECIAL CASE --> Looking for mark in the buffer instead of in the file\n");
+		*aux_offset = 0;	// = *orig_offset;			//aux_inicio = orig_inicio = 0;		// Buffer starts on same place (0)
+		*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;				// Buffer ends in same place
+		*aux_buffer = *orig_buffer;
+		*aux_bytes_written = *orig_bytes_written;
+
+		if (op != NOTHING) {
+			// Virtual read (just a copy of first MARK_LENGTH bytes the writing buffer)
+			read_buffer = malloc(MARK_LENGTH * sizeof(byte));
+			if (read_buffer == NULL) {
+				return ERROR_NOT_ENOUGH_MEMORY;
+			}
+			memcpy(read_buffer, *orig_buffer, MARK_LENGTH);
+
+			// Get if buffer is marked an unmark it
+			marked = checkMark(read_buffer);
+			if (marked) {
+				marked = unmark(read_buffer);
+			}
+
+			// Allocate aux_buffer
+			if (marked || op == CIPHER) {
+				*aux_buffer = malloc(*aux_bytes_to_write);
+				PRINT("Allocation for aux_buffer\n");
+				if (*aux_buffer == NULL) {
+					return ERROR_NOT_ENOUGH_MEMORY;
+				}
+			}
+		}
+
+		switch (op) {
+			case NOTHING:
+				break;
+			case CIPHER:	// if marked == FALSE no need to use read_buffer, and then copy can be done in one
+				if (marked) {
+					// Cipher and copy first MARK_LENGTH bytes
+					invokeCipher(protection->cipher, *aux_buffer, read_buffer, MARK_LENGTH, composed_key);
+					// Cipher and copy the rest of bytes after MARK_LENGTH position
+					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[MARK_LENGTH]), &(((byte*)*orig_buffer)[MARK_LENGTH]), *orig_bytes_to_write - MARK_LENGTH, composed_key);
+				} else {
+					// Cipher all and copy to *aux_buffer
+					invokeCipher(protection->cipher, *aux_buffer, *orig_buffer, *orig_bytes_to_write, composed_key);
+					PRINT("Marking buffer in prewrite\n");
+					mark(*aux_buffer);
+				}
+				/*LPVOID tmp_buffer = malloc(*orig_bytes_to_write);
+				if (tmp_buffer == NULL) {
+					return ERROR_NOT_ENOUGH_MEMORY;
+				}
+				memcpy(tmp_buffer, read_buffer, MARK_LENGTH);													// Copy first MARK_LENGTH bytes
+				memcpy(&(((byte*)tmp_buffer)[MARK_LENGTH]), read_buffer, *orig_bytes_to_write - MARK_LENGTH);	// Copy the rest of bytes after MARK_LENGTH position
+				invokeCipher(protection->cipher, *aux_buffer, tmp_buffer, *orig_bytes_to_write, composed_key);	// Cipher all copying to *aux_buffer
+				free(tmp_buffer);*/
+
+				//                              read_buf  +  &(((byte*)*orig_buf)[MARK_LENGTH])
+				// { orig_buf }  ---unmark-->  { unmarked_buf + rest_of buf }  ---cipher-->  { ciphered_buf }  ---mark?-->  { ciphered_and_marked_buf }
+
+				break;
+			case DECIPHER:
+				if (marked) {
+					// Decipher and copy first MARK_LENGTH bytes
+					invokeDecipher(protection->cipher, *aux_buffer, read_buffer, MARK_LENGTH, composed_key);
+					// Decipher and copy the rest of bytes after MARK_LENGTH position
+					invokeDecipher(protection->cipher, &(((byte*)*aux_buffer)[MARK_LENGTH]), &(((byte*)*orig_buffer)[MARK_LENGTH]), *orig_bytes_to_write - MARK_LENGTH, composed_key);
+				} // else --> NOTHING (*aux_buffer still pointing to *orig_buffer)
+				break;
+			default:
+				break;
+		}
+
+		if (read_buffer != NULL) {
+			free(read_buffer);
+		}
+
+		return 0;
+	}
+
+	// When writting to eof it is the same as the offset being the original file size and the new size being the original plus the bytes to write.
+	if (write_to_eof) {
+		*orig_offset = *file_size;
+		*file_size += *orig_bytes_to_write;
+		PRINT("+++++\n - New file size: %llu\n - New orig offset: %lld\n", *file_size, *orig_offset);
+	}
+	*aux_buffer = *orig_buffer;
+	*aux_bytes_written = *orig_bytes_written;
+
+	small_file = *file_size < MARK_LENGTH;
+
+	// Check file size and buffer position/size and fix buffer limits in consequence
+	if (small_file) {
+		// Buffer starts and ends on same place
+		*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
+		*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;		// Buffer ends in same place
+		//mark_at_the_end = FALSE;						// Already false by default
+	} else {	// *file_size >= MARK_LENGTH
+		if (*orig_offset >= MARK_LENGTH) {
+			// Buffer starts and ends on same place
+			*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
+			*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;		// Buffer ends in same place
+		} else {	// orig_start < MARK_LENGTH
+			// Buffer starts on 0 and ends on the same place or MARK_LENGTH (whichever is higher)
+			*aux_offset = 0;																//aux_inicio = 0;							// Buffer starts on file beginning
+			*aux_bytes_to_write = MAX(MARK_LENGTH, *orig_bytes_to_write + *orig_offset);	//aux_fin = MAX(MARK_LENGTH, orig_inicio);	// Buffer ends at MARK_LENGTH
+			/*if (*orig_bytes_to_write + *orig_offset -1 < MARK_LENGTH) {
+				// Buffer starts on 0 and ends on MARK_LENGTH
+				*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
+				*aux_bytes_to_write = MARK_LENGTH;							//aux_fin = MARK_LENGTH;	// Buffer ends at MARK_LENGTH
+			} else {	// orig_end > MARK_LENGTH
+				// Buffer starts on 0 and ends on same place
+				*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
+				*aux_bytes_to_write = *orig_bytes_to_write + *orig_offset;	//aux_fin = orig_fin;		// Buffer ends in same place
+			}*/
+
+			// Allocate space for the aux buffer
+			*aux_buffer = malloc(*aux_bytes_to_write);
+			PRINT("Allocation for aux_buffer\n");
+			if (*aux_buffer == NULL) {
+				return ERROR_NOT_ENOUGH_MEMORY;
+			}
+		}
+	}
+
+	// Read and Check mark if necessary
+	if (!small_file) {
+		// TO DO create new handle
+		// TO DO adjust offset of handle to position 0
+		PRINT("TO DO!!!!! create handle and adjust its offset to read correctly\n");
+
+		LARGE_INTEGER distanceToMove;
+		distanceToMove.QuadPart = 0;
+		if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
+			DWORD error = GetLastError();
+			PRINT(L"ERROR en seek. error=%lu\n", error);
+			return -1;
+		}
+
+		// Allocate read buffer
+		read_buffer = malloc(MARK_LENGTH * sizeof(byte));
+		if (read_buffer == NULL) {
+			return ERROR_NOT_ENOUGH_MEMORY;
+		}
+
+		// Read header of file
+		if (!ReadFile(
+			handle,
+			read_buffer,
+			MARK_LENGTH,
+			&bytes_read,
+			NULL)
+			) {
+			return 1;
+		}
+		if (bytes_read != MARK_LENGTH) {
+			return 1;
+		}
+
+		// Get if buffer is marked an unmark it
+		marked = checkMark(read_buffer);
+		if (marked) {
+			marked = unmark(read_buffer);
+		}
+	}
+
+	PRINT("The file %s marked\n", marked ? "IS" : "is NOT");
+
+	// Nothing/Cipher/Decipher operations. Also in NOTHING case set to (re)mark if needed to leave as it was
+	switch (op) {
+		case NOTHING:
+			mark_at_the_end = marked;	// Decide to mark or not to leave it as it was
+			if (*orig_buffer != &(((byte*)*aux_buffer)[*orig_offset])) 	{
+				memcpy(&(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write);
+			} // else --> no need to copy, it is the same buffer already
+			break;
+		case CIPHER:	// IF marked unmark THEN cipher (no marking) ELSE cipher (marking)
+			if (!marked) {
+				mark_at_the_end = TRUE;
+			}
+			// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			if (read_buffer != NULL){// && bytes_read>=512) {
+				//PRINT("read_buffer (unmarked) = %.512s\n", (char*)read_buffer);
+				//PRINT("read_buffer (unmarked) = ");
+				//PRINTHEX(read_buffer, 512);
+				//PRINT("\n");
+				PRINT_HEX(read_buffer, bytes_read);
+			}
+			if (*aux_offset == 0) {
+				memcpy(*aux_buffer, read_buffer, bytes_read);
+			}
+			if (*aux_buffer != NULL){// && *aux_bytes_to_write >= 1024) {
+				//PRINT("*aux_buffer (after memcpy) = %.1024s\n", (char*)*aux_buffer);
+				//PRINT("*aux_buffer (after memcpy) = ");
+				//PRINTHEX(*aux_buffer, 1024);
+				//PRINT("\n");
+				PRINT_HEX(*aux_buffer, *aux_bytes_to_write);
+			}
+			if (*orig_buffer != NULL){// && *orig_bytes_to_write >= 1024) {
+				//PRINT("*orig_buffer (after memcpy) = %.1024s\n", (char*)*orig_buffer);
+				//PRINT("*orig_buffer (after memcpy) = ");
+				//PRINTHEX(*orig_buffer, 1024);
+				//PRINT("\n");
+				PRINT_HEX(*orig_buffer, *orig_bytes_to_write);
+			}
+			// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			result = makeComposedKey(protection->challenge_groups, composed_key);
+			if (result == 0) {
+				if (*orig_buffer == &(((byte*)*aux_buffer)[*orig_offset])) {
+					LPVOID orig_buffer_copy = malloc(*orig_bytes_to_write);
+					if (orig_buffer_copy == NULL) {
+						return ERROR_NOT_ENOUGH_MEMORY;
+					}
+					memcpy(orig_buffer_copy, *orig_buffer, *orig_bytes_to_write);
+					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), orig_buffer_copy, *orig_bytes_to_write, composed_key);
+					free(orig_buffer_copy);
+				} else {
+					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write, composed_key);
+				}
+				// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				if (*aux_buffer != NULL){// && *aux_bytes_to_write >= 1024) {
+					//PRINT("*aux_buffer (after memcpy) = %.1024s\n", (char*)*aux_buffer);
+					//PRINT("*aux_buffer (after memcpy) = ");
+					//PRINTHEX(*aux_buffer, 1024);
+					//PRINT("\n");
+					PRINT_HEX(*aux_buffer, *aux_bytes_to_write);
+				}
+				// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			} else {
+				fprintf(stderr, "ERROR in preWriteLogic (%d)\n", result);
+				return 1;
+			}
+			break;
+		case DECIPHER:	// IF marked unmark THEN decipher (omitting mark) ELSE (is cleartext) nothing
+			if (*aux_offset != *orig_offset) {		// only needed for marked files
+				memcpy(*aux_buffer, read_buffer, bytes_read);
+			}
+
+			result = makeComposedKey(protection->challenge_groups, composed_key);
+			if (result == 0) {
+				// if (*aux_offset == 0)
+				//		usar puntero magico
+				//		if	(marked)
+				//			decipher
+				//		else
+				//			memcpy
+				// else
+				//		usando puntero normal
+				//		if	(marked)
+				//			decipher
+				//		else
+				//			nada de nada
+				if (!small_file && *aux_offset != *orig_offset) {
+					if (marked) {
+						invokeDecipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write, composed_key);
+					} else {
+						memcpy(&(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write);
+					}
+				} else {
+					if (marked) {	// && !small_file   but this is always true for marked because marked is false by default
+						LPVOID orig_buffer_copy = malloc(*orig_bytes_to_write);
+						if (orig_buffer_copy == NULL) {
+							return ERROR_NOT_ENOUGH_MEMORY;
+						}
+						memcpy(orig_buffer_copy, *orig_buffer, *orig_bytes_to_write);
+						invokeDecipher(protection->cipher, *aux_buffer, orig_buffer_copy, *orig_bytes_to_write, composed_key);
+						free(orig_buffer_copy);
+					}
+				}
+			} else {
+				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
+				return 1;
+			}
+			break;
+		default:
+			break;
+	}
+
+	// Mark if needed
+	if (!small_file && mark_at_the_end) {
+		PRINT("Marking buffer in prewrite\n");
+		mark(*aux_buffer);
+	}
+
+	/*
 	// Init all the aux variables (the real writing variables)
 	*aux_buffer			= *orig_buffer;
 	*aux_bytes_to_write = *orig_bytes_to_write;
@@ -784,49 +1096,33 @@ int preWriteLogic(
 			break;
 		default:
 			break;
+	}*/
+
+	return 0;
+}
+
+int postWriteLogic(
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
+	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
+) {
+
+	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
+		orig_offset == NULL || protection == NULL) {
+		return ERROR_INVALID_PARAMETER;
 	}
 
+	PRINT("postWriteLogic!!\n");
+	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n - write_to_eof: %u\n",
+		*file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
+	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
+		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
+	PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
+		*aux_buffer, *aux_bytes_to_write, **aux_bytes_written, *aux_offset);
 
-	// If write and cipher is by blocks, read necessary partial block (done before each cipher/decipher)
-	// If write, execute operation
-	/*switch (op) {
-		case NOTHING:
-			break;
-		case CIPHER:	// Call cipher
-			fixBuffer();	// In case of block cipher
-			cipher();
-			break;
-		case DECIPHER:	// Call decipher
-			fixBuffer();	// In case of block cipher
-			decipher();
-			break;
-		case MARK:		// Call mark
-			mark();
-			break;
-		case UNMARK:	// Call unmark
-			unmark();
-			break;
-		case IF_MARK_UNMARK_ELSE_CIPHER:	// Call check mark, if it is true, then unmark, else cipher
-			if (checkMark()) {
-				unmark();
-			} else {
-				fixBuffer();	// In case of block cipher
-				cipher();
-			}
-			break;
-		case IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING:		// Call check mark, if it is true, then unmark and decipher, else cipher
-			if (checkMark()) {
-				unmark();
-				fixBuffer();	// In case of block cipher
-				decipher();
-			} else {
-				fixBuffer();	// In case of block cipher
-				cipher();
-			}
-			break;
-		default:
-			break;
-	}*/
+
+	// This should work for every case
+	**orig_bytes_written = MIN(*orig_bytes_to_write, **aux_bytes_written - (*orig_offset - *aux_offset));
 
 	return 0;
 }

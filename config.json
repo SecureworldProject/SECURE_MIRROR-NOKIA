@@ -96,7 +96,7 @@
 			{
 				"AppType": "ANY",
 				"READ": "DECIPHER",
-				"WRITE": "NOTHING"
+				"WRITE": "CIPHER"
 			}
 		]
 	},
@@ -118,9 +118,9 @@
 			"AppType": "ANY"
 		},
 		{
-			"AppPath": "C:\\Windows",
-			"AppName": "notepad2.exe",
-			"AppType": "BLOCKED"
+			"AppPath": "C:/Program Files/Sublime Text 3",
+			"AppName": "sublime_text.exe",
+			"AppType": "ANY"
 		}
 	],
 
