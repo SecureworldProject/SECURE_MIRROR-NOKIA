@@ -1013,7 +1013,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 			// then  users will have to zero the hole themselves.
 		}
 
-		distanceToMove.QuadPart = Offset;
+		distanceToMove.QuadPart = aux_offset;
 		if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 			DWORD error_code = GetLastError();
 			DbgPrint(L"\tseek error, offset = %I64d, error = %d\n", Offset, error_code);

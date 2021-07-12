@@ -35,15 +35,15 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 	int index = 0;
 
 	// Param checking
-	if (composed_key == NULL)		return 1;	// One or more params are null
-	if (challenge_groups == NULL)	return 2;	// There are no groups, cannot make a key
+	if (composed_key == NULL)		return ERROR_INVALID_PARAMETER;	// One or more params are null
+	if (challenge_groups == NULL)	return -2;						// There are no groups, cannot make a key
 
 	num_groups = _msize(challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*);
-	if (num_groups <= 0)			return 2;	// There are no groups, cannot make a key
+	if (num_groups <= 0)			return -2;						// There are no groups, cannot make a key
 
 	// Allocate local variable keys to hold pointers to all subkeys
-	keys = malloc(sizeof(struct KeyData*) * num_groups);		// Can be changed to array limmiting the maximum number of challenge groups
-	if (keys == NULL)				return 3;	// Cannot allocate memory
+	keys = malloc(sizeof(struct KeyData*) * num_groups);			// Can be changed to array limmiting the maximum number of challenge groups
+	if (keys == NULL)				return ERROR_NOT_ENOUGH_MEMORY;	// Cannot allocate memory
 
 	if (composed_key->data != NULL) {
 		free(composed_key->data);
@@ -56,7 +56,7 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 		composed_key->size += keys[i]->size;
 	}
 	composed_key->data = calloc(composed_key->size, sizeof(byte));
-	if (composed_key->data == NULL)	return 3;	// Cannot allocate memory
+	if (composed_key->data == NULL)	return ERROR_NOT_ENOUGH_MEMORY;	// Cannot allocate memory
 
 	// Compose the key
 	for (size_t i = 0; i < num_groups; i++) {
@@ -67,7 +67,7 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 	// Free local variable keys
 	free(keys);
 
-	return 0;	// Success
+	return ERROR_SUCCESS;	// Success
 }
 
 
@@ -123,7 +123,7 @@ int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *b
 	int index = 0;
 	*block_access = FALSE;
 
-	if (block_access == NULL)		return 1;	// block_access is NULL
+	if (block_access == NULL)		return ERROR_INVALID_PARAMETER;	// block_access is NULL
 
 	if (challenge_groups == NULL)	return 0;	// No challenge groups (same as if all challenges are passed)
 

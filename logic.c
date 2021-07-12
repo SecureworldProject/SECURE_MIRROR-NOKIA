@@ -81,7 +81,7 @@ BOOL unmark(uint8_t* input);
 enum Operation getOpSyncFolder(enum IrpOperation irp_op, WCHAR file_path[]) {
 	enum operation op = NOTHING;
 	WCHAR* tmp_str = NULL;
-	PRINT("Checking if path (%ws) is in any syncfolder\n", file_path);
+	PRINT("Checking if path (%ws) is in a syncfolder\n", file_path);
 
 	for (size_t i = 0; i < _msize(ctx.sync_folders) / sizeof(WCHAR*); i++) {
 		PRINT1("Checking sync folder (%ws) \n", ctx.sync_folders[i]);
@@ -213,7 +213,7 @@ DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path) {
 	// Ensure handle is valid (reopen the file if necessary)
 	if (!handle || handle == INVALID_HANDLE_VALUE) {
 		PRINT("Invalid file handle\n");
-		handle = CreateFile(file_path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+		handle = CreateFile(file_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 		if (handle == INVALID_HANDLE_VALUE) {
 			error_code = GetLastError();
 			PRINT("\tERROR creating handle to get file size (%d)\n", error_code);
@@ -225,7 +225,7 @@ DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path) {
 	// Maybe should check file_size > 0 (although that would mean that file_size > 8 EiB = 2^63 Bytes)
 	if (!GetFileSizeEx(handle, file_size)) {
 		error_code = GetLastError();
-		PRINT("\tcan not get a file size error = %d\n", error_code);
+		PRINT("\tERROR: cannot get file size (%d)\n", error_code);
 		if (opened)
 			CloseHandle(handle);
 		return error_code;
@@ -671,7 +671,7 @@ int preWriteLogic(
 	){
 
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
-		orig_offset == NULL || protection == NULL) {
+		orig_offset == NULL || protection == NULL || aux_buffer==NULL || aux_bytes_to_write==NULL || aux_bytes_written==NULL || aux_offset==NULL) {
 		return ERROR_INVALID_PARAMETER;
 	}
 
@@ -687,6 +687,7 @@ int preWriteLogic(
 	struct KeyData* composed_key = composed_key = protection->key;
 	int result = 0;
 
+	HANDLE read_handle = INVALID_HANDLE_VALUE;
 	LPVOID read_buffer = NULL;
 	DWORD bytes_read = 0;
 
@@ -822,40 +823,72 @@ int preWriteLogic(
 	if (!small_file) {
 		// TO DO create new handle
 		// TO DO adjust offset of handle to position 0
-		PRINT("TO DO!!!!! create handle and adjust its offset to read correctly\n");
 
-		LARGE_INTEGER distanceToMove;
-		distanceToMove.QuadPart = 0;
-		if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
-			DWORD error = GetLastError();
-			PRINT(L"ERROR en seek. error=%lu\n", error);
-			return -1;
+		DWORD error_code = ERROR_SUCCESS;
+
+		PRINT("TO DO!!!!! create handle and adjust its offset to read correctly\n");
+		CloseHandle(handle);
+		read_handle = CreateFileW(
+			file_path,				// Name of the file
+			GENERIC_READ + GENERIC_WRITE,	// Open for read/write
+			0,						// Do not share
+			NULL,					// Default security
+			OPEN_EXISTING,			// Open existing file only
+			FILE_ATTRIBUTE_NORMAL,	// Normal file
+			NULL);					// No attr. template
+
+		if (!read_handle || read_handle == INVALID_HANDLE_VALUE) {
+			printf("ERROR: opening read_handle.\n");
+			error_code = ERROR_OPEN_FAILED;
+			goto LABEL_CLOSE_HANDLE;
+		}
+		handle = read_handle;
+
+		LARGE_INTEGER distanceToMove = { 0 };
+		//distanceToMove.QuadPart = 0;
+		if (!SetFilePointerEx(read_handle, distanceToMove, NULL, FILE_BEGIN)) {
+			error_code = GetLastError();
+			PRINT("ERROR handle seeking (error=%lu)\n", error_code);
+			goto LABEL_CLOSE_HANDLE;
 		}
 
 		// Allocate read buffer
 		read_buffer = malloc(MARK_LENGTH * sizeof(byte));
 		if (read_buffer == NULL) {
-			return ERROR_NOT_ENOUGH_MEMORY;
+			error_code = ERROR_NOT_ENOUGH_MEMORY;
+			goto LABEL_CLOSE_HANDLE;
 		}
 
 		// Read header of file
 		if (!ReadFile(
-			handle,
+			read_handle,
 			read_buffer,
 			MARK_LENGTH,
 			&bytes_read,
 			NULL)
 			) {
-			return 1;
+			printf("ERROR reading mark inside preWrite!!!\n");
+			error_code = ERROR_READ_FAULT;
+			goto LABEL_CLOSE_HANDLE;
 		}
 		if (bytes_read != MARK_LENGTH) {
-			return 1;
+			error_code = ERROR_READ_FAULT;
+			goto LABEL_CLOSE_HANDLE;
 		}
 
 		// Get if buffer is marked an unmark it
 		marked = checkMark(read_buffer);
 		if (marked) {
 			marked = unmark(read_buffer);
+		}
+
+		LABEL_CLOSE_HANDLE:
+		/*if (read_handle && read_handle != INVALID_HANDLE_VALUE) {
+			CloseHandle(read_handle);
+		}*/
+		if (error_code != ERROR_SUCCESS) {
+			free(read_buffer);
+			return error_code;
 		}
 	}
 
@@ -864,45 +897,56 @@ int preWriteLogic(
 	// Nothing/Cipher/Decipher operations. Also in NOTHING case set to (re)mark if needed to leave as it was
 	switch (op) {
 		case NOTHING:
-			mark_at_the_end = marked;	// Decide to mark or not to leave it as it was
-			if (*orig_buffer != &(((byte*)*aux_buffer)[*orig_offset])) 	{
-				memcpy(&(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write);
+			if (!small_file && *orig_offset < MARK_LENGTH) {
+				mark_at_the_end = marked;	// Decide to mark or not to leave it as it was
+				if (!marked && *orig_bytes_to_write + *orig_offset - 1 < MARK_LENGTH) {
+					free(*aux_buffer);
+					*aux_buffer = *orig_buffer;
+					*aux_bytes_to_write = *orig_bytes_to_write;
+					*aux_offset = *orig_offset;
+				}
+			}
+			if (*orig_buffer != &(((byte*)*aux_buffer)[*orig_offset-*aux_offset])) {
+				memcpy(&(((byte*)*aux_buffer)[*orig_offset-*aux_offset]), *orig_buffer, *orig_bytes_to_write);
 			} // else --> no need to copy, it is the same buffer already
 			break;
 		case CIPHER:	// IF marked unmark THEN cipher (no marking) ELSE cipher (marking)
-			if (!marked) {
+			if (!marked && !small_file && *orig_offset < MARK_LENGTH) {
 				mark_at_the_end = TRUE;
 			}
 			// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			if (read_buffer != NULL){// && bytes_read>=512) {
-				//PRINT("read_buffer (unmarked) = %.512s\n", (char*)read_buffer);
-				//PRINT("read_buffer (unmarked) = ");
-				//PRINTHEX(read_buffer, 512);
-				//PRINT("\n");
 				PRINT_HEX(read_buffer, bytes_read);
 			}
 			if (*aux_offset == 0) {
 				memcpy(*aux_buffer, read_buffer, bytes_read);
 			}
 			if (*aux_buffer != NULL){// && *aux_bytes_to_write >= 1024) {
-				//PRINT("*aux_buffer (after memcpy) = %.1024s\n", (char*)*aux_buffer);
-				//PRINT("*aux_buffer (after memcpy) = ");
-				//PRINTHEX(*aux_buffer, 1024);
-				//PRINT("\n");
 				PRINT_HEX(*aux_buffer, *aux_bytes_to_write);
 			}
 			if (*orig_buffer != NULL){// && *orig_bytes_to_write >= 1024) {
-				//PRINT("*orig_buffer (after memcpy) = %.1024s\n", (char*)*orig_buffer);
-				//PRINT("*orig_buffer (after memcpy) = ");
-				//PRINTHEX(*orig_buffer, 1024);
-				//PRINT("\n");
 				PRINT_HEX(*orig_buffer, *orig_bytes_to_write);
 			}
 			// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 			result = makeComposedKey(protection->challenge_groups, composed_key);
 			if (result == 0) {
-				if (*orig_buffer == &(((byte*)*aux_buffer)[*orig_offset])) {
+				// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				PRINT("ANTES: *orig_buffer = %.*s\n", *orig_bytes_to_write, *orig_buffer);
+				PRINT_HEX(*orig_buffer, *orig_bytes_to_write);
+				// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				if (*aux_offset == 0 || !(*orig_buffer == &(((byte*)*aux_buffer)[*orig_offset-*aux_offset]))) {
+					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset-*aux_offset]), *orig_buffer, *orig_bytes_to_write, composed_key);
+				} else {
+					LPVOID orig_buffer_copy = malloc(*orig_bytes_to_write);
+					if (orig_buffer_copy == NULL) {
+						return ERROR_NOT_ENOUGH_MEMORY;
+					}
+					memcpy(orig_buffer_copy, *orig_buffer, *orig_bytes_to_write);
+					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset-*aux_offset]), orig_buffer_copy, *orig_bytes_to_write, composed_key);
+					free(orig_buffer_copy);
+				}
+				/*if (*orig_buffer == &(((byte*)*aux_buffer)[*orig_offset])) {
 					LPVOID orig_buffer_copy = malloc(*orig_bytes_to_write);
 					if (orig_buffer_copy == NULL) {
 						return ERROR_NOT_ENOUGH_MEMORY;
@@ -912,15 +956,10 @@ int preWriteLogic(
 					free(orig_buffer_copy);
 				} else {
 					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write, composed_key);
-				}
+				}*/
 				// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-				if (*aux_buffer != NULL){// && *aux_bytes_to_write >= 1024) {
-					//PRINT("*aux_buffer (after memcpy) = %.1024s\n", (char*)*aux_buffer);
-					//PRINT("*aux_buffer (after memcpy) = ");
-					//PRINTHEX(*aux_buffer, 1024);
-					//PRINT("\n");
-					PRINT_HEX(*aux_buffer, *aux_bytes_to_write);
-				}
+				PRINT("DESPUES: *aux_buffer = %.*s\n", *aux_bytes_to_write, (char*)*aux_buffer);
+				PRINT_HEX(*aux_buffer, *aux_bytes_to_write);
 				// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 			} else {
@@ -949,9 +988,9 @@ int preWriteLogic(
 				//			nada de nada
 				if (!small_file && *aux_offset != *orig_offset) {
 					if (marked) {
-						invokeDecipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write, composed_key);
+						invokeDecipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset-*aux_offset]), *orig_buffer, *orig_bytes_to_write, composed_key);
 					} else {
-						memcpy(&(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write);
+						memcpy(&(((byte*)*aux_buffer)[*orig_offset-*aux_offset]), *orig_buffer, *orig_bytes_to_write);
 					}
 				} else {
 					if (marked) {	// && !small_file   but this is always true for marked because marked is false by default
@@ -972,6 +1011,8 @@ int preWriteLogic(
 		default:
 			break;
 	}
+
+	free(read_buffer);
 
 	// Mark if needed
 	if (!small_file && mark_at_the_end) {
@@ -1123,6 +1164,8 @@ int postWriteLogic(
 
 	// This should work for every case
 	**orig_bytes_written = MIN(*orig_bytes_to_write, **aux_bytes_written - (*orig_offset - *aux_offset));
+
+	PRINT("Result 'bytes written' given to the application: %lu\n", **orig_bytes_written);
 
 	return 0;
 }

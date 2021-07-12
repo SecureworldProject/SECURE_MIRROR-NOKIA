@@ -46,7 +46,7 @@ extern "C" {
 	#define PRINT4(...) PRINT("                "); PRINT(__VA_ARGS__)
 	#define PRINT5(...) PRINT("                    "); PRINT(__VA_ARGS__)
 	#define PRINTX(DEPTH, ...) do { if (ENABLE_PRINTS) { for (int x=0; x<DEPTH; x++){ printf("    ");} printf(__VA_ARGS__); } else NOOP;} while (0)
-	#define PRINT_HEX(BUF, BUF_SIZE) do { if (ENABLE_PRINTS) print_hex(#BUF, BUF, BUF_SIZE); else NOOP;} while (0)
+	#define PRINT_HEX(BUF, BUF_SIZE) do { if (ENABLE_PRINTS) printHex(#BUF, BUF, BUF_SIZE); else NOOP;} while (0)
 
 
 
@@ -71,7 +71,7 @@ extern "C" {
 	static void printChallengeGroup(struct ChallengeEquivalenceGroup* group);
 	static void printChallenge(struct Challenge* challenge);
 	static void printDateNice(struct tm* time_info);
-	static DWORD print_hex(char* buf_name, void* buf, size_t size);
+	static DWORD printHex(char* buf_name, void* buf, size_t size);
 	static struct ChallengeEquivalenceGroup* getChallengeGroupById(char* group_id);
 	static struct Cipher* getCipherById(char* group_id);
 	static struct OpTable* getOpTableById(char* table_id);
@@ -455,7 +455,7 @@ extern "C" {
 	* @return DWORD
 	*		Success is represented by 0, any other value represents an error.
 	**/
-	static DWORD print_hex(char* buf_name, void* buf, size_t size) {
+	static DWORD printHex(char* buf_name, void* buf, size_t size) {
 		printf("First %llu bytes of %s contain:\n", size, buf_name);
 
 		char* full_str = NULL;
@@ -466,8 +466,8 @@ extern "C" {
 		// Size of string will consist on:
 		//   (size*3)			 - 3 characters for every byte (2 hex characters plus 1 space). Space changed for '\n' every 32 bytes
 		//   (size/8 - size/32)	 - Every 8 bytes another space is added after the space (if it is not multiple of 32, which already has '\n' instead)
-		//   (1)				 - A '\n' is added at the end
-		full_str_size = (size * 3) + (size / 8 - size / 32) + (1);
+		//   (1 + 1)			 - A '\n' and a '\0' is added at the end
+		full_str_size = (size * 3) + (size / 8 - size / 32) + (1+1);
 		full_str = malloc(full_str_size * sizeof(char));
 		if (full_str == NULL) {
 			return ERROR_NOT_ENOUGH_MEMORY;
@@ -476,15 +476,15 @@ extern "C" {
 
 		for (int i = 0; i < size; i++) {
 			if ((i + 1) % 32 == 0) {
-				written_bytes += sprintf_s(target_str, full_str_size - written_bytes, "%02hhX\n", ((byte*)buf)[i]);
+				written_bytes += (size_t)sprintf_s(target_str, full_str_size - written_bytes, "%02hhX\n", ((byte*)buf)[i]);
 			} else if ((i + 1) % 8 == 0) {
-				written_bytes += sprintf_s(target_str, full_str_size - written_bytes, "%02hhX  ", ((byte*)buf)[i]);
+				written_bytes += (size_t)sprintf_s(target_str, full_str_size - written_bytes, "%02hhX  ", ((byte*)buf)[i]);
 			} else {
-				written_bytes += sprintf_s(target_str, full_str_size - written_bytes, "%02hhX ", ((byte*)buf)[i]);
+				written_bytes += (size_t)sprintf_s(target_str, full_str_size - written_bytes, "%02hhX ", ((byte*)buf)[i]);
 			}
 			target_str = full_str + written_bytes;
 		}
-		target_str += sprintf_s(target_str, full_str_size - written_bytes, "\n");
+		sprintf_s(target_str, full_str_size - written_bytes, "\n");
 		printf(full_str);
 		free(full_str);
 
