@@ -852,7 +852,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	// Initialize new read variables with updated values adjusted for the mark and possible block cipher
 	error_code = postReadLogic(
-		file_size, op_final, protections[THREAD_INDEX], handle,
+		file_size, op_final, file_path, protections[THREAD_INDEX], handle,
 		&Buffer, &BufferLength, &ReadLength, &Offset,
 		&aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
 	);
@@ -909,6 +909,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	DWORD aux_bytes_to_write = 0;
 	LPDWORD aux_bytes_written = NULL;
 	LONGLONG aux_offset = 0;
+	BOOL mark_at_the_end = FALSE;
 
 	DWORD error_code = 0;
 
@@ -928,7 +929,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 
 
 	// Get file size
-	uint64_t file_size;
+	uint64_t file_size = 0;
 	error_code = getFileSize(&file_size, handle, file_path);
 	if (error_code != 0) {
 		PRINT("ERROR getting file size\n");
@@ -936,7 +937,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	}
 
 	error_code = preWriteLogic(
-		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
+		file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile, &mark_at_the_end,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);
@@ -966,9 +967,6 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	if (fileSizeLow == INVALID_FILE_SIZE) {
 		error_code = GetLastError();
 		DbgPrint(L"\tcan not get a file size error = %d\n", error_code);
-		/*if (opened)
-			CloseHandle(handle);
-		return DokanNtStatusFromWin32(error);*/
 		goto WRITE_CLEANUP;
 	}
 
@@ -1048,7 +1046,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	}
 
 	error_code = postWriteLogic(
-		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
+		file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile, &mark_at_the_end,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);

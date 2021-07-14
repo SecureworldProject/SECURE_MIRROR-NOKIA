@@ -24,6 +24,7 @@ Nokia Febrero 2021
 #define ABS(N) ((N<0)?(-N):(N))
 
 #define MARK_LENGTH 512
+#define MAX_SIMULTANEOUS_DOWNLOADS 10
 
 // This is a byte array of length 'MARK_LENGTH'
 /*byte FILLING_SEQUENCE[] = {
@@ -62,9 +63,13 @@ byte FILLING_SEQUENCE[] = {
 };*/
 
 
+WCHAR remote_marked_file_table[MAX_SIMULTANEOUS_DOWNLOADS][MAX_PATH] = { 0 };
 
 
 /////  FUNCTION PROTOTYPES  /////
+void removeFromTable(WCHAR* file_path);
+BOOL checkTable(WCHAR* file_path);
+void addToTable(WCHAR* file_path);
 
 void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, struct KeyData* composed_key);
 void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, struct KeyData* composed_key);
@@ -143,6 +148,35 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 			break;
 	}
 	return NOTHING;
+}
+
+void removeFromTable(WCHAR* file_path) {
+	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
+		if (wcscmp(file_path, remote_marked_file_table[i])) {
+			wcscpy(remote_marked_file_table[i], L"");
+			return;
+		}
+	}
+	return;
+}
+
+BOOL checkTable(WCHAR* file_path) {
+	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
+		if (wcscmp(file_path, remote_marked_file_table[i])) {
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+void addToTable(WCHAR* file_path) {
+	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
+		if (wcscmp(L"", remote_marked_file_table[i])) {
+			wcscpy(remote_marked_file_table[i], file_path);
+			return;
+		}
+	}
+	return;
 }
 
 
@@ -464,40 +498,13 @@ int preReadLogic(
 			}
 		}
 	}
-	/*// Init all the new variables
-	*aux_buffer			= *orig_buffer;
-	*aux_buffer_length	= *orig_buffer_length;
-	*aux_read_length	= *orig_read_length;
-	*aux_offset			= *orig_offset;
-
-	BOOL big_and_low_offest = (file_size >= MARK_LENGTH && *orig_offset < MARK_LENGTH);
-
-	// Check if the buffer must be modified (a mark or unmark will be done)
-	if (big_and_low_offest) {
-
-		// Modify buffer beginning
-		*aux_offset = 0;
-		PRINT("suma = %llu, buf_len = %lu, offset = %llu\n", *orig_buffer_length + *orig_offset, *orig_buffer_length, *orig_offset);
-
-		// Update size and allocate space for the new buffer
-		*aux_buffer_length = MAX(*orig_buffer_length + *orig_offset, MARK_LENGTH);
-		*aux_buffer = malloc(*aux_buffer_length);
-		if (*aux_buffer == NULL) {
-			return ERROR_NOT_ENOUGH_MEMORY;
-		}
-		*aux_read_length = malloc(1 * sizeof(DWORD));
-		if (*aux_read_length == NULL) {
-			return ERROR_NOT_ENOUGH_MEMORY;
-		}
-		**aux_read_length = 0;
-	}*/
 	PRINT("Ending preReadLogic\n");
 
 	return 0;
 }
 
 int postReadLogic(
-		uint64_t file_size, enum Operation op, struct Protection* protection, HANDLE handle,
+		uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle,
 		LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 		LPVOID*  aux_buffer, DWORD*  aux_buffer_length, LPDWORD*  aux_read_length, LONGLONG*  aux_offset
 	){
@@ -529,6 +536,9 @@ int postReadLogic(
 	DWORD error_code = 0;
 
 	LPVOID aux_buffer_copy = NULL;
+
+	// Remove file in the remote-marked-file-table if it is there
+	removeFromTable(file_path);
 
 	// Read and Check mark if necessary
 	if (!small_file) {
@@ -665,7 +675,7 @@ int postReadLogic(
 
 
 int preWriteLogic(
-		uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+		uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL *mark_at_the_end,
 		LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 		LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 	){
@@ -677,14 +687,14 @@ int preWriteLogic(
 
 	PRINT("preWriteLogic!!\n");
 	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n - Write_to_eof: %u\n",
-		*file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
+		file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
 	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
 	/*PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
 		*aux_buffer, *aux_bytes_to_write, **aux_bytes_written, *aux_offset);*/
 
 	// Create other temporal variables
-	struct KeyData* composed_key = composed_key = protection->key;
+	struct KeyData* composed_key = protection->key;
 	int result = 0;
 
 	HANDLE read_handle = INVALID_HANDLE_VALUE;
@@ -692,11 +702,19 @@ int preWriteLogic(
 	DWORD bytes_read = 0;
 
 	BOOL marked = FALSE;
-	BOOL mark_at_the_end = FALSE;
+	//BOOL *mark_at_the_end = FALSE;
+	*mark_at_the_end = FALSE;
 	BOOL small_file = FALSE;
 
+
+	// Check file in the remote-marked-file-table
+	BOOL marked_in_table = FALSE;
+	marked_in_table = checkTable(file_path);
+	marked = marked_in_table;
+
+
 	// Case when taking into account the mark in the buffer instead of in the file
-	if (*file_size == 0 && *orig_offset == 0 && *orig_bytes_to_write >= MARK_LENGTH) {
+	if (file_size == 0 && *orig_offset == 0 && *orig_bytes_to_write >= MARK_LENGTH) {
 		PRINT("SPECIAL CASE --> Looking for mark in the buffer instead of in the file\n");
 		*aux_offset = 0;	// = *orig_offset;			//aux_inicio = orig_inicio = 0;		// Buffer starts on same place (0)
 		*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;				// Buffer ends in same place
@@ -774,24 +792,23 @@ int preWriteLogic(
 		return 0;
 	}
 
-	// When writting to eof it is the same as the offset being the original file size and the new size being the original plus the bytes to write.
+	// When writting to eof it is the same as the offset being the original file size
 	if (write_to_eof) {
-		*orig_offset = *file_size;
-		*file_size += *orig_bytes_to_write;
-		PRINT("+++++\n - New file size: %llu\n - New orig offset: %lld\n", *file_size, *orig_offset);
+		*orig_offset = file_size;
+		PRINT("Write to EOF translated to new orig offset: %lld\n", *orig_offset);
 	}
 	*aux_buffer = *orig_buffer;
 	*aux_bytes_written = *orig_bytes_written;
 
-	small_file = *file_size < MARK_LENGTH;
+	small_file = file_size < MARK_LENGTH;
 
 	// Check file size and buffer position/size and fix buffer limits in consequence
 	if (small_file) {
 		// Buffer starts and ends on same place
 		*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
 		*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;		// Buffer ends in same place
-		//mark_at_the_end = FALSE;						// Already false by default
-	} else {	// *file_size >= MARK_LENGTH
+		//*mark_at_the_end = FALSE;						// Already false by default
+	} else {	// file_size >= MARK_LENGTH
 		if (*orig_offset >= MARK_LENGTH) {
 			// Buffer starts and ends on same place
 			*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
@@ -876,11 +893,15 @@ int preWriteLogic(
 			goto LABEL_CLOSE_HANDLE;
 		}
 
-		// Get if buffer is marked an unmark it
-		marked = checkMark(read_buffer);
-		if (marked) {
-			marked = unmark(read_buffer);
+		if (!marked_in_table) {
+			// Get if buffer is marked an unmark it
+			marked = checkMark(read_buffer);
+			if (marked) {
+				marked = unmark(read_buffer);
+			}
 		}
+
+
 
 		LABEL_CLOSE_HANDLE:
 		/*if (read_handle && read_handle != INVALID_HANDLE_VALUE) {
@@ -898,7 +919,7 @@ int preWriteLogic(
 	switch (op) {
 		case NOTHING:
 			if (!small_file && *orig_offset < MARK_LENGTH) {
-				mark_at_the_end = marked;	// Decide to mark or not to leave it as it was
+				*mark_at_the_end = marked;	// Decide to mark or not to leave it as it was
 				if (!marked && *orig_bytes_to_write + *orig_offset - 1 < MARK_LENGTH) {
 					free(*aux_buffer);
 					*aux_buffer = *orig_buffer;
@@ -911,8 +932,8 @@ int preWriteLogic(
 			} // else --> no need to copy, it is the same buffer already
 			break;
 		case CIPHER:	// IF marked unmark THEN cipher (no marking) ELSE cipher (marking)
-			if (!marked && !small_file && *orig_offset < MARK_LENGTH) {
-				mark_at_the_end = TRUE;
+			if (!marked && *orig_offset < MARK_LENGTH) {
+				*mark_at_the_end = TRUE;
 			}
 			// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			if (read_buffer != NULL){// && bytes_read>=512) {
@@ -1015,138 +1036,20 @@ int preWriteLogic(
 	free(read_buffer);
 
 	// Mark if needed
-	if (!small_file && mark_at_the_end) {
+	if (!small_file && *mark_at_the_end) {
 		PRINT("Marking buffer in prewrite\n");
 		mark(*aux_buffer);
 	}
-
-	/*
-	// Init all the aux variables (the real writing variables)
-	*aux_buffer			= *orig_buffer;
-	*aux_bytes_to_write = *orig_bytes_to_write;
-	*aux_bytes_written	= *orig_bytes_written;
-	*aux_offset			= *orig_offset;
-
-	if (write_to_eof) {		// Not taking into account when writting to eof
-		return 0;
-	}
-
-	// Create other temporal variables
-	LPVOID read_buffer = NULL;
-	LPVOID tmp_buffer = NULL;
-	DWORD bytes_read = 0;
-	BOOL marked = FALSE;
-	BOOL big_and_low_offest = (file_size >= MARK_LENGTH && *orig_offset < MARK_LENGTH);
-
-	// Check if the buffer must be modified (a mark or unmark will be done)
-	if (op == DECIPHER || big_and_low_offest) {
-		// TO DO create new handle
-		// TO DO adjust offset of handle to position 0
-		PRINT("TO DO!!!!! create handle and adjust its offset to read correctly");
-
-		LARGE_INTEGER distanceToMove;
-		distanceToMove.QuadPart = 0;
-		if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
-			DWORD error = GetLastError();
-			PRINT(L"ERROR en seek. error=%lu\n", error);
-			return -1;
-		}
-
-		// Allocate read buffer
-		read_buffer = malloc(MARK_LENGTH * sizeof(byte));
-		if (read_buffer == NULL) {
-			return ERROR_NOT_ENOUGH_MEMORY;
-		}
-
-		// Read header of file
-		if (!ReadFile(
-				handle,
-				read_buffer,
-				MARK_LENGTH,
-				&bytes_read,
-				NULL)
-			) {
-				return 1;
-		}
-		if (bytes_read != MARK_LENGTH) {
-			return 1;
-		}
-
-		// Get if buffer is marked an unmark it
-		marked = checkMark(read_buffer);
-		if (marked) {
-			marked = unmark(read_buffer);
-		}
-
-		if (big_and_low_offest) {
-			// Modify buffer beginning
-			*aux_offset = 0;
-			*aux_bytes_to_write = MAX(*orig_bytes_to_write + *orig_offset, MARK_LENGTH);
-
-			// Allocate space for the new buffer
-			*aux_buffer = malloc(*aux_bytes_to_write);
-			if (*aux_buffer == NULL) {
-				return ERROR_NOT_ENOUGH_MEMORY;
-			}
-
-			// Fill the aux write buffer buffer with the read data and the application data
-			memcpy(*aux_buffer, read_buffer, MARK_LENGTH);
-		}
-	}
-
-	composed_key = protection->key;
-
-	// Execute real logic associated
-	switch (op) {
-		case NOTHING:
-			break;
-		case CIPHER:	// IF marked unmark THEN cipher (no marking) ELSE cipher (marking)
-			result = makeComposedKey(protection->challenge_groups, composed_key);
-			if (result == 0) {
-				tmp_buffer = malloc(*orig_bytes_to_write);
-				if (tmp_buffer == NULL) {
-					return ERROR_NOT_ENOUGH_MEMORY;
-				}
-
-				invokeCipher(protection->cipher, tmp_buffer, *orig_buffer, *orig_bytes_to_write, composed_key);
-				memcpy(*orig_buffer, tmp_buffer, *orig_bytes_to_write);
-				memcpy(&(((byte*)(*aux_buffer))[*orig_offset]), *orig_buffer, *orig_bytes_to_write);		// Check
-				if (!marked) {
-					mark(*aux_buffer);	// does not matter if it becomes marked or not
-				}
-			} else {
-				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
-				return 1;
-			}
-			break;
-
-		case DECIPHER:	// IF marked unmark THEN decipher (omitting mark) ELSE (is cleartext) nothing
-			result = makeComposedKey(protection->challenge_groups, composed_key);
-			if (result == 0) {
-				if (marked) {
-					invokeDecipher(protection->cipher, tmp_buffer, *orig_buffer, *orig_bytes_to_write, composed_key);
-					memcpy(*orig_buffer, tmp_buffer, *orig_bytes_to_write);
-				}
-				if (big_and_low_offest){
-					memcpy(&(((byte*)(*aux_buffer))[*orig_offset]), *orig_buffer, *orig_bytes_to_write);
-				}
-			} else {
-				fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
-				return 1;
-			}
-			break;
-		default:
-			break;
-	}*/
 
 	return 0;
 }
 
 int postWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL *mark_at_the_end,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 ) {
+	DWORD error_code = ERROR_SUCCESS;
 
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
 		orig_offset == NULL || protection == NULL) {
@@ -1155,17 +1058,279 @@ int postWriteLogic(
 
 	PRINT("postWriteLogic!!\n");
 	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n - write_to_eof: %u\n",
-		*file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
+		file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
 	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
 	PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
 		*aux_buffer, *aux_bytes_to_write, **aux_bytes_written, *aux_offset);
 
-
 	// This should work for every case
 	**orig_bytes_written = MIN(*orig_bytes_to_write, **aux_bytes_written - (*orig_offset - *aux_offset));
 
 	PRINT("Result 'bytes written' given to the application: %lu\n", **orig_bytes_written);
+
+	uint64_t aux_file_size = 0;
+	LPVOID rw_buffer = NULL;
+	LPVOID rw_buffer2 = NULL;
+	LPVOID rw_buffer3 = NULL;
+	struct KeyData* composed_key = protection->key;
+	int result = 0;
+
+	HANDLE rw_handle = INVALID_HANDLE_VALUE;
+	DWORD bytes_rw = 0;
+	LARGE_INTEGER distanceToMove = { 0 };
+	BOOL marked = FALSE;
+
+
+	error_code = getFileSize(&aux_file_size, handle, file_path);
+	if (error_code != 0) {
+		PRINT("ERROR getting file size\n");
+		return error_code;
+	}
+
+	// Check files that become larger or smaller than MARK_LENGTH
+	if (file_size < MARK_LENGTH && aux_file_size >= MARK_LENGTH) {
+		// Check if the operation is decipher and, if the file was marked at origin (and it is now in this fs) then unmark and decipher all the written contents + add it to a list
+		if (op == DECIPHER) {
+			// Create new handle
+			CloseHandle(handle);
+			rw_handle = CreateFileW(
+				file_path,				// Name of the file
+				GENERIC_READ + GENERIC_WRITE,	// Open for read/write
+				0,						// Do not share
+				NULL,					// Default security
+				OPEN_EXISTING,			// Open existing file only
+				FILE_ATTRIBUTE_NORMAL,	// Normal file
+				NULL);					// No attr. template
+
+			if (!rw_handle || rw_handle == INVALID_HANDLE_VALUE) {
+				printf("ERROR: opening read_handle.\n");
+				error_code = ERROR_OPEN_FAILED;
+				goto LABEL_CLOSE_HANDLE1;
+			}
+			handle = rw_handle;
+
+			// Point the handle to position 0
+			if (!SetFilePointerEx(rw_handle, distanceToMove, NULL, FILE_BEGIN)) {
+				error_code = GetLastError();
+				PRINT("ERROR handle seeking (error=%lu)\n", error_code);
+				goto LABEL_CLOSE_HANDLE1;
+			}
+
+			// Allocate read buffer
+			rw_buffer = malloc(MARK_LENGTH * sizeof(byte));
+			if (rw_buffer == NULL) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				goto LABEL_CLOSE_HANDLE1;
+			}
+
+			// Read firs part of the file (MARK_LENGTH bytes)
+			if (!ReadFile(
+				rw_handle,
+				rw_buffer,
+				MARK_LENGTH,
+				&bytes_rw,
+				NULL)
+				) {
+				printf("ERROR reading mark inside preWrite!!!\n");
+				error_code = ERROR_READ_FAULT;
+				goto LABEL_CLOSE_HANDLE1;
+			}
+			if (bytes_rw != MARK_LENGTH) {
+				error_code = ERROR_READ_FAULT;
+				goto LABEL_CLOSE_HANDLE1;
+			}
+
+			// Check mark and unmark the content
+			marked = checkMark(rw_buffer);
+			if (marked) {
+				marked = unmark(rw_buffer);
+			}
+
+			// If marked
+			//		Read the rest of the file
+			//		Unmark the content
+			//		Decipher the content
+			//		Write new content to file
+			//		Add file to table
+			if (marked) {
+				// Allocate buffer for reading the rest of the file and another one for writting everything (in 1 operation instead of 2)
+				rw_buffer2 = malloc((aux_file_size - MARK_LENGTH) * sizeof(byte));
+				if (rw_buffer2 == NULL) {
+					error_code = ERROR_NOT_ENOUGH_MEMORY;
+					goto LABEL_CLOSE_HANDLE1;
+				}
+				rw_buffer3 = malloc(aux_file_size * sizeof(byte));
+				if (rw_buffer3 == NULL) {
+					error_code = ERROR_NOT_ENOUGH_MEMORY;
+					goto LABEL_CLOSE_HANDLE1;
+				}
+
+				// Read the rest of file
+				if (!ReadFile(
+					rw_handle,
+					rw_buffer2,
+					(aux_file_size - MARK_LENGTH),
+					&bytes_rw,
+					NULL)
+					) {
+					printf("ERROR reading mark inside preWrite!!!\n");
+					error_code = ERROR_READ_FAULT;
+					goto LABEL_CLOSE_HANDLE1;
+				}
+				if (bytes_rw != (aux_file_size - MARK_LENGTH)) {
+					error_code = ERROR_READ_FAULT;
+					goto LABEL_CLOSE_HANDLE1;
+				}
+
+				// Make the composed key if necessary
+				result = makeComposedKey(protection->challenge_groups, composed_key);
+				if (result == 0) {
+					// Decipher all the current content of the file
+					invokeDecipher(protection->cipher, rw_buffer3, rw_buffer, MARK_LENGTH, composed_key);
+					invokeDecipher(protection->cipher, &(((byte*)rw_buffer3)[MARK_LENGTH]), rw_buffer2, (aux_file_size - MARK_LENGTH), composed_key);
+				} else {
+					fprintf(stderr, "ERROR in preWriteLogic (%d)", result);
+					return 1;
+				}
+
+				// Point the handle to position 0
+				if (!SetFilePointerEx(rw_handle, distanceToMove, NULL, FILE_BEGIN)) {
+					error_code = GetLastError();
+					PRINT("ERROR handle seeking (error=%lu)\n", error_code);
+					goto LABEL_CLOSE_HANDLE1;
+				}
+
+				// Write new content to file
+				if (!WriteFile(
+					rw_handle,
+					rw_buffer3,
+					aux_file_size,
+					&bytes_rw,
+					NULL)
+					) {
+					printf("ERROR reading mark inside preWrite!!!\n");
+					error_code = ERROR_READ_FAULT;
+					goto LABEL_CLOSE_HANDLE1;
+				}
+				if (bytes_rw != aux_file_size) {
+					error_code = ERROR_READ_FAULT;
+					goto LABEL_CLOSE_HANDLE1;
+				}
+
+				// Add file to table
+				addToTable(file_path);
+			}
+			LABEL_CLOSE_HANDLE1:
+			if (rw_handle && rw_handle != INVALID_HANDLE_VALUE) {
+				CloseHandle(rw_handle);
+			}
+			if (rw_buffer != NULL) {
+				free(rw_buffer);
+			}
+			if (rw_buffer2 != NULL) {
+				free(rw_buffer2);
+			}
+			if (rw_buffer3 != NULL) {
+				free(rw_buffer3);
+			}
+			if (error_code != ERROR_SUCCESS) {
+				return error_code;
+			}
+		}
+
+		// Mark if needed
+		if (*mark_at_the_end) {
+			// Read MARK_LENGTH and re-write it marked
+			PRINT("TO DO!!!!! create handle and adjust its offset to read correctly\n");
+			CloseHandle(handle);
+			rw_handle = CreateFileW(
+				file_path,				// Name of the file
+				GENERIC_READ + GENERIC_WRITE,	// Open for read/write
+				0,						// Do not share
+				NULL,					// Default security
+				OPEN_EXISTING,			// Open existing file only
+				FILE_ATTRIBUTE_NORMAL,	// Normal file
+				NULL);					// No attr. template
+
+			if (!rw_handle || rw_handle == INVALID_HANDLE_VALUE) {
+				printf("ERROR: opening read_handle.\n");
+				error_code = ERROR_OPEN_FAILED;
+				goto LABEL_CLOSE_HANDLE2;
+			}
+			handle = rw_handle;
+
+			// Point the handle
+			if (!SetFilePointerEx(rw_handle, distanceToMove, NULL, FILE_BEGIN)) {
+				error_code = GetLastError();
+				PRINT("ERROR handle seeking (error=%lu)\n", error_code);
+				goto LABEL_CLOSE_HANDLE2;
+			}
+
+			// Allocate read buffer
+			rw_buffer = malloc(MARK_LENGTH * sizeof(byte));
+			if (rw_buffer == NULL) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				goto LABEL_CLOSE_HANDLE2;
+			}
+
+			// Read header of file
+			if (!ReadFile(
+				rw_handle,
+				rw_buffer,
+				MARK_LENGTH,
+				&bytes_rw,
+				NULL)
+				) {
+				printf("ERROR reading mark inside preWrite!!!\n");
+				error_code = ERROR_READ_FAULT;
+				goto LABEL_CLOSE_HANDLE2;
+			}
+			if (bytes_rw != MARK_LENGTH) {
+				error_code = ERROR_READ_FAULT;
+				goto LABEL_CLOSE_HANDLE2;
+			}
+
+			// Get if buffer is marked an unmark it
+			PRINT("TO DO Marking buffer in postwrite\n");
+			mark(rw_buffer);
+			PRINT("MARKED in postWrite\n");
+
+			// Point the handle
+			if (!SetFilePointerEx(rw_handle, distanceToMove, NULL, FILE_BEGIN)) {
+				error_code = GetLastError();
+				PRINT("ERROR handle seeking (error=%lu)\n", error_code);
+				goto LABEL_CLOSE_HANDLE2;
+			}
+
+			if (!WriteFile(
+				rw_handle,
+				rw_buffer,
+				MARK_LENGTH,
+				&bytes_rw,
+				NULL)
+				) {
+				printf("ERROR reading mark inside preWrite!!!\n");
+				error_code = ERROR_READ_FAULT;
+				goto LABEL_CLOSE_HANDLE2;
+			}
+			if (bytes_rw != MARK_LENGTH) {
+				error_code = ERROR_READ_FAULT;
+				goto LABEL_CLOSE_HANDLE2;
+			}
+
+			LABEL_CLOSE_HANDLE2:
+			if (rw_handle && rw_handle != INVALID_HANDLE_VALUE) {
+				CloseHandle(rw_handle);
+			}
+			if (rw_buffer != NULL) {
+				free(rw_buffer);
+			}
+			if (error_code != ERROR_SUCCESS) {
+				return error_code;
+			}
+		}
+	}
 
 	return 0;
 }

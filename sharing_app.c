@@ -7,14 +7,15 @@
 #include "context.h"
 
 
+#define MAX_INPUT_LENGTH 500
 #define READ_BUF_SIZE 1024 * 1024	// 1 MB
-#define DECIPHERED_APPENDIX_STR "_deciphered"
+#define DECIPHERED_APPENDIX_STR L"_deciphered"
 
 /////  FUNCTION PROTOTYPES  /////
 void decipherFileMenu();
 void uvaFileMenu();
-int createDecipheredFileCopy(char* file_path);
-int createUvaFileCopy(char* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party);
+int createDecipheredFileCopy(WCHAR* file_path);
+int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party);
 
 
 
@@ -22,7 +23,7 @@ int createUvaFileCopy(char* file_path, time_t allowed_visualization_period_begin
 /////  FUNCTION IMPLEMENTATIONS  /////
 
 void sharingMainMenu() {
-	char line[500] = { 0 };
+	WCHAR line[MAX_INPUT_LENGTH] = { 0 };
 	int choice = 0;
 	BOOL quit_menu = FALSE;
 
@@ -42,8 +43,8 @@ void sharingMainMenu() {
 		printf("  1) Decipher mode (share with anyone)\n");
 		printf("  2) Create .uva file (share with third party)\n");
 		printf("  0) Exit (also closes mirrored disks)\n");
-		if (fgets(line, sizeof(line), stdin)) {
-			if (1 == sscanf(line, "%d", &choice)) {
+		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
+			if (1 == swscanf_s(line, L"%d", &choice)) {
 				switch (choice) {
 					case 1:
 						decipherFileMenu();
@@ -66,21 +67,38 @@ void sharingMainMenu() {
 
 
 void decipherFileMenu() {
-	char file_path[MAX_PATH] = { 0 };
+	WCHAR input_file_path[MAX_PATH] = { 0 };
 	int result = 0;
 
 	printf("\n\tYou have entered the decipher option.\n");
 
-	// Get the path
+	// Get the input file path
 	printf("\n\tEnter the full path of the file from which you want to create a deciphered copy below.\n");
 	printf("\t--> ");
-	if (fgets(file_path, sizeof(file_path), stdin)) {
-		file_path[strlen(file_path) - 1] = '\0';		// End the buffer with null character for the case in which fgets() filled it completely
-		if (!PathFileExistsA(file_path)) {
+	if (fgetws(input_file_path, MAX_PATH, stdin)) {	// fgets() ensures that string ends with '\0'
+		input_file_path[strcspn(input_file_path, L"\n")] = L'\0';		// Remove trailing '\n'
+
+		if (!PathFileExistsW(input_file_path)) {
 			printf("\tThe specified path does not exist.\n");
 			return;
 		}
-		if (PathIsDirectoryA(file_path)) {
+		if (PathIsDirectoryW(input_file_path)) {
+			printf("\tThe specified path matches a directory not a file.\n");
+			return;
+		}
+	}
+
+	// Get the output file path
+	printf("\n\tEnter the full path of the file from which you want to create a deciphered copy below.\n");
+	printf("\t--> ");
+	if (fgetws(input_file_path, MAX_PATH, stdin)) {	// fgets() ensures that string ends with '\0'
+		input_file_path[strcspn(input_file_path, L"\n")] = L'\0';		// Remove trailing '\n'
+
+		if (!PathFileExistsW(input_file_path)) {
+			printf("\tThe specified path does not exist.\n");
+			return;
+		}
+		if (PathIsDirectoryW(input_file_path)) {
 			printf("\tThe specified path matches a directory not a file.\n");
 			return;
 		}
@@ -88,7 +106,7 @@ void decipherFileMenu() {
 
 	printf("\tThe deciphered file copy is being created...\n");
 
-	result = createDecipheredFileCopy(file_path);
+	result = createDecipheredFileCopy(input_file_path);
 
 	if (result != 0) {
 		printf("\tThere was an error while trying to create the deciphered copy. (errcode: %d)\n", result);
@@ -100,13 +118,13 @@ void decipherFileMenu() {
 }
 
 void uvaFileMenu() {
-	char line[500] = { 0 };
+	WCHAR line[500] = { 0 };
 	time_t current_time;
 	struct tm* time_info = NULL;
 	int integer_user_input = 0;
-	char formatted_time[32] = "";
+	char formatted_time[22] = "";
 
-	char file_path[MAX_PATH] = { 0 };
+	WCHAR file_path[MAX_PATH] = { 0 };
 	time_t allowed_visualization_period_begin = 0;
 	time_t allowed_visualization_period_end = 0;
 	struct ThirdParty* third_party = NULL;
@@ -117,13 +135,13 @@ void uvaFileMenu() {
 	// Get the path
 	printf("\n\tEnter the full path of the file from which you want to create a .uva file below.\n");
 	printf("\t--> ");
-	if (fgets(file_path, sizeof(file_path), stdin)) {
-		file_path[strlen(file_path) - 1] = '\0';		// End the buffer with null character for the case in which fgets() filled it completely
-		if (!PathFileExistsA(file_path)) {
+	if (fgetws(file_path, MAX_PATH, stdin)) {
+		file_path[wcslen(file_path) - 1] = '\0';		// End the buffer with null character for the case in which fgets() filled it completely
+		if (!PathFileExistsW(file_path)) {
 			printf("\tThe specified path does not exist.\n");
 			return;
 		}
-		if (PathIsDirectoryA(file_path)) {
+		if (PathIsDirectoryW(file_path)) {
 			printf("\tThe specified path matches a directory not a file.\n");
 			return;
 		}
@@ -139,13 +157,13 @@ void uvaFileMenu() {
 	for (size_t i = 0; i < 2; i++) {
 		time_info = localtime(&current_time);
 
-		strftime(formatted_time, 32, "%Y-%m-%d - %H:%M:%S", time_info);
+		strftime(formatted_time, 22, "%Y-%m-%d - %H:%M:%S", time_info);
 		printf("\n\tEnter the date %s which the file will be accesible. Skipped values default to current date/time (%s).\n", (i==0)?"from":"until", formatted_time);
 
 		// Get the year
 		printf("\t Year \t --> ");
-		if (fgets(line, sizeof(line), stdin)) {
-			if (1 == sscanf(line, "%d", &integer_user_input)) {
+		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
+			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
 				time_info->tm_year = integer_user_input - 1900;
 			} else {
@@ -154,8 +172,8 @@ void uvaFileMenu() {
 		}
 		// Get the month
 		printf("\t Month \t --> ");
-		if (fgets(line, sizeof(line), stdin)) {
-			if (1 == sscanf(line, "%d", &integer_user_input)) {
+		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
+			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
 				time_info->tm_mon = integer_user_input - 1;
 			} else {
@@ -164,8 +182,8 @@ void uvaFileMenu() {
 		}
 		// Get the day
 		printf("\t Day \t --> ");
-		if (fgets(line, sizeof(line), stdin)) {
-			if (1 == sscanf(line, "%d", &integer_user_input)) {
+		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
+			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
 				time_info->tm_mday = integer_user_input;
 			} else {
@@ -174,8 +192,8 @@ void uvaFileMenu() {
 		}
 		// Get the hours
 		printf("\t Hours \t --> ");
-		if (fgets(line, sizeof(line), stdin)) {
-			if (1 == sscanf(line, "%d", &integer_user_input)) {
+		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
+			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
 				time_info->tm_hour = integer_user_input;
 			} else {
@@ -184,8 +202,8 @@ void uvaFileMenu() {
 		}
 		// Get the minutes
 		printf("\t Minutes \t --> ");
-		if (fgets(line, sizeof(line), stdin)) {
-			if (1 == sscanf(line, "%d", &integer_user_input)) {
+		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
+			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
 				time_info->tm_min = integer_user_input;
 			} else {
@@ -194,8 +212,8 @@ void uvaFileMenu() {
 		}
 		// Get the secconds
 		printf("\t Secconds \t --> ");
-		if (fgets(line, sizeof(line), stdin)) {
-			if (1 == sscanf(line, "%d", &integer_user_input)) {
+		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
+			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
 				time_info->tm_sec = integer_user_input;
 			} else {
@@ -219,8 +237,8 @@ void uvaFileMenu() {
 	for (size_t i = 0; i < _msize(ctx.third_parties)/sizeof(struct ThirdParty*); i++) {
 		printf("\t  %llu) %s\n", i, ctx.third_parties[i]->id);
 	}
-	if (fgets(line, sizeof(line), stdin)) {
-		if (1 == sscanf(line, "%d", &integer_user_input)) {
+	if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
+		if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 			if (integer_user_input < 0 || integer_user_input > _msize(ctx.third_parties) / sizeof(struct ThirdParty*)) {
 				printf("\tThere is no third party asigned to that number.\n");
 				return;
@@ -242,7 +260,7 @@ void uvaFileMenu() {
 	return;
 }
 
-int createDecipheredFileCopy(char* file_path) {
+int createDecipheredFileCopy(WCHAR* file_path) {
 	printf("\t TO DO\n");
 	// This function will:
 	// - Create a file in the same path adding "_deciphered" at the end (but before extension).
@@ -256,15 +274,15 @@ int createDecipheredFileCopy(char* file_path) {
 	byte* read_buf = NULL;
 	size_t file_size = 0;
 	size_t actually_read_size = 0;
-	int result = 0;
-	char* file_path_write;
+	int result = ERROR_SUCCESS;
+	WCHAR* file_path_write;
 	int file_path_write_len;
-	/*
+
 	// Open original file
-	read_file_stream = fopen(file_path, 'rb');
+	read_file_stream = _wfopen(file_path, L"rb");
 	if (read_file_stream == NULL) {
-		PRINT("ERROR opening read file (%s)\n", file_path);
-		result = 1;
+		PRINT("ERROR opening read file (%ws)\n", file_path);
+		result = ERROR_OPEN_FAILED;
 		goto CLEAN_RETURN;
 	}
 
@@ -274,27 +292,32 @@ int createDecipheredFileCopy(char* file_path) {
 	rewind(read_file_stream);
 	if (file_size == 0) {
 		PRINT("File size is 0\n");
-		result = 2;
+		result = -1;
 		goto CLEAN_RETURN;
 	}
 
 	// Allocate read buffer
 	read_buf = calloc(file_size, sizeof(byte));
 	if (read_buf == NULL) {
-		PRINT("ERROR allocate memory fir reading.\n");
-		result = 3;
+		PRINT("ERROR allocate memory for reading.\n");
+		result = ERROR_NOT_ENOUGH_MEMORY;
 		goto CLEAN_RETURN;
 	}
 
 	// Open write file
-	file_path_write_len = strlen(file_path) + strlen(DECIPHERED_APPENDIX_STR);
-	file_path_write = malloc(file_path_write_len);
-	strcpy_s(file_path_write, strlen(file_path), file_path);	// TO DO check
-	strcpy_s(&file_path_write[strlen(file_path)-1], strlen(DECIPHERED_APPENDIX_STR), DECIPHERED_APPENDIX_STR);	// TO DO check
-	write_file_stream = fopen(file_path_write, 'rb');
+	file_path_write_len = wcslen(file_path) + wcslen(DECIPHERED_APPENDIX_STR);
+	file_path_write = malloc(file_path_write_len * sizeof(WCHAR));
+	if (file_path_write == NULL) {
+		PRINT("ERROR allocate memory for write path (%ws)\n", file_path_write);
+		result = ERROR_NOT_ENOUGH_MEMORY;
+		goto CLEAN_RETURN;
+	}
+	wcscpy_s(file_path_write, wcslen(file_path), file_path);	// TO DO check
+	wcscpy_s(&(file_path_write[wcslen(file_path)-1]), wcslen(DECIPHERED_APPENDIX_STR), DECIPHERED_APPENDIX_STR);	// TO DO check
+	write_file_stream = _wfopen(file_path_write, L"rb");
 	if (write_file_stream == NULL) {
-		PRINT("ERROR opening write file (%s)\n", file_path_write);
-		result = 4;
+		PRINT("ERROR opening write file (%ws)\n", file_path_write);
+		result = ERROR_OPEN_FAILED;
 		goto CLEAN_RETURN;
 	}
 
@@ -304,7 +327,7 @@ int createDecipheredFileCopy(char* file_path) {
 		actually_read_size = fread_s(read_buf, file_size, sizeof(byte), file_size, read_file_stream);
 		if (ferror(read_file_stream)) {
 			PRINT("ERROR reading file.\n");
-			result = 5;
+			result = ERROR_READ_FAULT;
 			goto CLEAN_RETURN;
 		}
 
@@ -314,17 +337,17 @@ int createDecipheredFileCopy(char* file_path) {
 
 
 	// Cycle until end of file reached:
-	while (!feof(stream)) {
-		// Attempt to read in 100 bytes:
-		count = fread(buffer, sizeof(char), 100, stream);
-		if (ferror(stream)) {
-			perror("Read error");
-			break;
-		}
+	//while (!feof(stream)) {
+	//	// Attempt to read in 100 bytes:
+	//	count = fread(buffer, sizeof(char), 100, stream);
+	//	if (ferror(stream)) {
+	//		perror("Read error");
+	//		break;
+	//	}
 
-		// Total up actual bytes read
-		total += count;
-	}
+	//	// Total up actual bytes read
+	//	total += count;
+	//}
 	// TO DO ///////////////////////////////////
 
 
@@ -341,11 +364,11 @@ int createDecipheredFileCopy(char* file_path) {
 	if (read_buf != NULL) {
 		free(read_buf);
 	}
-	*/
+
 	return result;
 }
 
-int createUvaFileCopy(char* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party) {
+int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party) {
 	printf("\t TO DO\n");
 	// This function will:
 	// - Check the file is a ".pdf" file.
