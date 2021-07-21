@@ -398,6 +398,11 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 	securityAttrib.lpSecurityDescriptor = SecurityContext->AccessState.SecurityDescriptor;
 	securityAttrib.bInheritHandle = FALSE;
 
+	// Add read access when write access is required
+	//if (DesiredAccess & GENERIC_WRITE) {
+		DesiredAccess |= GENERIC_READ;
+	//}
+
 	DokanMapKernelToUserCreateFileFlags(
 		DesiredAccess, FileAttributes, CreateOptions, CreateDisposition,
 		&genericDesiredAccess, &fileAttributesAndFlags, &creationDisposition);
