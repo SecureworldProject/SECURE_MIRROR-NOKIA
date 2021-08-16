@@ -5,11 +5,12 @@
 #include <fileapi.h>
 #include <time.h>
 #include "context.h"
+#include "logic.h"
 
 
 #define MAX_INPUT_LENGTH 500
 #define READ_BUF_SIZE 1024 * 1024	// 1 MB
-#define DECIPHERED_APPENDIX_STR L"_deciphered"
+#define DECIPHERED_SUFFIX_WCS L"_deciphered"
 
 /////  FUNCTION PROTOTYPES  /////
 void decipherFileMenu();
@@ -269,66 +270,79 @@ int createDecipheredFileCopy(WCHAR* file_path) {
 	// - If everything goes well, returns 0. In case something goes wrong, removes newly created file and returns an error code.
 
 
-	FILE* read_file_stream = NULL;
-	FILE* write_file_stream = NULL;
-	byte* read_buf = NULL;
+	HANDLE read_file_handle = NULL;
+	HANDLE write_file_handle = NULL;
+	LPVOID* read_buf = NULL;
 	size_t file_size = 0;
-	size_t actually_read_size = 0;
-	int result = ERROR_SUCCESS;
-	WCHAR* file_path_write;
-	int file_path_write_len;
+	DWORD bytes_read = 0;
+	WCHAR* file_path_write = NULL;
+	int file_path_write_len = 0;
+	LARGE_INTEGER distance_to_move = { 0 };
+
+	DWORD error_code = ERROR_SUCCESS;
+	DWORD result = ERROR_SUCCESS;
 
 	// Open original file
-	read_file_stream = _wfopen(file_path, L"rb");
-	if (read_file_stream == NULL) {
-		PRINT("ERROR opening read file (%ws)\n", file_path);
-		result = ERROR_OPEN_FAILED;
-		goto CLEAN_RETURN;
+	read_file_handle = CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	if (!read_file_handle || read_file_handle == INVALID_HANDLE_VALUE) {
+		error_code = GetLastError();
+		PRINT1("ERROR in createDecipheredFileCopy: creating handle (error = %lu)\n", error_code);
+		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
 	// Get file size
-	fseek(read_file_stream, 0, SEEK_END);
-	file_size = ftell(read_file_stream);
-	rewind(read_file_stream);
+	result = getFileSize(&file_size, read_file_handle, file_path);
+	if (result != 0) {
+		error_code = result;
+		PRINT1("ERROR in createDecipheredFileCopy: getting file size (error = %lu)\n", error_code);
+		goto DECIPHERED_FILE_COPY_CLEANUP;
+	}
 	if (file_size == 0) {
-		PRINT("File size is 0\n");
-		result = -1;
-		goto CLEAN_RETURN;
+		PRINT1("File size is 0\n");
+		error_code = -1;
+		goto DECIPHERED_FILE_COPY_CLEANUP;
+	}
+
+	// Make handle point to the beginning of the file
+	if (!SetFilePointerEx(read_file_handle, distance_to_move, NULL, FILE_BEGIN)) {
+		error_code = GetLastError();
+		PRINT1("ERROR handle seeking in postWrite (error=%lu)\n", error_code);
+		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
 	// Allocate read buffer
-	read_buf = calloc(file_size, sizeof(byte));
+	/*read_buf = calloc(file_size, sizeof(byte));
 	if (read_buf == NULL) {
-		PRINT("ERROR allocate memory for reading.\n");
-		result = ERROR_NOT_ENOUGH_MEMORY;
-		goto CLEAN_RETURN;
+		PRINT1("ERROR allocate memory for reading.\n");
+		error_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
 	// Open write file
-	file_path_write_len = wcslen(file_path) + wcslen(DECIPHERED_APPENDIX_STR);
+	file_path_write_len = wcslen(file_path) + wcslen(DECIPHERED_SUFFIX_WCS) +1;		// +1 for the '\0'
 	file_path_write = malloc(file_path_write_len * sizeof(WCHAR));
 	if (file_path_write == NULL) {
-		PRINT("ERROR allocate memory for write path (%ws)\n", file_path_write);
-		result = ERROR_NOT_ENOUGH_MEMORY;
-		goto CLEAN_RETURN;
+		PRINT1("ERROR allocate memory for write path (%ws)\n", file_path_write);
+		error_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
-	wcscpy_s(file_path_write, wcslen(file_path), file_path);	// TO DO check
-	wcscpy_s(&(file_path_write[wcslen(file_path)-1]), wcslen(DECIPHERED_APPENDIX_STR), DECIPHERED_APPENDIX_STR);	// TO DO check
-	write_file_stream = _wfopen(file_path_write, L"rb");
-	if (write_file_stream == NULL) {
-		PRINT("ERROR opening write file (%ws)\n", file_path_write);
-		result = ERROR_OPEN_FAILED;
-		goto CLEAN_RETURN;
+	wcscpy_s(file_path_write, wcslen(file_path) + 1, file_path);	// +1 for the '\0' (maybe not needed because another string is copied afterwards)
+	wcscpy_s(&(file_path_write[wcslen(file_path)]), wcslen(DECIPHERED_SUFFIX_WCS) + 1, DECIPHERED_SUFFIX_WCS);		// +1 for the '\0'
+	write_file_handle = _wfopen(file_path_write, L"rb");
+	if (write_file_handle == NULL) {
+		PRINT1("ERROR opening write file (%ws)\n", file_path_write);
+		error_code = ERROR_OPEN_FAILED;
+		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
 
 	// Read original file
-	while (!feof(read_file_stream)) {
-		actually_read_size = fread_s(read_buf, file_size, sizeof(byte), file_size, read_file_stream);
-		if (ferror(read_file_stream)) {
-			PRINT("ERROR reading file.\n");
-			result = ERROR_READ_FAULT;
-			goto CLEAN_RETURN;
+	while (!feof(read_file_handle)) {
+		bytes_read = fread_s(read_buf, file_size, sizeof(byte), file_size, read_file_handle);
+		if (ferror(read_file_handle)) {
+			PRINT1("ERROR reading file.\n");
+			error_code = ERROR_READ_FAULT;
+			goto DECIPHERED_FILE_COPY_CLEANUP;
 		}
 
 		// TO DO ///////////////////////////////////
@@ -354,18 +368,18 @@ int createDecipheredFileCopy(WCHAR* file_path) {
 
 
 	// Make sure of freeing everything before leaving the function
-	CLEAN_RETURN:
-	if (read_file_stream != NULL) {
-		fclose(read_file_stream);
+	DECIPHERED_FILE_COPY_CLEANUP:
+	if (read_file_handle != NULL) {
+		fclose(read_file_handle);
 	}
-	if (write_file_stream != NULL) {
-		fclose(write_file_stream);
+	if (write_file_handle != NULL) {
+		fclose(write_file_handle);
 	}
 	if (read_buf != NULL) {
 		free(read_buf);
-	}
+	}*/
 
-	return result;
+	return error_code;
 }
 
 int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party) {

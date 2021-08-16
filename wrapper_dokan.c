@@ -44,14 +44,11 @@ BOOL g_CaseSensitive;
 BOOL g_HasSeSecurityPrivilege;
 BOOL g_ImpersonateCallerUser;
 
-BOOL g_SecureLogs;	//Variable para logs de SecureWorld
-
 static WCHAR RootDirectory[NUM_LETTERS][DOKAN_MAX_PATH] = { L"C:" };
 static WCHAR MountPoint[NUM_LETTERS][DOKAN_MAX_PATH] = { L"M:\\" };
 static WCHAR UNCName[NUM_LETTERS][DOKAN_MAX_PATH] = { L"" };
 static WCHAR* volume_names[NUM_LETTERS] = { NULL };
 //static struct VolumeInfo* volume_info[NUM_LETTERS] = { NULL };
-// TO DO protections here instead of Cipher or others
 static struct Protection* protections[NUM_LETTERS] = { NULL };
 
 
@@ -420,10 +417,8 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 
 
 	if (preCreateLogic(file_path, full_app_path)) {
-		return STATUS_IO_PRIVILEGE_FAILED;						// TO DO complete
+		return STATUS_IO_PRIVILEGE_FAILED;
 	}
-
-
 
 	PrintUserName(DokanFileInfo);
 

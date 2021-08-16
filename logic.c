@@ -66,17 +66,12 @@ byte FILLING_SEQUENCE[] = {
 WCHAR remote_marked_file_table[MAX_SIMULTANEOUS_DOWNLOADS][MAX_PATH] = { 0 };
 
 
+
+
 /////  FUNCTION PROTOTYPES  /////
 void removeFromTable(WCHAR* file_path);
 BOOL checkTable(WCHAR* file_path);
 void addToTable(WCHAR* file_path);
-
-void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key);
-void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key);
-
-BOOL checkMark(uint8_t* input);
-BOOL mark(uint8_t* input);
-BOOL unmark(uint8_t* input);
 
 
 
@@ -548,10 +543,6 @@ int postReadLogic(
 	if (!small_file) {
 		if (*orig_offset >= MARK_LENGTH) {
 			if (op == DECIPHER) {
-				// TO DO create new handle
-				// TO DO adjust offset of handle to position 0
-				PRINT("TO DO!!!!! create handle and adjust its offset to read correctly");
-
 				// Make handle point to file begin (distanceToMove = 0)
 				if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 					error_code = GetLastError();
@@ -845,7 +836,6 @@ int preWriteLogic(
 	}
 
 
-	PRINT("TO DO!!!!! create handle and adjust its offset to read correctly\n");
 	/*if (handle || handle != INVALID_HANDLE_VALUE) {
 		CloseHandle(handle);
 	}
@@ -973,7 +963,6 @@ int preWriteLogic(
 				PRINT_HEX(*orig_buffer, *orig_bytes_to_write);
 				// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				if (*aux_offset == 0 || !(*orig_buffer == &(((byte*)*aux_buffer)[*orig_offset - *aux_offset]))) {
-					// TO DO: check the offset passed to cipher function
 					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset - *aux_offset]), *orig_buffer, *orig_bytes_to_write, *orig_offset, composed_key);
 				} else {
 					LPVOID orig_buffer_copy = malloc(*orig_bytes_to_write);

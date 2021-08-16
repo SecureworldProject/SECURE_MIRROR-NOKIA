@@ -20,6 +20,14 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2);
 enum Operation getOpSyncFolder(enum IrpOperation irp_op, WCHAR file_path[]);
 DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path);
 
+void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key);
+void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key);
+
+BOOL checkMark(uint8_t* input);
+BOOL mark(uint8_t* input);
+BOOL unmark(uint8_t* input);
+
+
 // Logic functions
 
 BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path);
