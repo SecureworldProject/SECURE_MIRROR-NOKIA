@@ -24,7 +24,10 @@ Nokia Febrero 2021
 #define ABS(N) ((N<0)?(-N):(N))
 
 #define MARK_LENGTH 512
-#define MAX_SIMULTANEOUS_DOWNLOADS 10
+#define MAX_SIMULTANEOUS_DOWNLOADS 10		// OLD can be removed
+#define FILE_MARK_INFO_TABLE_INITIAL_SIZE 256
+#define FILE_MARK_INFO_TABLE_SIZE_INCREMENT 64
+
 
 // This is a byte array of length 'MARK_LENGTH'
 /*byte FILLING_SEQUENCE[] = {
@@ -62,16 +65,25 @@ byte FILLING_SEQUENCE[] = {
 	uint16_t full;
 };*/
 
+WCHAR remote_marked_file_table[MAX_SIMULTANEOUS_DOWNLOADS][MAX_PATH] = { 0 };		// OLD can be removed
 
-WCHAR remote_marked_file_table[MAX_SIMULTANEOUS_DOWNLOADS][MAX_PATH] = { 0 };
+struct FileMarkInfo** file_mark_info_table = NULL;
+size_t file_mark_info_table_size = 0;
 
 
 
 
 /////  FUNCTION PROTOTYPES  /////
-void removeFromTable(WCHAR* file_path);
-BOOL checkTable(WCHAR* file_path);
-void addToTable(WCHAR* file_path);
+void removeFromTableOLD(WCHAR* file_path);
+BOOL checkTableOLD(WCHAR* file_path);
+void addToTableOLD(WCHAR* file_path);
+
+struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path);
+struct FileMarkInfo* getFMITableEntry(WCHAR* file_path);
+struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info);
+
+struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t orig_mark_lvl, int8_t curr_mark_lvl);	// Allocates memory
+void destroyFMI(struct FileMarkInfo* file_mark_info);											// Frees memory
 
 
 
@@ -145,7 +157,7 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 	return NOTHING;
 }
 
-void removeFromTable(WCHAR* file_path) {
+void removeFromTableOLD(WCHAR* file_path) {
 	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
 		if (0 == wcscmp(file_path, remote_marked_file_table[i])) {
 			wcscpy(remote_marked_file_table[i], L"");
@@ -155,7 +167,7 @@ void removeFromTable(WCHAR* file_path) {
 	return;
 }
 
-BOOL checkTable(WCHAR* file_path) {
+BOOL checkTableOLD(WCHAR* file_path) {
 	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
 		PRINT("Checking TABLE: %ws\n", remote_marked_file_table[i]);
 		if (0 == wcscmp(file_path, remote_marked_file_table[i])) {
@@ -165,7 +177,7 @@ BOOL checkTable(WCHAR* file_path) {
 	return FALSE;
 }
 
-void addToTable(WCHAR* file_path) {
+void addToTableOLD(WCHAR* file_path) {
 	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
 		if (0 == wcscmp(L"", remote_marked_file_table[i])) {
 			wcscpy(remote_marked_file_table[i], file_path);
@@ -173,6 +185,131 @@ void addToTable(WCHAR* file_path) {
 		}
 	}
 	return;
+}
+
+/**
+* Removes from the the file_mark_info_table the struct FileMarkInfo* associated to the file_path passed as parameter.
+* Note: the returned pointer should be freed when its use has finished.
+*
+* @param WCHAR* file_path
+*		The file path associated to the struct FileMarkInfo* wanted to be removed.
+*
+* @return struct FileMarkInfo*
+*		The (valid) pointer to the struct FileMarkInfo associated to the file_path passed as parameter. Remember to free after use.
+**/
+struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path) {
+	struct FileMarkInfo* result = NULL;
+
+	for (size_t i = 0; i < file_mark_info_table_size; i++) {
+		if (file_mark_info_table[i] != NULL && 0 == wcscmp(file_path, file_mark_info_table[i]->file_path)) {
+			result = file_mark_info_table[i];
+			file_mark_info_table[i] = NULL;
+			PRINT("FMI removed from the table\n");
+			break;
+		}
+	}
+	return result;
+}
+
+/**
+* Finds the struct FileMarkInfo* associated to the file_path passed as parameter in the file_mark_info_table.
+* Note: the returned pointer must not be freed in any case.
+*
+* @param WCHAR* file_path
+*		The file path associated to the struct FileMarkInfo* wanted to be retrieved.
+*
+* @return struct FileMarkInfo*
+*		The pointer to the struct FileMarkInfo associated to the file_path passed as parameter. Do not free on any circumstances.
+**/
+struct FileMarkInfo* getFMITableEntry(WCHAR* file_path) {
+	struct FileMarkInfo* result = NULL;
+
+	for (size_t i = 0; i < file_mark_info_table_size; i++) {
+		if (file_mark_info_table[i] != NULL && 0 == wcscmp(file_path, file_mark_info_table[i]->file_path)) {
+			result = file_mark_info_table[i];
+			PRINT("FMI found in the table\n");
+			break;
+		}
+	}
+	return result;
+}
+
+/**
+* Adds the struct FileMarkInfo* passed as parameter in the file_mark_info_table.
+* If the file_path specified in the parameter already exists in the table the value is overwritten, if not, the value is inserted on a free space.
+* If there are not available slots for the struct to be added to the table, more space is allocated.
+* In the case that no more space is allocable, NULL is returned.
+* Note: the returned pointer must not be freed in any case.
+*
+* @param struct FileMarkInfo* file_mark_info
+*		The struct FileMarkInfo* to add to the table.
+*
+* @return struct FileMarkInfo*
+*		The struct FileMarkInfo* added to the table. Do not free on any circumstances. If an error occurs NULL is returned.
+**/
+struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
+	BOOL found_empty = FALSE;
+	size_t empty_index = 0;
+	struct FileMarkInfo* tmp_table = NULL;
+
+	for (size_t i = 0; i < file_mark_info_table_size; i++) {
+		if (file_mark_info_table[i] == NULL) {
+			if (!found_empty) {
+				empty_index = i;
+				found_empty = TRUE;
+			}
+		} else if (0 == wcscmp(file_mark_info->file_path, file_mark_info_table[i]->file_path)) {
+			destroyFMI(file_mark_info_table[i]);
+			file_mark_info_table[i] = file_mark_info;
+			PRINT("FMI overwritten in the table\n");
+			return file_mark_info;
+		}
+	}
+
+	// If an empty slot was not found, extend the table and save the index to the first empty slot
+	if (!found_empty) {
+		size_t fmi_table_size_increment = (file_mark_info_table_size == 0) ? FILE_MARK_INFO_TABLE_INITIAL_SIZE : FILE_MARK_INFO_TABLE_SIZE_INCREMENT;
+		tmp_table = realloc(file_mark_info_table, file_mark_info_table_size + fmi_table_size_increment);
+		if (tmp_table == NULL) {
+			printf("ERROR: allocating memory for file_mark_info_table.\n");
+			return NULL;
+		} else {
+			// Save the first empty slot index
+			empty_index = file_mark_info_table_size;
+
+			// Update the table pointer and size, and set new slots to NULL
+			file_mark_info_table = tmp_table;
+			file_mark_info_table_size += fmi_table_size_increment;
+			memset(&(file_mark_info_table[file_mark_info_table_size]), NULL, fmi_table_size_increment * sizeof(struct FileMarkInfo*));
+		}
+	}// At this point an empty slot always exist in the position empty_index
+
+	// Assign parameter to the empty slot
+	file_mark_info_table[empty_index] = file_mark_info;
+	PRINT("FMI written in the table\n");
+
+	return file_mark_info;
+}
+
+// Allocates memory
+struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t orig_mark_lvl, int8_t curr_mark_lvl) {
+	if (file_path == NULL) {
+		return NULL;
+	}
+
+	struct FileMarkInfo* fmi = NULL;
+	fmi = malloc(1 * sizeof(struct FileMarkInfo));
+	if (fmi != NULL) {
+		wcscpy(fmi->file_path, file_path);
+		fmi->orig_mark_lvl = orig_mark_lvl;
+		fmi->curr_mark_lvl = curr_mark_lvl;
+	}
+	return fmi;
+}
+
+// Frees memory
+void destroyFMI(struct FileMarkInfo* file_mark_info) {
+	free(file_mark_info);
 }
 
 
@@ -276,8 +413,7 @@ DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path) {
 * @return BOOL
 *		TRUE if the buffer is marked. FALSE otherwise.
 **/
-BOOL checkMark(uint8_t* input) {
-
+BOOL checkMarkOLD(uint8_t* input) {
 	uint16_t decompressed_length = ((uint16_t*)(input))[0];	//*(uint32_t*)&input[0];
 	uint16_t compressed_length = ((uint16_t*)(input))[1];	//*(uint32_t*)&input[1];
 	uint16_t header_bit_length = ((uint16_t*)(input))[2] + (6 /*HEADER_BASE_SIZE*/ << 3); //*(uint16_t*)&input[4] + (6 /*HEADER_BASE_SIZE*/ << 3);
@@ -308,7 +444,7 @@ BOOL checkMark(uint8_t* input) {
 * @return BOOL
 *		TRUE if the buffer was marked. FALSE if it could not.
 **/
-BOOL mark(uint8_t* input) {
+BOOL markOLD(uint8_t* input) {
 	uint8_t* output = NULL;		// Allocated inside huffman_encode
 	uint32_t total_compressed_length;
 
@@ -348,7 +484,7 @@ BOOL mark(uint8_t* input) {
 * @return BOOL
 *		TRUE if the buffer was marked and has been unmarked. FALSE if it could not.
 **/
-BOOL unmark(uint8_t* input) {
+BOOL unmarkOLD(uint8_t* input) {
 	uint8_t* output = NULL;		// Allocated inside huffman_decode
 	PRINT("Trying to unmark...\n");
 
@@ -366,6 +502,110 @@ BOOL unmark(uint8_t* input) {
 
 	return TRUE;
 }
+
+
+/**
+* Marks the buffer if it is possible with the specified mark level.
+* If the input buffer cannot be marked, it is not modified and function returns INVALID_MARK_LEVEL.
+* Assumes that the input buffer is long enough (at least MARK_LENGTH bytes) and it is not marked.
+* Allows any mark level from -127 to 127, but not INVALID_MARK_LEVEL.
+*
+* @param uint8_t* input
+*		The buffer to be marked. Requires a minimum length of MARK_LENGTH bytes. In case it cannot be marked, it is not modified.
+* @param int8_t mark_level
+*		The mark level to set in the mark. Its value cannot be INVALID_MARK_LEVEL.
+*
+* @return int8_t
+*		'mark_level' if the buffer was marked. INVALID_MARK_LEVEL otherwise.
+**/
+int8_t mark(uint8_t* input, int8_t mark_level) {
+	// Check valid mark level
+	if (mark_level == INVALID_MARK_LEVEL) {
+		return INVALID_MARK_LEVEL;
+	}
+
+	uint8_t* output = NULL;		// Allocated inside huffman_encode
+	uint32_t total_compressed_length = 0;
+
+	PRINT("Trying to mark...\n");
+
+	// Compress the first MARK_LENGTH bytes of the stream and put them into the output buffer.
+	// Mark is omitted if the compressed length is bigger or equal to MARK_LENGTH - 1 (this is due to the mark level needs one byte to be stored).
+	if (huffman_encode(input, &output, (uint32_t)MARK_LENGTH, &total_compressed_length) != 0 || total_compressed_length >= MARK_LENGTH - 1) {
+		free(output);
+		PRINT("Could not be marked\n");
+		return INVALID_MARK_LEVEL;
+	}
+	PRINT("Marked\n");
+
+	// Set the mark level specified in the last byte
+	input[MARK_LENGTH - 1] = mark_level;
+
+	// Copy the compressed stream to the input buffer
+	memcpy(input, output, total_compressed_length);
+
+	// Fill the rest of the bytes with the filling sequence
+	memcpy(&(input[total_compressed_length]), FILLING_SEQUENCE, MARK_LENGTH - 1 - total_compressed_length); // -1 due to the mark level needs one byte to be stored
+
+	// Free output buffer
+	free(output);
+
+	return mark_level;
+}
+
+/**
+* Unmarks the buffer if it is possible and returns the mark level if the input buffer was marked.
+* Allows any mark level from -127 to 127, but not INVALID_MARK_LEVEL.
+*
+* @param uint8_t* input
+*		The buffer to be unmarked. Requires a minimum length of MARK_LENGTH bytes. In case it cannot be unmarked, it is not modified.
+*
+* @return int8_t
+*		The level of the mark if the buffer is marked. INVALID_MARK_LEVEL otherwise.
+**/
+int8_t unmark(uint8_t* input) {
+	uint16_t decompressed_length = ((uint16_t*)(input))[0];	//*(uint32_t*)&input[0];
+	uint16_t compressed_length = ((uint16_t*)(input))[1];	//*(uint32_t*)&input[1];
+	uint16_t header_bit_length = ((uint16_t*)(input))[2] + (6 /*HEADER_BASE_SIZE*/ << 3); //*(uint16_t*)&input[4] + (6 /*HEADER_BASE_SIZE*/ << 3);
+	int8_t mark_level = (int8_t)input[MARK_LENGTH - 1];
+
+	PRINT("Checking mark. decompressed_length=%u, compressed_length=%u, header_bit_length=%u (%u bytes)\n", decompressed_length, compressed_length, header_bit_length, header_bit_length / 8 + ((header_bit_length % 8) ? 0 : 1));
+
+	if (mark_level == INVALID_MARK_LEVEL) {
+		return INVALID_MARK_LEVEL;
+	}
+
+	if (decompressed_length != (uint16_t)MARK_LENGTH) {
+		return INVALID_MARK_LEVEL;
+	}
+
+	if (compressed_length > MARK_LENGTH - 1) {	// -1 due to the mark level requires 1 Byte
+		return INVALID_MARK_LEVEL;
+	}
+
+	if (memcmp(&(input[compressed_length]), FILLING_SEQUENCE, MARK_LENGTH - 1 - compressed_length) != 0) {	// -1 due to the mark level requires 1 Byte
+		return INVALID_MARK_LEVEL;
+	}
+
+	uint8_t* output = NULL;		// Allocated inside huffman_decode
+	PRINT("Trying to unmark...\n");
+
+	// Uncompress input
+	if (huffman_decode(input, &output) != 0) {
+		PRINT("Could not be unmarked\n");
+		return INVALID_MARK_LEVEL;
+	}
+	PRINT("Unmarked\n");
+
+	// Copy decoded buffer into input buffer
+	memcpy(input, output, MARK_LENGTH);
+
+	// Free output buffer
+	free(output);
+
+	return mark_level;	// Allows mark_level to be any number from -127 to 127 and the value INVALID_MARK_LEVEL=-128
+}
+
 
 
 BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
@@ -537,7 +777,7 @@ int postReadLogic(
 	LARGE_INTEGER distanceToMove = { 0 };
 
 	// Remove file in the remote-marked-file-table if it is there
-	removeFromTable(file_path);
+	removeFromTableOLD(file_path);
 
 	// Read and Check mark if necessary
 	if (!small_file) {
@@ -575,18 +815,18 @@ int postReadLogic(
 				}
 
 				// Get if buffer is marked an unmark it
-				marked = checkMark(extra_read_buffer);
+				marked = checkMarkOLD(extra_read_buffer);
 				if (marked) {
-					marked = unmark(extra_read_buffer);
+					marked = unmarkOLD(extra_read_buffer);
 				}
 				free(extra_read_buffer);
 				extra_read_buffer = NULL;
 			}
 		} else {	// Case where *orig_offset < MARK_LENGTH
 			// Get if buffer is marked an unmark it
-			marked = checkMark(*aux_buffer);
+			marked = checkMarkOLD(*aux_buffer);
 			if (marked) {
-				marked = unmark(*aux_buffer);
+				marked = unmarkOLD(*aux_buffer);
 			}
 		}
 
@@ -646,7 +886,7 @@ int postReadLogic(
 
 	// Mark if needed
 	if (!small_file && mark_at_the_end) {
-		mark(*aux_buffer);
+		markOLD(*aux_buffer);
 	}
 
 	// Copy buffer aux to orig
@@ -714,7 +954,7 @@ int preWriteLogic(
 
 	// Check file in the remote-marked-file-table
 	BOOL marked_in_table = FALSE;
-	marked_in_table = checkTable(file_path);
+	marked_in_table = checkTableOLD(file_path);
 	marked = marked_in_table;
 
 
@@ -735,9 +975,9 @@ int preWriteLogic(
 			memcpy(read_buffer, *orig_buffer, MARK_LENGTH);
 
 			// Get if buffer is marked an unmark it
-			marked = checkMark(read_buffer);
+			marked = checkMarkOLD(read_buffer);
 			if (marked) {
-				marked = unmark(read_buffer);
+				marked = unmarkOLD(read_buffer);
 			}
 
 			// Allocate aux_buffer
@@ -763,7 +1003,7 @@ int preWriteLogic(
 					// Cipher all and copy to *aux_buffer
 					invokeCipher(protection->cipher, *aux_buffer, *orig_buffer, *orig_bytes_to_write, *orig_offset, composed_key);
 					PRINT("Marking buffer in prewrite\n");
-					mark(*aux_buffer);
+					markOLD(*aux_buffer);
 				}
 				//                              read_buf  +  &(((byte*)*orig_buf)[MARK_LENGTH])
 				// { orig_buf }  ---unmark-->  { unmarked_buf + rest_of buf }  ---cipher-->  { ciphered_buf }  ---mark?-->  { ciphered_and_marked_buf }
@@ -887,9 +1127,9 @@ int preWriteLogic(
 
 	if (!marked_in_table) {
 		// Get if buffer is marked an unmark it
-		marked = checkMark(read_buffer);
+		marked = checkMarkOLD(read_buffer);
 		if (marked) {
-			marked = unmark(read_buffer);
+			marked = unmarkOLD(read_buffer);
 		}
 	}
 
@@ -1028,7 +1268,7 @@ int preWriteLogic(
 	// Mark if needed
 	if (*mark_at_the_end) {
 		PRINT("Marking buffer in prewrite\n");
-		mark(*aux_buffer);
+		markOLD(*aux_buffer);
 	}
 
 	return error_code;
@@ -1130,9 +1370,9 @@ int postWriteLogic(
 		}
 
 		// Check mark and unmark the content
-		marked = checkMark(buffer1);
+		marked = checkMarkOLD(buffer1);
 		if (marked) {
-			marked = unmark(buffer1);
+			marked = unmarkOLD(buffer1);
 		}
 
 		// If the operation was DECIPHER and the file was marked:
@@ -1178,14 +1418,14 @@ int postWriteLogic(
 					invokeDecipher(protection->cipher, buffer3, buffer1, MARK_LENGTH, 0, composed_key);
 					invokeDecipher(protection->cipher, &(((byte*)buffer3)[MARK_LENGTH]), buffer2, (new_file_size - MARK_LENGTH), MARK_LENGTH, composed_key);
 					// Add file to table
-					addToTable(file_path);	// Is it needed to change the table to save also unmarked files? No, because mark only modifies decipher operative
+					addToTableOLD(file_path);	// Is it needed to change the table to save also unmarked files? No, because mark only modifies decipher operative
 					PRINT("ADDED TO TABLE: %ws\n", file_path);
 				} else if (op == CIPHER) {
 					// Cipher all the current content of the file
 					invokeCipher(protection->cipher, buffer3, buffer1, MARK_LENGTH, 0, composed_key);
 					invokeCipher(protection->cipher, &(((byte*)buffer3)[MARK_LENGTH]), buffer2, (new_file_size - MARK_LENGTH), MARK_LENGTH, composed_key);
 					if (!marked) {
-						mark(buffer3);	// if it fails, we can do nothing but leave it unmarked
+						markOLD(buffer3);	// if it fails, we can do nothing but leave it unmarked
 					}
 				}
 			} else {
@@ -1279,7 +1519,7 @@ void testMark(){
 	memcpy(result_buffer, orig_buffer, 520);
 
 	PRINT_HEX(orig_buffer, 520);
-	marked = mark(result_buffer);
+	marked = markOLD(result_buffer);
 	PRINT("The buffer %s marked\n", (marked ? "HAS BEEN" : "has NOT been"));
 	PRINT_HEX(result_buffer, 520);
 
@@ -1290,9 +1530,9 @@ void testMark(){
 	PRINT("-----------------------------\n");
 
 	marked = FALSE;
-	marked = checkMark(result_buffer);
+	marked = checkMarkOLD(result_buffer);
 	if (marked) {
-		marked = unmark(result_buffer);
+		marked = unmarkOLD(result_buffer);
 	}
 
 	PRINT("The buffer %s unmarked\n", (marked ? "HAS BEEN" : "has NOT been"));

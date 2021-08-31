@@ -363,7 +363,7 @@ int createDecipheredFileCopy(WCHAR* file_path) {
 	//	total += count;
 	//}
 	// TO DO ///////////////////////////////////
-
+	*/
 
 
 
@@ -377,7 +377,7 @@ int createDecipheredFileCopy(WCHAR* file_path) {
 	}
 	if (read_buf != NULL) {
 		free(read_buf);
-	}*/
+	}
 
 	return error_code;
 }
