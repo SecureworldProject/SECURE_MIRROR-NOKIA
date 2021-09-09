@@ -19,6 +19,7 @@
 /////  DEFINITIONS  /////
 
 #define NUM_LETTERS 26
+#define ENABLE_VOLUME_MOUNTER 0					// If 1 volume mounter thread is launched. If 0, it is not.
 
 
 
@@ -31,6 +32,12 @@ struct ThreadData {
 	WCHAR letter;
 	WCHAR* name;
 	struct Protection* protection;
+};
+
+struct VolumeMounterThreadData {
+	size_t index;
+	HANDLE (*threads_p)[NUM_LETTERS];
+	struct ThreadData (*th_data_p)[NUM_LETTERS];
 };
 
 struct LetterDeviceMap {

@@ -6,6 +6,7 @@
 #include "sharing_app.h"
 #include "wrapper_dokan.h"
 //#include "wrapper_winfsp.h"
+#include "volume_mounter.h"
 
 
 
@@ -15,6 +16,8 @@ int main(int argc, char* argv[]) {
 
 	struct ThreadData th_data[NUM_LETTERS] = { 0 };
 	HANDLE threads[NUM_LETTERS] = { 0 };
+	HANDLE volume_mounter_thread = INVALID_HANDLE_VALUE;
+	size_t number_of_folders = 0;
 
 	system("cls");
 	printf("\n");
@@ -47,7 +50,8 @@ int main(int argc, char* argv[]) {
 	printContext();
 
 	// For each folder create and launch a thread and make it call threadDokan() or threadWinFSP()
-	for (int i = 0; i < _msize(ctx.folders) / sizeof(struct Folder*); i++) {
+	number_of_folders = _msize(ctx.folders) / sizeof(struct Folder*);
+	for (int i = 0; i < number_of_folders; i++) {
 	//for (int i = 0; i < 1; i++) {
 		th_data[i].index = i;
 		th_data[i].path = ctx.folders[i]->path;
@@ -66,6 +70,16 @@ int main(int argc, char* argv[]) {
 				break;
 		}
 		Sleep(1000);
+	}
+
+	// Launch volume mounter thread
+	if (ENABLE_VOLUME_MOUNTER) {
+		struct VolumeMounterThreadData vol_mount_th_data = { 0 };
+		vol_mount_th_data.index = number_of_folders;
+		vol_mount_th_data.threads_p = &threads;
+		vol_mount_th_data.th_data_p = &th_data;
+
+		volume_mounter_thread = CreateThread(NULL, 0, volumeMounterThread, &vol_mount_th_data, 0, NULL);		// 1st idx for pendrives is number_of_folders+1-1
 	}
 
 	// Initialize the parameters for the challenges

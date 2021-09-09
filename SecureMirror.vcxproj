@@ -159,6 +159,7 @@
     <ClCompile Include="logic.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="sharing_app.c" />
+    <ClCompile Include="volume_mounter.c" />
     <ClCompile Include="wrapper_dokan.c" />
   </ItemGroup>
   <ItemGroup>
@@ -169,6 +170,7 @@
     <ClInclude Include="logic.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="sharing_app.h" />
+    <ClInclude Include="volume_mounter.h" />
     <ClInclude Include="wrapper_dokan.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
