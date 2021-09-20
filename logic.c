@@ -25,8 +25,8 @@ Nokia Febrero 2021
 
 #define MARK_LENGTH 512
 #define MAX_SIMULTANEOUS_DOWNLOADS 10		// OLD can be removed
-#define FILE_MARK_INFO_TABLE_INITIAL_SIZE 256
-#define FILE_MARK_INFO_TABLE_SIZE_INCREMENT 64
+#define FILE_MARK_INFO_TABLE_INITIAL_SIZE 32
+#define FILE_MARK_INFO_TABLE_SIZE_INCREMENT 8
 
 
 // This is a byte array of length 'MARK_LENGTH'
@@ -82,7 +82,7 @@ struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path);
 struct FileMarkInfo* getFMITableEntry(WCHAR* file_path);
 struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info);
 
-struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t orig_mark_lvl, int8_t curr_mark_lvl);	// Allocates memory
+struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t write_buffer_mark_lvl, int8_t file_mark_lvl);	// Allocates memory
 void destroyFMI(struct FileMarkInfo* file_mark_info);											// Frees memory
 
 
@@ -93,7 +93,7 @@ void destroyFMI(struct FileMarkInfo* file_mark_info);											// Frees memory
 enum Operation getOpSyncFolder(enum IrpOperation irp_op, WCHAR file_path[]) {
 	enum operation op = NOTHING;
 	WCHAR* tmp_str = NULL;
-	PRINT("Checking if path (%ws) is in a syncfolder\n", file_path);
+	PRINT("Checking if path (%ws) is in a syncfolder or not\n", file_path);
 
 	for (size_t i = 0; i < _msize(ctx.sync_folders) / sizeof(WCHAR*); i++) {
 		PRINT1("Checking sync folder (%ws) \n", ctx.sync_folders[i]);
@@ -200,6 +200,10 @@ void addToTableOLD(WCHAR* file_path) {
 struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path) {
 	struct FileMarkInfo* result = NULL;
 
+	if (file_path==NULL) {
+		return NULL;
+	}
+
 	for (size_t i = 0; i < file_mark_info_table_size; i++) {
 		if (file_mark_info_table[i] != NULL && 0 == wcscmp(file_path, file_mark_info_table[i]->file_path)) {
 			result = file_mark_info_table[i];
@@ -259,9 +263,13 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 				found_empty = TRUE;
 			}
 		} else if (0 == wcscmp(file_mark_info->file_path, file_mark_info_table[i]->file_path)) {
-			destroyFMI(file_mark_info_table[i]);
-			file_mark_info_table[i] = file_mark_info;
-			PRINT("FMI overwritten in the table\n");
+			if (file_mark_info_table[i] != file_mark_info) {
+				destroyFMI(file_mark_info_table[i]);
+				file_mark_info_table[i] = file_mark_info;
+				PRINT("FMI overwritten in the table\n");
+			} else {
+				PRINT("Identical FMI in the table (no need to overwrite)\n");
+			}
 			return file_mark_info;
 		}
 	}
@@ -269,7 +277,7 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 	// If an empty slot was not found, extend the table and save the index to the first empty slot
 	if (!found_empty) {
 		size_t fmi_table_size_increment = (file_mark_info_table_size == 0) ? FILE_MARK_INFO_TABLE_INITIAL_SIZE : FILE_MARK_INFO_TABLE_SIZE_INCREMENT;
-		tmp_table = realloc(file_mark_info_table, file_mark_info_table_size + fmi_table_size_increment);
+		tmp_table = realloc(file_mark_info_table, (file_mark_info_table_size + fmi_table_size_increment) * sizeof(struct FileMarkInfo*));
 		if (tmp_table == NULL) {
 			printf("ERROR: allocating memory for file_mark_info_table.\n");
 			return NULL;
@@ -279,8 +287,11 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 
 			// Update the table pointer and size, and set new slots to NULL
 			file_mark_info_table = tmp_table;
+			for (size_t i = 0; i < fmi_table_size_increment; i++) {
+				file_mark_info_table[file_mark_info_table_size + i] = (struct FileMarkInfo*)NULL;
+			}
 			file_mark_info_table_size += fmi_table_size_increment;
-			memset(&(file_mark_info_table[file_mark_info_table_size]), NULL, fmi_table_size_increment * sizeof(struct FileMarkInfo*));
+			//PRINT_HEX(file_mark_info_table, file_mark_info_table_size * sizeof(struct FileMarkInfo*));
 		}
 	}// At this point an empty slot always exist in the position empty_index
 
@@ -291,8 +302,30 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 	return file_mark_info;
 }
 
+/**
+* Prints the table itself (pointers in memory as hexadecimal) and then all the values of the structs inside (write_bufer_mark_lvl, file_mark_lvl and file_path).
+*
+* @return
+**/
+void printFMITable() {
+	struct FileMarkInfo* fmi = NULL;
+
+	// Print the pointers as they are stored
+	PRINT_HEX(file_mark_info_table, file_mark_info_table_size * sizeof(struct FileMarkInfo*));
+
+	// Print if the pointers are NULL and struct internal data (write_bufer_mark_lvl, file_mark_lvl and file_path) if not
+	for (size_t i = 0; i < file_mark_info_table_size; i++) {
+		fmi = file_mark_info_table[i];
+		if (fmi == NULL) {
+			PRINT1("row %llu -->\t NULL \n", i);
+		} else {
+			PRINT1("row % llu --> \t write_buf_mark: %d \t file_mark: %d   \t path: %ws\n", i, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl, fmi->file_path);
+		}
+	}
+}
+
 // Allocates memory
-struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t orig_mark_lvl, int8_t curr_mark_lvl) {
+struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t write_buffer_mark_lvl, int8_t file_mark_lvl) {
 	if (file_path == NULL) {
 		return NULL;
 	}
@@ -301,8 +334,8 @@ struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t orig_mark_lvl, int8_t cu
 	fmi = malloc(1 * sizeof(struct FileMarkInfo));
 	if (fmi != NULL) {
 		wcscpy(fmi->file_path, file_path);
-		fmi->orig_mark_lvl = orig_mark_lvl;
-		fmi->curr_mark_lvl = curr_mark_lvl;
+		fmi->write_buffer_mark_lvl = write_buffer_mark_lvl;
+		fmi->file_mark_lvl = file_mark_lvl;
 	}
 	return fmi;
 }
@@ -310,6 +343,95 @@ struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t orig_mark_lvl, int8_t cu
 // Frees memory
 void destroyFMI(struct FileMarkInfo* file_mark_info) {
 	free(file_mark_info);
+}
+
+/**
+* Tests the functionality of the FMI related functions and the file_mark_info_table.
+*
+* @return
+**/
+void testFMItable() {
+	WCHAR wstring[] = L"C:/test/00";
+	struct FileMarkInfo *fmi = NULL;
+
+	srand(time(NULL));
+
+	for (size_t times = 0; times < 2; times++) {
+		if (times != 0) {
+			PRINT("\n\nREPEATING EVERYTHING AGAIN!\n\n\n");
+		}
+
+		// Fill the table
+		PRINT1("\nFilling the table...\n");
+		for (size_t i = 0; i < 3; i++) {
+			for (size_t j = 0; j < 10; j++) {
+				wstring[8] = L'0' + i;
+				wstring[9] = L'0' + j;
+				addFMITableEntry(createFMI(wstring, 128, 128));
+			}
+		}
+
+		// Print full table
+		PRINT1("\nPrinting the table...\n");
+		printFMITable();
+
+		// Retrieve 5 random values
+		PRINT1("\nRetrieving 5 random values from the table...\n");
+		for (size_t i = 0; i < 5; i++) {
+			wstring[8] = L'0' + rand() % 3;
+			wstring[9] = L'0' + rand() % 10;
+			fmi = getFMITableEntry(wstring);
+			if (fmi != NULL) {
+				PRINT2("path: %ws \t write_buf_mark: %d \t file_mark: %d\n", fmi->file_path, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+			}
+		}
+
+		// Add an already existing pointer to collide
+		PRINT1("\nAdding an already existing pointer to collide in the table...\n");
+		addFMITableEntry(fmi);
+
+		// Add 5 random values that will collide. This time with different mark levels
+		PRINT1("\nAdding 5 random values to the table...\n");
+		for (size_t i = 0; i < 5; i++) {
+			wstring[8] = L'0' + rand() % 3;
+			wstring[9] = L'0' + rand() % 10;
+			addFMITableEntry(createFMI(wstring, (rand() % 3) - 1, (rand() % 3) - 1));
+		}
+
+		// Print full table
+		PRINT1("\nPrinting the table...\n");
+		printFMITable();
+
+
+		// Remove 5 random values
+		PRINT1("\nRemoving 5 random values from the table...\n");
+		for (size_t i = 0; i < 5; i++) {
+			wstring[8] = L'0' + rand() % 3;
+			wstring[9] = L'0' + rand() % 10;
+			fmi = removeFMITableEntry(wstring);
+			if (fmi != NULL) {
+				PRINT2("path: %ws \t write_buf_mark: %d \t file_mark: %d\n", fmi->file_path, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+			}
+			destroyFMI(fmi);
+		}
+
+		// Print full table
+		PRINT1("\nPrinting the table...\n");
+		printFMITable();
+
+
+		// Clear the table
+		PRINT1("\nClearing the table...\n");
+		for (size_t i = 0; i < 3; i++) {
+			for (size_t j = 0; j < 10; j++) {
+				wstring[8] = L'0' + i;
+				wstring[9] = L'0' + j;
+				fmi = removeFMITableEntry(wstring);
+				destroyFMI(fmi);
+			}
+		}
+
+	}
 }
 
 
@@ -325,16 +447,32 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD
 		((byte*)dst_buf)[i] = (uint8_t)((current_value + 1) % 255);
 	}
 
-	/*typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*);
+	/*LPVOID src_buf_copy = NULL;
+	if (dst_buf == src_buf) {
+		src_buf_copy = malloc(buf_size);
+		if (src_buf_copy == NULL) {
+			return;		// If copy of the buffer cannot be allocated, skip ciphering
+			NOOP;		// If copy of the buffer cannot be allocated, pray for it to work
+		} else {
+			memcpy(src_buf_copy, src_buf, buf_size);
+		}
+	}
+
+	typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*, uint32_t);
 
 	cipher_func_type cipher_func;
 	int result;
 
 	cipher_func = (cipher_func_type)GetProcAddress(p_cipher->lib_handle, "cipher");
 	if (cipher_func != NULL) {
-		result = cipher_func(dst_buf, src_buf, buf_size, offset, composed_key);
+		if (src_buf_copy==NULL) {
+			result = cipher_func(dst_buf, src_buf, buf_size, offset, composed_key, 0);
+		} else {
+			result = cipher_func(dst_buf, src_buf_copy, buf_size, offset, composed_key, 0);
+			free(src_buf_copy);
+		}
 		if (result != 0) {
-			PRINT("WARNING: error \n");
+			PRINT("WARNING: error ciphering\n");
 		}
 	} else {
 		PRINT("WARNING: error accessing the address to the cipher() function of the cipher '%ws' (error: %d)\n", p_cipher->file_name, GetLastError());
@@ -354,16 +492,33 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWO
 		((byte*)dst_buf)[i] = (uint8_t)((current_value - 1) % 255);
 	}
 
-	/*typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*);
+	/*LPVOID src_buf_copy = NULL;
+	if (dst_buf == src_buf) {
+		src_buf_copy = malloc(buf_size);
+		if (src_buf_copy == NULL) {
+			return;		// If copy of the buffer cannot be allocated, skip deciphering
+			NOOP;		// If copy of the buffer cannot be allocated, pray for it to work
+		} else {
+			memcpy(src_buf_copy, src_buf, buf_size);
+		}
+	}
+
+	typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*, uint32_t);
 
 	decipher_func_type decipher_func;
 	int result;
 
 	decipher_func = (decipher_func_type)GetProcAddress(p_cipher->lib_handle, "decipher");
 	if (decipher_func != NULL) {
-		result = decipher_func(dst_buf, src_buf, buf_size, offset, composed_key);
+		if (src_buf_copy==NULL) {
+			result = decipher_func(dst_buf, src_buf, buf_size, offset, composed_key, 0);
+		} else {
+			result = decipher_func(dst_buf, src_buf_copy, buf_size, offset, composed_key, 0);
+			free(src_buf_copy);
+		}
+
 		if (result != 0) {
-			PRINT("WARNING: error \n");
+			PRINT("WARNING: error deciphering\n");
 		}
 	} else {
 		PRINT("WARNING: error accessing the address to the cipher() function of the cipher '%ws' (error: %d)\n", p_cipher->file_name, GetLastError());
@@ -509,19 +664,25 @@ BOOL unmarkOLD(uint8_t* input) {
 * If the input buffer cannot be marked, it is not modified and function returns INVALID_MARK_LEVEL.
 * Assumes that the input buffer is long enough (at least MARK_LENGTH bytes) and it is not marked.
 * Allows any mark level from -127 to 127, but not INVALID_MARK_LEVEL.
+* In the case that 'mark_level' is 0, buffer is left unmodified.
 *
 * @param uint8_t* input
 *		The buffer to be marked. Requires a minimum length of MARK_LENGTH bytes. In case it cannot be marked, it is not modified.
 * @param int8_t mark_level
-*		The mark level to set in the mark. Its value cannot be INVALID_MARK_LEVEL.
+*		The mark level to set in the mark. If it is 0, the buffers is left unmodified. Its value cannot be INVALID_MARK_LEVEL.
 *
 * @return int8_t
-*		'mark_level' if the buffer was marked. INVALID_MARK_LEVEL otherwise.
+*		'mark_level' if the buffer was correctly marked (or not needed in case 'mark_level'==0). INVALID_MARK_LEVEL otherwise.
 **/
 int8_t mark(uint8_t* input, int8_t mark_level) {
 	// Check valid mark level
 	if (mark_level == INVALID_MARK_LEVEL) {
 		return INVALID_MARK_LEVEL;
+	}
+
+	// If asking to mark with level 0, then do nothing
+	if (mark_level == 0) {
+		return 0;
 	}
 
 	uint8_t* output = NULL;		// Allocated inside huffman_encode
@@ -555,13 +716,13 @@ int8_t mark(uint8_t* input, int8_t mark_level) {
 
 /**
 * Unmarks the buffer if it is possible and returns the mark level if the input buffer was marked.
-* Allows any mark level from -127 to 127, but not INVALID_MARK_LEVEL.
+* Allows any mark level from -127 to 127, but not 0 or INVALID_MARK_LEVEL=-128.
 *
 * @param uint8_t* input
 *		The buffer to be unmarked. Requires a minimum length of MARK_LENGTH bytes. In case it cannot be unmarked, it is not modified.
 *
 * @return int8_t
-*		The level of the mark if the buffer is marked. INVALID_MARK_LEVEL otherwise.
+*		The level of the mark if the buffer is marked. 0 otherwise.
 **/
 int8_t unmark(uint8_t* input) {
 	uint16_t decompressed_length = ((uint16_t*)(input))[0];	//*(uint32_t*)&input[0];
@@ -571,20 +732,20 @@ int8_t unmark(uint8_t* input) {
 
 	PRINT("Checking mark. decompressed_length=%u, compressed_length=%u, header_bit_length=%u (%u bytes)\n", decompressed_length, compressed_length, header_bit_length, header_bit_length / 8 + ((header_bit_length % 8) ? 0 : 1));
 
-	if (mark_level == INVALID_MARK_LEVEL) {
-		return INVALID_MARK_LEVEL;
+	if (mark_level == INVALID_MARK_LEVEL || mark_level == 0) {
+		return 0;
 	}
 
 	if (decompressed_length != (uint16_t)MARK_LENGTH) {
-		return INVALID_MARK_LEVEL;
+		return 0;
 	}
 
 	if (compressed_length > MARK_LENGTH - 1) {	// -1 due to the mark level requires 1 Byte
-		return INVALID_MARK_LEVEL;
+		return 0;
 	}
 
 	if (memcmp(&(input[compressed_length]), FILLING_SEQUENCE, MARK_LENGTH - 1 - compressed_length) != 0) {	// -1 due to the mark level requires 1 Byte
-		return INVALID_MARK_LEVEL;
+		return 0;
 	}
 
 	uint8_t* output = NULL;		// Allocated inside huffman_decode
@@ -593,7 +754,7 @@ int8_t unmark(uint8_t* input) {
 	// Uncompress input
 	if (huffman_decode(input, &output) != 0) {
 		PRINT("Could not be unmarked\n");
-		return INVALID_MARK_LEVEL;
+		return 0;
 	}
 	PRINT("Unmarked\n");
 
@@ -603,7 +764,7 @@ int8_t unmark(uint8_t* input) {
 	// Free output buffer
 	free(output);
 
-	return mark_level;	// Allows mark_level to be any number from -127 to 127 and the value INVALID_MARK_LEVEL=-128
+	return mark_level;	// Allows mark_level to be any number from -127 to 127 (without the values 0 and INVALID_MARK_LEVEL=-128)
 }
 
 
@@ -681,12 +842,14 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 	return FALSE;	// Allow access
 }
 
-// This function allocates buffers to a memory size adjusted to the blocksize and other parameters. If blocksize is 0, allocates buffers of the same size.
+
+
+
 int preReadLogic(
-		uint64_t file_size, enum Operation op,
-		LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
-		LPVOID*  aux_buffer, DWORD*  aux_buffer_length, LPDWORD*  aux_read_length, LONGLONG*  aux_offset
-	) {
+	uint64_t file_size, enum Operation op, WCHAR* file_path,
+	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
+	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
+) {
 
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_buffer_length == NULL || orig_read_length == NULL || *orig_read_length == NULL ||
 		orig_offset == NULL) {
@@ -698,54 +861,63 @@ int preReadLogic(
 		file_size, op);
 	PRINT(" - Orig buffer: %p\n - Orig buffer length: %lu\n - Orig bytes done: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_buffer_length, **orig_read_length, *orig_offset);
-	/*PRINT(" - Aux buffer: %p\n - Aux buffer length: %lu\n - Aux bytes done: %lu\n - Aux offset: %lld\n",
-		*aux_buffer, *aux_buffer_length, **aux_read_length, *aux_offset);*/
+	//PRINT(" - Aux buffer: %p\n - Aux buffer length: %lu\n - Aux bytes done: %lu\n - Aux offset: %lld\n",
+	//	*aux_buffer, *aux_buffer_length, **aux_read_length, *aux_offset);
 
 
 	BOOL small_file = file_size < MARK_LENGTH;
+	PRINT("The file %s small\n", small_file ? "IS" : "is NOT");
 
+	// By default: buffer is the same and read starts and ends on the same place
 	*aux_buffer = *orig_buffer;
 	*aux_read_length = *orig_read_length;
 
-	// Check file size and buffer position/size and fix buffer limits in consequence
-	if (small_file) {
-		// Buffer starts and ends on same place
-		*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
-		*aux_buffer_length = *orig_buffer_length;		//aux_fin = orig_fin;		// Buffer ends in same place
-		//mark_at_the_end = FALSE;						// Already false by default
-	} else {	//file_size >= MARK_LENGTH
-		if (*orig_offset >= MARK_LENGTH) {
-			// Buffer starts and ends on same place
-			*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
-			*aux_buffer_length = *orig_buffer_length;		//aux_fin = orig_fin;		// Buffer ends in same place
-		} else {	//inicio < MARK_LENGTH
-			if (*orig_buffer_length + *orig_offset < MARK_LENGTH) {
-				// Buffer starts on 0 and ends on MARK_LENGTH
-				*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
-				*aux_buffer_length = MARK_LENGTH;							//aux_fin = MARK_LENGTH;	// Buffer ends at MARK_LENGTH
-			} else {	// fin >= MARK_LENGTH
-				// Buffer starts on 0 and ends on same place
-				*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
-				*aux_buffer_length = *orig_buffer_length + *orig_offset;	//aux_fin = orig_fin;		// Buffer ends in same place
-			}
+	*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
+	*aux_buffer_length = *orig_buffer_length;		//aux_fin = orig_fin;		// Buffer ends in same place
 
-			// Allocate space for the aux buffer
-			*aux_buffer = malloc(*aux_buffer_length);
-			if (*aux_buffer == NULL) {
-				return ERROR_NOT_ENOUGH_MEMORY;
-			}
-		}
+
+
+	// Check file size and buffer position/size and fix buffer limits in consequence
+	// SMALL FILES
+	if (small_file) {
+		goto PRE_READ_END;
 	}
+
+	// BIG FILES (file_size >= MARK_LENGTH)
+	// Offset further than the mark
+	if (*orig_offset >= MARK_LENGTH) {
+		// Buffer starts and ends on same place
+		goto PRE_READ_END;
+	}
+	// Offset within the mark  (inicio < MARK_LENGTH)
+	if (*orig_buffer_length + *orig_offset < MARK_LENGTH) {
+		// Buffer starts on 0 and ends on MARK_LENGTH
+		*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
+		*aux_buffer_length = MARK_LENGTH;							//aux_fin = MARK_LENGTH;	// Buffer ends at MARK_LENGTH
+	} else {	// fin >= MARK_LENGTH
+		// Buffer starts on 0 and ends on same place
+		*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
+		*aux_buffer_length = *orig_buffer_length + *orig_offset;	//aux_fin = orig_fin;		// Buffer ends in same place
+	}
+
+	// Allocate space for the aux buffer
+	*aux_buffer = malloc(*aux_buffer_length);
+	if (*aux_buffer == NULL) {
+		return ERROR_NOT_ENOUGH_MEMORY;
+	}
+
+	PRE_READ_END:
 	PRINT("Ending preReadLogic\n");
 
 	return 0;
 }
 
+
 int postReadLogic(
-		uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle,
-		LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
-		LPVOID*  aux_buffer, DWORD*  aux_buffer_length, LPDWORD*  aux_read_length, LONGLONG*  aux_offset
-	){
+	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle,
+	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
+	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
+) {
 
 	// Parameter checking
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_buffer_length == NULL || orig_read_length == NULL || *orig_read_length == NULL ||
@@ -773,125 +945,173 @@ int postReadLogic(
 	DWORD extra_bytes_read = 0;
 	DWORD error_code = 0;
 
-	LPVOID aux_buffer_copy = NULL;
 	LARGE_INTEGER distanceToMove = { 0 };
 
-	// Remove file in the remote-marked-file-table if it is there
-	removeFromTableOLD(file_path);
+	struct FileMarkInfo* fmi = NULL;
+	int8_t mark_lvl = INVALID_MARK_LEVEL;
 
-	// Read and Check mark if necessary
-	if (!small_file) {
-		if (*orig_offset >= MARK_LENGTH) {
-			if (op == DECIPHER) {
-				// Make handle point to file begin (distanceToMove = 0)
-				if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
-					error_code = GetLastError();
-					PRINT(L"ERROR seeking in postRead (error=%lu)\n", error_code);
-					//return error_code;
-					goto POST_READ_CLEANUP;
-				}
+	// SMALL FILES
+	if (small_file) {
+		goto POST_READ_CLEANUP;
+	}
 
-				// Allocate read buffer
-				extra_read_buffer = malloc(MARK_LENGTH * sizeof(byte));
-				if (extra_read_buffer == NULL) {
-					error_code = ERROR_NOT_ENOUGH_MEMORY;
-					goto POST_READ_CLEANUP;
-				}
+	// BIG FILES (file_size >= MARK_LENGTH)
+	// Check the table
+	fmi = getFMITableEntry(file_path);
+	if (fmi == NULL) {
+		fmi = createFMI(file_path, INVALID_MARK_LEVEL, INVALID_MARK_LEVEL);
+		addFMITableEntry(fmi);
+	}
 
-				// Read header of file
-				if (!ReadFile(
-					handle,
-					extra_read_buffer,
-					MARK_LENGTH,
-					&extra_bytes_read,
-					NULL)
-					) {
-					error_code = 0xFFFF;
-					goto POST_READ_CLEANUP;
-				}
-				if (extra_bytes_read != MARK_LENGTH) {
-					error_code = ERROR_CLUSTER_PARTIAL_READ;
-					goto POST_READ_CLEANUP;
-				}
-
-				// Get if buffer is marked an unmark it
-				marked = checkMarkOLD(extra_read_buffer);
-				if (marked) {
-					marked = unmarkOLD(extra_read_buffer);
-				}
-				free(extra_read_buffer);
-				extra_read_buffer = NULL;
+	// Offset further than the mark
+	if (*orig_offset >= MARK_LENGTH) {
+		if (fmi->file_mark_lvl == INVALID_MARK_LEVEL) {			// Read MARK_LENGTH first bytes and fill fmi->file_mark_lvl for next operations
+			// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
+			if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
+				error_code = GetLastError();
+				PRINT("ERROR handle seeking in postWrite (error=%lu)\n", error_code);
+				goto POST_READ_CLEANUP;
 			}
-		} else {	// Case where *orig_offset < MARK_LENGTH
-			// Get if buffer is marked an unmark it
-			marked = checkMarkOLD(*aux_buffer);
-			if (marked) {
-				marked = unmarkOLD(*aux_buffer);
+
+			// Allocate read buffer
+			extra_read_buffer = malloc(MARK_LENGTH * sizeof(byte));
+			if (extra_read_buffer == NULL) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				goto POST_READ_CLEANUP;
 			}
+
+			// Read first part of the file (MARK_LENGTH bytes)
+			if (!ReadFile(
+				handle,
+				extra_read_buffer,
+				MARK_LENGTH,
+				&extra_bytes_read,
+				NULL)
+				) {
+				printf("ERROR reading mark in postWrite!!!\n");
+				error_code = ERROR_READ_FAULT;
+				goto POST_READ_CLEANUP;
+			}
+			if (extra_bytes_read != MARK_LENGTH) {
+				error_code = ERROR_READ_FAULT;
+				goto POST_READ_CLEANUP;
+			}
+
+			// Check mark and unmark the content
+			mark_lvl = unmark(extra_read_buffer);
+
+			// Modify in the table
+			fmi->file_mark_lvl = mark_lvl;
+
+		} else {
+			mark_lvl = fmi->file_mark_lvl;		// Just to use the variable
 		}
-
-
-		PRINT("The file %s marked\n", marked ? "IS" : "is NOT");
-
-		// Nothing/Cipher/Decipher operations. Also in NOTHING case set to (re)mark if needed to leave as it was
-		switch (op) {
-			case NOTHING:
-				mark_at_the_end = marked;	// Decide to mark or not to leave it as it was
-				break;
-			case CIPHER:	// IF marked unmark THEN cipher (no marking) ELSE cipher (marking)
-				if (!marked && *orig_offset < MARK_LENGTH) {
-					mark_at_the_end = TRUE;
-				}
-				result = makeComposedKey(protection->challenge_groups, composed_key);
-				if (result == 0) {
-					aux_buffer_copy = malloc(*aux_buffer_length);
-					if (aux_buffer_copy == NULL) {
-						error_code = ERROR_NOT_ENOUGH_MEMORY;
-						goto POST_READ_CLEANUP;
-					}
-					memcpy(aux_buffer_copy, *aux_buffer, *aux_buffer_length);
-					invokeCipher(protection->cipher, *aux_buffer, aux_buffer_copy, *aux_buffer_length, *aux_offset, composed_key);
-					free(aux_buffer_copy);
-					aux_buffer_copy = NULL;
-				} else {
-					fprintf(stderr, "ERROR composing key in postReadLogic (%d)", result);
-					error_code = -1;
-					goto POST_READ_CLEANUP;
-				}
-				break;
-			case DECIPHER:	// IF marked unmark THEN decipher (omitting mark) ELSE (is cleartext) nothing
-				result = makeComposedKey(protection->challenge_groups, composed_key);
-				if (result == 0) {
-					if (marked) {	// && !small_file   but this is always true for marked because marked is false by default
-						aux_buffer_copy = malloc(*aux_buffer_length);
-						if (aux_buffer_copy == NULL) {
-							error_code = ERROR_NOT_ENOUGH_MEMORY;
-							goto POST_READ_CLEANUP;
-						}
-						memcpy(aux_buffer_copy, *aux_buffer, *aux_buffer_length);
-						invokeDecipher(protection->cipher, *aux_buffer, aux_buffer_copy, *aux_buffer_length, *aux_offset, composed_key);
-						free(aux_buffer_copy);
-						aux_buffer_copy = NULL;
-					} // else --> do nothing, but copy buffer to orig at the end
-				} else {
-					fprintf(stderr, "ERROR composing key in postReadLogic (%d)", result);
-					error_code = 0xFFFF;
-					goto POST_READ_CLEANUP;
-				}
-				break;
-			default:
-				break;
+	} else {	// Case where *orig_offset < MARK_LENGTH
+		// Get if buffer is marked an unmark it
+		mark_lvl = unmark(*aux_buffer);
+		if (fmi->file_mark_lvl == INVALID_MARK_LEVEL) {
+			// Modify in the table
+			fmi->file_mark_lvl = mark_lvl;
 		}
 	}
 
-	// Mark if needed
-	if (!small_file && mark_at_the_end) {
-		markOLD(*aux_buffer);
+	// Here the mark_lvl and fmi->file_mark_lvl variables should be filled (and equal)
+	PRINT("The file mark level is %d\n", mark_lvl);
+	if (mark_lvl != 1 && mark_lvl != 0 && mark_lvl != -1) {
+		fprintf(stderr, "ERROR in postReadLogic: detected a file with undefined mark level\n");
+		error_code = -2;
+		goto POST_READ_CLEANUP;
+	}
+
+	// If the key may be needed, compute it. In case of error, fail the operation.
+	if (op != NOTHING) {
+		result = makeComposedKey(protection->challenge_groups, composed_key);
+		if (0 != result) {
+			fprintf(stderr, "ERROR composing key in postReadLogic (%d)\n", result);
+			error_code = -1;
+			goto POST_READ_CLEANUP;
+		}
+	}
+
+	// For each of the possible cases: do the ciphering/deciphering/marking operations when needed
+	switch (op) {
+		case NOTHING:		// Do nothing (leave mark as it was)
+			// Offset further than the mark
+			if (*orig_offset >= MARK_LENGTH) {
+				NOOP;
+			}
+			// Offset within the mark  (inicio < MARK_LENGTH)
+			else {
+				// Set the mark as it was
+				mark(*aux_buffer, mark_lvl);
+			}
+			break;
+		case CIPHER:
+			switch (mark_lvl) {
+				case 1:		// This should never happen
+					printf("WARNING in postReadLogic: this should never happen (operation = %d, mark_lvl = %d)\n", op, mark_lvl);
+					error_code = -4;
+					goto POST_READ_CLEANUP;
+				case 0:		// Cipher (and mark buffer if before MARK_LENGTH)
+					invokeCipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_buffer_length, *aux_offset, composed_key);
+					// Offset further than the mark
+					if (*orig_offset >= MARK_LENGTH) {
+						NOOP;
+					}
+					// Offset within the mark  (inicio < MARK_LENGTH)
+					else {
+						// Set the mark to level 1
+						mark(*aux_buffer, 1);
+					}
+					break;
+				case -1:	// Cipher (and leave without mark)
+					invokeCipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_buffer_length, *aux_offset, composed_key);
+					//// Offset further than the mark
+					//if (*orig_offset >= MARK_LENGTH) {
+					//	NOOP;
+					//}
+					//// Offset within the mark  (inicio < MARK_LENGTH)
+					//else {
+					//	NOOP;
+					//}
+					break;
+			}
+			break;
+		case DECIPHER:
+			switch (mark_lvl) {
+				case 1:		// Decipher (and leave without mark)
+					invokeDecipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_buffer_length, *aux_offset, composed_key);
+					// Offset further than the mark
+					//if (*orig_offset >= MARK_LENGTH) {
+					//	NOOP;
+					//}
+					//// Offset within the mark  (inicio < MARK_LENGTH)
+					//else {
+					//	NOOP;
+					//}
+					break;
+				case 0:		// Do nothing (and leave without mark)
+					NOOP;
+					//// Offset further than the mark
+					//if (*orig_offset >= MARK_LENGTH) {
+					//	NOOP;
+					//}
+					//// Offset within the mark  (inicio < MARK_LENGTH)
+					//else {
+					//	NOOP;
+					//}
+					break;
+				case -1:	// This should never happen
+					printf("WARNING in postReadLogic: this should never happen (operation = %d, mark_lvl = %d)\n", op, mark_lvl);
+					error_code = -4;
+					goto POST_READ_CLEANUP;
+			}
+			break;
 	}
 
 	// Copy buffer aux to orig
 	if (*orig_buffer != *aux_buffer) {
-		memcpy(*orig_buffer, &(((byte*)*aux_buffer)[*orig_offset-*aux_offset]), *orig_buffer_length);
+		memcpy(*orig_buffer, &(((byte*)*aux_buffer)[*orig_offset - *aux_offset]), *orig_buffer_length);
 	}
 
 	// Copy aux_read_length to orig (the corresponding number, may be less)
@@ -909,22 +1129,23 @@ int postReadLogic(
 	if (extra_read_buffer != NULL) {
 		free(extra_read_buffer);
 	}
-	if (aux_buffer_copy != NULL) {
-		free(aux_buffer_copy);
-	}
+
+	PRINT("Ending postReadLogic\n");
 
 	return error_code;	// 0 = Success
 }
 
 
-int preWriteLogic(
-		uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL *mark_at_the_end,
-		LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
-		LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
-	){
 
+
+int preWriteLogic(
+	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
+	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
+) {
+	#pragma region COLLAPSABLE_REGION
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
-		orig_offset == NULL || protection == NULL || aux_buffer==NULL || aux_bytes_to_write==NULL || aux_bytes_written==NULL || aux_offset==NULL) {
+		orig_offset == NULL || protection == NULL || aux_buffer == NULL || aux_bytes_to_write == NULL || aux_bytes_written == NULL || aux_offset == NULL) {
 		return ERROR_INVALID_PARAMETER;
 	}
 
@@ -933,139 +1154,78 @@ int preWriteLogic(
 		file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
 	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
-	/*PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
-		*aux_buffer, *aux_bytes_to_write, **aux_bytes_written, *aux_offset);*/
+	//PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
+		//aux_buffer, *aux_bytes_to_write, **aux_bytes_written, *aux_offset);
 
 	// Create other temporal variables
 	struct KeyData* composed_key = protection->key;
 	int result = 0;
 
-	//HANDLE read_handle = INVALID_HANDLE_VALUE;
 	LPVOID read_buffer = NULL;
 	DWORD bytes_read = 0;
 
 	BOOL marked = FALSE;
 	//BOOL *mark_at_the_end = FALSE;
 	*mark_at_the_end = FALSE;
-	BOOL small_file = FALSE;
+
 	LARGE_INTEGER distanceToMove = { 0 };
 	DWORD error_code = ERROR_SUCCESS;
 
+	int8_t file_mark_lvl = INVALID_MARK_LEVEL;
+	struct FileMarkInfo* fmi = NULL;
 
-	// Check file in the remote-marked-file-table
-	BOOL marked_in_table = FALSE;
-	marked_in_table = checkTableOLD(file_path);
-	marked = marked_in_table;
-
-
-	// Case when taking into account the mark in the buffer instead of in the file
-	/*if (file_size == 0 && *orig_offset == 0 && *orig_bytes_to_write >= MARK_LENGTH) {
-		PRINT("SPECIAL CASE --> Looking for mark in the buffer instead of in the file\n");
-		*aux_offset = 0;	// = *orig_offset;			//aux_inicio = orig_inicio = 0;		// Buffer starts on same place (0)
-		*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;				// Buffer ends in same place
-		*aux_buffer = *orig_buffer;
-		*aux_bytes_written = *orig_bytes_written;
-
-		if (op != NOTHING) {
-			// Virtual read (just a copy of first MARK_LENGTH bytes the writing buffer)
-			read_buffer = malloc(MARK_LENGTH * sizeof(byte));
-			if (read_buffer == NULL) {
-				return ERROR_NOT_ENOUGH_MEMORY;
-			}
-			memcpy(read_buffer, *orig_buffer, MARK_LENGTH);
-
-			// Get if buffer is marked an unmark it
-			marked = checkMarkOLD(read_buffer);
-			if (marked) {
-				marked = unmarkOLD(read_buffer);
-			}
-
-			// Allocate aux_buffer
-			if (marked || op == CIPHER) {
-				*aux_buffer = malloc(*aux_bytes_to_write);
-				PRINT("Allocation for aux_buffer\n");
-				if (*aux_buffer == NULL) {
-					return ERROR_NOT_ENOUGH_MEMORY;
-				}
-			}
-		}
-
-		switch (op) {
-			case NOTHING:
-				break;
-			case CIPHER:	// if marked == FALSE no need to use read_buffer, and then copy can be done in one
-				if (marked) {
-					// Cipher and copy first MARK_LENGTH bytes
-					invokeCipher(protection->cipher, *aux_buffer, read_buffer, MARK_LENGTH, 0, composed_key);
-					// Cipher and copy the rest of bytes after MARK_LENGTH position
-					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[MARK_LENGTH]), &(((byte*)*orig_buffer)[MARK_LENGTH]), *orig_bytes_to_write - MARK_LENGTH, MARK_LENGTH, composed_key);
-				} else {
-					// Cipher all and copy to *aux_buffer
-					invokeCipher(protection->cipher, *aux_buffer, *orig_buffer, *orig_bytes_to_write, *orig_offset, composed_key);
-					PRINT("Marking buffer in prewrite\n");
-					markOLD(*aux_buffer);
-				}
-				//                              read_buf  +  &(((byte*)*orig_buf)[MARK_LENGTH])
-				// { orig_buf }  ---unmark-->  { unmarked_buf + rest_of buf }  ---cipher-->  { ciphered_buf }  ---mark?-->  { ciphered_and_marked_buf }
-
-				break;
-			case DECIPHER:
-				if (marked) {
-					// Decipher and copy first MARK_LENGTH bytes
-					invokeDecipher(protection->cipher, *aux_buffer, read_buffer, MARK_LENGTH, 0, composed_key);
-					// Decipher and copy the rest of bytes after MARK_LENGTH position
-					invokeDecipher(protection->cipher, &(((byte*)*aux_buffer)[MARK_LENGTH]), &(((byte*)*orig_buffer)[MARK_LENGTH]), *orig_bytes_to_write - MARK_LENGTH, MARK_LENGTH, composed_key);
-				} // else --> NOTHING (*aux_buffer still pointing to *orig_buffer)
-				break;
-			default:
-				break;
-		}
-
-		if (read_buffer != NULL) {
-			free(read_buffer);
-		}
-
-		return 0;
-	}*/
-
-	// When writting to eof it is the same as the offset being the original file size
+	// Writting to EOF is the same as the offset being the original file size
 	if (write_to_eof) {
 		*orig_offset = file_size;
 		PRINT("Write to EOF translated to new orig offset: %lld\n", *orig_offset);
 	}
+	#pragma endregion
+
+	BOOL small_file = file_size < MARK_LENGTH;
+	PRINT("The file %s small\n", small_file ? "IS" : "is NOT");
+
+	// By default: buffer is the same and write starts and ends on the same place
 	*aux_buffer = *orig_buffer;
 	*aux_bytes_written = *orig_bytes_written;
 
-	small_file = file_size < MARK_LENGTH;
-	PRINT("The file %s small\n", small_file ? "IS" : "is NOT");
+	*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
+	*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;		// Buffer ends in same place
+
 
 	// Check file size and buffer position/size and fix buffer limits in consequence
+	// SMALL FILES
 	if (small_file) {
-		// Buffer starts and ends on same place (to do a normal write with no operative)
-		*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
-		*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;		// Buffer ends in same place
-		//*mark_at_the_end = FALSE;						// Already false by default
-		return error_code;
+		return ERROR_SUCCESS;
 	}
 
-	// From now onwards assume file is big enough to contain a mark --> file_size >= MARK_LENGTH
-	if (*orig_offset >= MARK_LENGTH) {;
+	// BIG FILES (file_size >= MARK_LENGTH)
+	// Check the table
+	fmi = getFMITableEntry(file_path);
+	printf("fmi %s null\n", fmi==NULL ? "IS" : "is NOT");
+	if (op == DECIPHER && (fmi==NULL || fmi->write_buffer_mark_lvl == INVALID_MARK_LEVEL)) {
+		printf("WARNING in preWriteLogic: this should never happen (operation = %d, mark_lvl = %d)\n", op, fmi->write_buffer_mark_lvl);
+	}
+	if (fmi == NULL) {
+		fmi = createFMI(file_path, 0, INVALID_MARK_LEVEL);
+		addFMITableEntry(fmi);
+	}
+
+	// Offset further than the mark
+	if (*orig_offset >= MARK_LENGTH) {
 		// Buffer starts and ends on same place
-		*aux_offset = *orig_offset;						//aux_inicio = orig_inicio;	// Buffer starts on same place
-		*aux_bytes_to_write = *orig_bytes_to_write;		//aux_fin = orig_fin;		// Buffer ends in same place
-	} else {	// orig_offset < MARK_LENGTH
-		// Buffer starts on 0 and ends on the same place or MARK_LENGTH (whichever is higher)
-		*aux_offset = 0;																//aux_inicio = 0;							// Buffer starts on file beginning
-		*aux_bytes_to_write = MAX(MARK_LENGTH, *orig_bytes_to_write + *orig_offset);	//aux_fin = MAX(MARK_LENGTH, orig_fin);		// Buffer ends at MARK_LENGTH
-		/*if (*orig_bytes_to_write + *orig_offset -1 < MARK_LENGTH) {
+		NOOP;
+	}
+	// Offset within the mark  (orig_offset < MARK_LENGTH)
+	else {
+		if (*orig_bytes_to_write + *orig_offset < MARK_LENGTH) {
 			// Buffer starts on 0 and ends on MARK_LENGTH
 			*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
 			*aux_bytes_to_write = MARK_LENGTH;							//aux_fin = MARK_LENGTH;	// Buffer ends at MARK_LENGTH
-		} else {	// orig_end > MARK_LENGTH
+		} else {	// fin >= MARK_LENGTH
 			// Buffer starts on 0 and ends on same place
 			*aux_offset = 0;											//aux_inicio = 0;			// Buffer starts on file beginning
 			*aux_bytes_to_write = *orig_bytes_to_write + *orig_offset;	//aux_fin = orig_fin;		// Buffer ends in same place
-		}*/
+		}
 
 		// Allocate space for the aux buffer
 		*aux_buffer = malloc(*aux_bytes_to_write);
@@ -1073,211 +1233,233 @@ int preWriteLogic(
 		if (*aux_buffer == NULL) {
 			return ERROR_NOT_ENOUGH_MEMORY;
 		}
+
+		// Read the beginning of the file to merge it with the writing buffer, because mark will be fully rewriten.
+
+		// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
+		if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
+			error_code = GetLastError();
+			PRINT("ERROR handle seeking (error=%lu)\n", error_code);
+			goto READ_INSIDE_WRITE_CLEANUP;
+		}
+
+		// Allocate read buffer
+		read_buffer = malloc(MARK_LENGTH * sizeof(byte));
+		if (read_buffer == NULL) {
+			error_code = ERROR_NOT_ENOUGH_MEMORY;
+			goto READ_INSIDE_WRITE_CLEANUP;
+		}
+
+		// Read header of file
+		if (!ReadFile(
+			handle,
+			read_buffer,
+			MARK_LENGTH,
+			&bytes_read,
+			NULL)
+			) {
+			printf("ERROR reading mark inside preWrite!!!\n");
+			error_code = ERROR_READ_FAULT;
+			goto READ_INSIDE_WRITE_CLEANUP;
+		}
+		if (bytes_read != MARK_LENGTH) {
+			error_code = ERROR_READ_FAULT;
+			goto READ_INSIDE_WRITE_CLEANUP;
+		}
+
+		// As we have already obtained the file mark level, we can check/update the level stored in the table
+		file_mark_lvl = unmark(read_buffer);
+		if (fmi->file_mark_lvl == INVALID_MARK_LEVEL) {
+			// Update in the table
+			fmi->file_mark_lvl = file_mark_lvl;
+		} else if (fmi->file_mark_lvl != file_mark_lvl) {
+			fprintf(stderr, "ERROR in preWriteLogic: file mark level in the table (%d) is different from the one actually read (%d)\n", fmi->file_mark_lvl, file_mark_lvl);
+			error_code = -2;
+			goto READ_INSIDE_WRITE_CLEANUP;
+		}
+
+		// Here the file_mark_lvl and fmi->file_mark_lvl variables should be filled (and equal)
+		PRINT("The file mark level is %d\n", file_mark_lvl);
+		if (file_mark_lvl != 1 && file_mark_lvl != 0 && file_mark_lvl != -1) {
+			fprintf(stderr, "ERROR in preWriteLogic: detected a file with mark level different from -1, 0 or 1\n");
+			error_code = -2;
+			goto READ_INSIDE_WRITE_CLEANUP;
+		}
+
+		READ_INSIDE_WRITE_CLEANUP:
+		if (error_code != ERROR_SUCCESS) {
+			free(read_buffer);
+			return error_code;
+		}
+
+		// Compose the buffer of what will be actually written (data extended up to the mark)
+		memcpy(*aux_buffer, read_buffer, MARK_LENGTH);				// Copy bytes from file to the buffer
+		memcpy(*aux_buffer, *orig_buffer, orig_bytes_to_write);		// Overwrite (or fill) the buffer with the bytes to write from the application
+
 	}
 
+	// Diagram of posible states of data to write and read buffer
+	//	0                           MARK_LENGTH                                                            file_size
+	//	|--------------------------------|------------------------------------------------ ... ----------------|
+	//	|                                |                                                                     |
+	//	|--------------------------------|-------[data-data-data-data-data]--------------- ... ----------------|	(*orig_offset >= MARK_LENGTH) <==> read_buffer == NULL
+	//	|                                |                                                                     |
+	//	|--[data-data-data-data-data]----|------------------------------------------------ ... ----------------|	(*orig_offset < MARK_LENGTH) && (orig_end < MARK_LENGTH)
+	//	[read_buffer-read_buffer-read_buf]------------------------------------------------ ... ----------------|
+	//	|                                |                                                                     |
+	//	|--[data-data-data-data-data-data|data-data-data-data]---------------------------- ... ----------------|	(*orig_offset < MARK_LENGTH) && (orig_end >= MARK_LENGTH)
+	//	[read_buffer-read_buffer-read_buf]------------------------------------------------ ... ----------------|
 
-	/*if (handle || handle != INVALID_HANDLE_VALUE) {
-		CloseHandle(handle);
-	}
-	handle = CreateFileW(
-		file_path,				// Name of the file
-		GENERIC_READ + GENERIC_WRITE,	// Open for read/write
-		FILE_SHARE_READ + FILE_SHARE_WRITE,		// Do not share
-		NULL,					// Default security
-		OPEN_EXISTING,			// Open existing file only
-		FILE_ATTRIBUTE_NORMAL,	// Normal file
-		NULL);					// No attr. template
 
-	if (!handle || handle == INVALID_HANDLE_VALUE) {
-		printf("ERROR: opening read_handle.\n");
-		error_code = ERROR_OPEN_FAILED;
-		goto READ_INSIDE_WRITE_CLEANUP;
-	}*/
-
-	// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
-	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
-		error_code = GetLastError();
-		PRINT("ERROR handle seeking (error=%lu)\n", error_code);
-		goto READ_INSIDE_WRITE_CLEANUP;
-	}
-
-	// Allocate read buffer
-	read_buffer = malloc(MARK_LENGTH * sizeof(byte));
-	if (read_buffer == NULL) {
-		error_code = ERROR_NOT_ENOUGH_MEMORY;
-		goto READ_INSIDE_WRITE_CLEANUP;
-	}
-
-	// Read header of file
-	if (!ReadFile(
-		handle,
-		read_buffer,
-		MARK_LENGTH,
-		&bytes_read,
-		NULL)
-		) {
-		printf("ERROR reading mark inside preWrite!!!\n");
-		error_code = ERROR_READ_FAULT;
-		goto READ_INSIDE_WRITE_CLEANUP;
-	}
-	if (bytes_read != MARK_LENGTH) {
-		error_code = ERROR_READ_FAULT;
-		goto READ_INSIDE_WRITE_CLEANUP;
-	}
-
-	if (!marked_in_table) {
-		// Get if buffer is marked an unmark it
-		marked = checkMarkOLD(read_buffer);
-		if (marked) {
-			marked = unmarkOLD(read_buffer);
+	// If the key may be needed, compute it. In case of error, fail the operation.
+	if (op != NOTHING) {
+		result = makeComposedKey(protection->challenge_groups, composed_key);
+		if (0 != result) {
+			fprintf(stderr, "ERROR composing key in preWriteLogic (%d)\n", result);
+			error_code = -1;
+			goto PRE_WRITE_CLEANUP;
 		}
 	}
 
-	READ_INSIDE_WRITE_CLEANUP:
-	/*if (handle && handle != INVALID_HANDLE_VALUE) {
-		CloseHandle(handle);
-	}*/
-	if (error_code != ERROR_SUCCESS) {
-		free(read_buffer);
-		return error_code;
-	}
-
-
-	PRINT("The file %s marked\n", marked ? "IS" : "is NOT");
-
-	// Nothing/Cipher/Decipher operations. Also in NOTHING case set to (re)mark if needed to leave as it was
+	// For each of the possible cases: do the ciphering/deciphering/marking operations when needed
 	switch (op) {
-		case NOTHING:
-			// If marcado
-			//	If escribimos dentro de la marca:
-			//		Poner mark_at_the_end a true
-			//		Copiar de read_buf a aux_buf
-			//	Copiar de orig_buf a aux_buf
-			// Else (no marcado)
-			//	Deshacer cosas raras y dejar un write normal
-			PRINT("case NOTHING:\n");
-			if (marked) {
-				PRINT("if marked:\n");
-				if (*orig_offset < MARK_LENGTH) {
-					*mark_at_the_end = TRUE;
-					memcpy(*aux_buffer, read_buffer, MARK_LENGTH);
-				}
-				// If *orig_offset < MARK_LENGTH	--> *aux_offset = 0				--> Copy orig_buffer into aux_buffer with an offset of orig_offset
-				// If *orig_offset >= MARK_LENGTH	--> *aux_offset = *orig_offset	--> Copy orig_buffer to aux_buffer (same size)
-				memcpy(&(((byte*)*aux_buffer)[*orig_offset - *aux_offset]), *orig_buffer, *orig_bytes_to_write);
-			} else {
-				PRINT("else (no marked):\n");
-				if (*orig_offset < MARK_LENGTH) {	// Otherwise *aux_buffer is not allocated
-					free(*aux_buffer);
-				}
-				PRINT("after free\n");
-				*aux_buffer = *orig_buffer;
-				*aux_bytes_to_write = *orig_bytes_to_write;
-				*aux_offset = *orig_offset;
+		case NOTHING:		// Do nothing (leave mark as it was)
+			// Check that write_buffer_mark_level is the same than file_mark_level
+			if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->write_buffer_mark_lvl != fmi->file_mark_lvl) {
+				printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
+				printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+				error_code = -3;
+				goto PRE_WRITE_CLEANUP;
 			}
-			PRINT("going to break\n");
-			break;
-		case CIPHER:	// IF marked unmark THEN cipher (no marking) ELSE cipher (marking)
-			if (!marked && *orig_offset < MARK_LENGTH) {
-				*mark_at_the_end = TRUE;
-			}
-			// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			if (read_buffer != NULL) {// && bytes_read>=512) {
-				PRINT_HEX(read_buffer, bytes_read);
-			}
-			if (*aux_offset == 0) {
-				memcpy(*aux_buffer, read_buffer, bytes_read);
-			}
-			if (*aux_buffer != NULL) {// && *aux_bytes_to_write >= 1024) {
-				PRINT_HEX(*aux_buffer, *aux_bytes_to_write);
-			}
-			if (*orig_buffer != NULL) {// && *orig_bytes_to_write >= 1024) {
-				PRINT_HEX(*orig_buffer, *orig_bytes_to_write);
-			}
-			// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-			result = makeComposedKey(protection->challenge_groups, composed_key);
-			if (result == 0) {
-				// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-				PRINT("ANTES: *orig_buffer = %.*s\n", *orig_bytes_to_write, (char*)*orig_buffer);
-				PRINT_HEX(*orig_buffer, *orig_bytes_to_write);
-				// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-				if (*aux_offset == 0 || !(*orig_buffer == &(((byte*)*aux_buffer)[*orig_offset - *aux_offset]))) {
-					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset - *aux_offset]), *orig_buffer, *orig_bytes_to_write, *orig_offset, composed_key);
-				} else {
-					LPVOID orig_buffer_copy = malloc(*orig_bytes_to_write);
-					if (orig_buffer_copy == NULL) {
-						return ERROR_NOT_ENOUGH_MEMORY;
+			// Offset further than the mark
+			if (*orig_offset >= MARK_LENGTH) {
+				NOOP;
+			}
+			// Offset within the mark  (*orig_offset < MARK_LENGTH)
+			else {
+				// Set the mark level to 'fmi->write_buffer_mark_lvl' (that should be the same than it was in the file)
+				mark(*aux_buffer, fmi->write_buffer_mark_lvl);
+			}
+			break;
+		case CIPHER:
+			switch (fmi->write_buffer_mark_lvl) {
+				case 1:		// This should never happen // Do nothing (because would make marks of lvl 2)
+					printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check excel
+					printf("WARNING in preWriteLogic: this should never happen (operation = %d, write_buffer_mark_lvl = %d)\n", op, fmi->write_buffer_mark_lvl);
+					error_code = -4;
+					goto PRE_WRITE_CLEANUP;
+				case 0:		// Cipher (and mark buffer if before MARK_LENGTH)
+					// Check that write_buffer_mark_level is one less than file_mark_level
+					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl!=1) {
+						printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
+						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+						error_code = -3;
+						goto PRE_WRITE_CLEANUP;
 					}
-					memcpy(orig_buffer_copy, *orig_buffer, *orig_bytes_to_write);
-					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset - *aux_offset]), orig_buffer_copy, *orig_bytes_to_write, *orig_offset, composed_key);
-					free(orig_buffer_copy);
-				}
-				// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-				PRINT("DESPUES: *aux_buffer = %.*s\n", *aux_bytes_to_write, (char*)*aux_buffer);
-				PRINT_HEX(*aux_buffer, *aux_bytes_to_write);
-				// TESTING END!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-			} else {
-				fprintf(stderr, "ERROR composing key in preWriteLogic (%d)", result);
-				return result;
+					// Cipher
+					invokeCipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_bytes_to_write, *aux_offset, composed_key);
+
+					// Offset further than the mark
+					if (*orig_offset >= MARK_LENGTH) {
+						NOOP;
+					}
+					// Offset within the mark  (inicio < MARK_LENGTH)
+					else {
+						// Set the mark to level 1
+						mark(*aux_buffer, 1);
+					}
+					break;
+				case -1:	// Cipher (and leave without mark)
+					// Check that write_buffer_mark_level is one less than file_mark_level
+					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl != 0) {
+						printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
+						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+						error_code = -3;
+						goto PRE_WRITE_CLEANUP;
+					}
+
+					// Cipher
+					invokeCipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_bytes_to_write, *aux_offset, composed_key);
+
+					//// Offset further than the mark
+					//if (*orig_offset >= MARK_LENGTH) {
+					//	NOOP;
+					//}
+					//// Offset within the mark  (inicio < MARK_LENGTH)
+					//else {
+					//	NOOP;	// Set the mark to 0 (which is, don't mark)
+					//}
+					break;
 			}
 			break;
-		case DECIPHER:	// IF marked unmark THEN decipher (omitting mark) ELSE (is cleartext) nothing
-			PRINT("case DECIPHER:\n");
-			result = makeComposedKey(protection->challenge_groups, composed_key);
-			if (result == 0) {
-				// If marked:
-				//	If escribimos dentro de la marca:
-				//		Copiar descifrando de read_buf a aux_buf
-				//	Copiar descifrando de orig_buf a aux_buf
-				// Else (no marcado)
-				//	Deshacer cosas raras y dejar un write normal
-				if (marked) {
-					PRINT("if marked:\n");
-					if (*orig_offset < MARK_LENGTH) {
-						invokeDecipher(protection->cipher, *aux_buffer, read_buffer, bytes_read, 0, composed_key);
+		case DECIPHER:
+			switch (fmi->write_buffer_mark_lvl) {
+				case 1:		// Decipher (and leave without mark)
+					// Check that write_buffer_mark_level is one more than file_mark_level
+					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl != 0) {
+						printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
+						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+						error_code = -3;
+						goto PRE_WRITE_CLEANUP;
 					}
-					// If *orig_offset < MARK_LENGTH	--> *aux_offset = 0				--> Copy orig_buffer into aux_buffer with an offset of orig_offset
-					// If *orig_offset >= MARK_LENGTH	--> *aux_offset = *orig_offset	--> Copy orig_buffer to aux_buffer (same size)
-					invokeDecipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset - *aux_offset]), *orig_buffer, *orig_bytes_to_write, *orig_offset, composed_key);
-				} else {
-					PRINT("else (no marked):\n");
-					if (*orig_offset < MARK_LENGTH) {	// Otherwise *aux_buffer is not allocated
-						free(*aux_buffer);
+
+					// Decipher
+					invokeDecipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_bytes_to_write, *aux_offset, composed_key);
+
+					// Offset further than the mark
+					//if (*orig_offset >= MARK_LENGTH) {
+					//	NOOP;
+					//}
+					//// Offset within the mark  (inicio < MARK_LENGTH)
+					//else {
+					//	NOOP;
+					//}
+					break;
+				case 0:		// Do nothing (and leave without mark)
+					// Check that write_buffer_mark_level is the same as file_mark_level
+					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl != 0) {
+						printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
+						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+						error_code = -3;
+						goto PRE_WRITE_CLEANUP;
 					}
-					PRINT("after free\n");
-					*aux_buffer = *orig_buffer;
-					*aux_bytes_to_write = *orig_bytes_to_write;
-					*aux_offset = *orig_offset;
-				}
-			} else {
-				fprintf(stderr, "ERROR composing key in preWriteLogic (%d)", result);
-				return result;
+
+					NOOP;
+					//// Offset further than the mark
+					//if (*orig_offset >= MARK_LENGTH) {
+					//	NOOP;
+					//}
+					//// Offset within the mark  (inicio < MARK_LENGTH)
+					//else {
+					//	NOOP;
+					//}
+					break;
+				case -1:	// This should never happen
+					printf("WARNING in preWriteLogic: this should never happen (operation = %d, write_buffer_mark_lvl = %d)\n", op, fmi->write_buffer_mark_lvl);
+					error_code = -4;
+					goto PRE_WRITE_CLEANUP;
+					break;
 			}
-			PRINT("going to break\n");
-			break;
-		default:
 			break;
 	}
 
-	PRINT("will free READ BUFFER\n");
-	// Free the read buffer
-	free(read_buffer);
 
-	// Mark if needed
-	if (*mark_at_the_end) {
-		PRINT("Marking buffer in prewrite\n");
-		markOLD(*aux_buffer);
+
+	PRE_WRITE_CLEANUP:
+	if (read_buffer != NULL) {
+		free(read_buffer);
 	}
 
 	return error_code;
 }
 
+
 int postWriteLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL *mark_at_the_end,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
-	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
+	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {
 	DWORD error_code = ERROR_SUCCESS;
 	uint64_t new_file_size = 0;
@@ -1290,6 +1472,7 @@ int postWriteLogic(
 	DWORD bytes_done = 0;
 	LARGE_INTEGER distanceToMove = { 0 };
 	BOOL marked = FALSE;
+	int8_t mark_lvl = INVALID_MARK_LEVEL;
 
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
 		orig_offset == NULL || protection == NULL) {
@@ -1318,7 +1501,7 @@ int postWriteLogic(
 	}
 
 	// Check files that become larger or smaller than MARK_LENGTH
-	if (file_size < MARK_LENGTH && new_file_size >= MARK_LENGTH && op != NOTHING) {
+	if (file_size < MARK_LENGTH && new_file_size >= MARK_LENGTH) {
 		PRINT("File has grown enough to admit mark (prev file_size = %llu, new file_size = %llu)\n", file_size, new_file_size);
 
 		// Create new handle
@@ -1370,17 +1553,14 @@ int postWriteLogic(
 		}
 
 		// Check mark and unmark the content
-		marked = checkMarkOLD(buffer1);
-		if (marked) {
-			marked = unmarkOLD(buffer1);
-		}
+		mark_lvl = unmark(buffer1);
 
-		// If the operation was DECIPHER and the file was marked:
-		//		Read the rest of the file
-		//		Decipher the content
-		//		Write new content to file
-		//		Add file to table
-		if ((op == DECIPHER && marked) || (op == CIPHER)) {
+		// Add to the table
+		addFMITableEntry(createFMI(file_path, mark_lvl, mark_lvl));
+
+
+		// CASE OF CIPHER
+		if (op == CIPHER && mark_lvl != 1) {
 			// Allocate buffer for reading the rest of the file and another one for writting everything (in 1 operation instead of 2)
 			buffer2 = malloc((new_file_size - MARK_LENGTH) * sizeof(byte));
 			if (buffer2 == NULL) {
@@ -1413,21 +1593,83 @@ int postWriteLogic(
 			// Make the composed key if necessary
 			result = makeComposedKey(protection->challenge_groups, composed_key);
 			if (result == 0) {
-				if (op == DECIPHER) {
-					// Decipher all the current content of the file
-					invokeDecipher(protection->cipher, buffer3, buffer1, MARK_LENGTH, 0, composed_key);
-					invokeDecipher(protection->cipher, &(((byte*)buffer3)[MARK_LENGTH]), buffer2, (new_file_size - MARK_LENGTH), MARK_LENGTH, composed_key);
-					// Add file to table
-					addToTableOLD(file_path);	// Is it needed to change the table to save also unmarked files? No, because mark only modifies decipher operative
-					PRINT("ADDED TO TABLE: %ws\n", file_path);
-				} else if (op == CIPHER) {
-					// Cipher all the current content of the file
-					invokeCipher(protection->cipher, buffer3, buffer1, MARK_LENGTH, 0, composed_key);
-					invokeCipher(protection->cipher, &(((byte*)buffer3)[MARK_LENGTH]), buffer2, (new_file_size - MARK_LENGTH), MARK_LENGTH, composed_key);
-					if (!marked) {
-						markOLD(buffer3);	// if it fails, we can do nothing but leave it unmarked
-					}
-				}
+				// Cipher all the current content of the file
+				invokeCipher(protection->cipher, buffer3, buffer1, MARK_LENGTH, 0, composed_key);
+				invokeCipher(protection->cipher, &(((byte*)buffer3)[MARK_LENGTH]), buffer2, (new_file_size - MARK_LENGTH), MARK_LENGTH, composed_key);
+			} else {
+				fprintf(stderr, "ERROR composing key in postWriteLogic (%d)", result);
+				error_code = result;
+				goto POST_WRITE_CLEANUP;
+			}
+
+			// Mark in the case of mark_lvl==0. If mark_lvl==-1, mark has already been taken out and there is no need to add another one
+			if (mark_lvl==0) {
+				mark(buffer3, 1);
+			}
+
+			// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
+			if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
+				error_code = GetLastError();
+				PRINT("ERROR handle seeking in postWrite (error=%lu)\n", error_code);
+				goto POST_WRITE_CLEANUP;
+			}
+
+			// Write new content to file
+			if (!WriteFile(
+				handle,
+				buffer3,
+				new_file_size,
+				&bytes_done,
+				NULL)
+				) {
+				printf("ERROR writing mark in postWrite!!!\n");
+				error_code = ERROR_READ_FAULT;
+				goto POST_WRITE_CLEANUP;
+			}
+			if (bytes_done != new_file_size) {
+				error_code = ERROR_READ_FAULT;
+				goto POST_WRITE_CLEANUP;
+			}
+		}
+
+
+		// CASE OF DECIPHER
+		if (op == DECIPHER && mark_lvl == 1) {
+			// Allocate buffer for reading the rest of the file and another one for writting everything (in 1 operation instead of 2)
+			buffer2 = malloc((new_file_size - MARK_LENGTH) * sizeof(byte));
+			if (buffer2 == NULL) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				goto POST_WRITE_CLEANUP;
+			}
+			buffer3 = malloc(new_file_size * sizeof(byte));
+			if (buffer3 == NULL) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				goto POST_WRITE_CLEANUP;
+			}
+
+			// Read the rest of file (no need to update position of handle because we have already read first MARK_LENGTH bytes, so it is pointing correctly)
+			if (!ReadFile(
+				handle,
+				buffer2,
+				(new_file_size - MARK_LENGTH),
+				&bytes_done,
+				NULL)
+				) {
+				printf("ERROR reading mark in postWrite!!!\n");
+				error_code = ERROR_READ_FAULT;
+				goto POST_WRITE_CLEANUP;
+			}
+			if (bytes_done != (new_file_size - MARK_LENGTH)) {
+				error_code = ERROR_READ_FAULT;
+				goto POST_WRITE_CLEANUP;
+			}
+
+			// Make the composed key if necessary
+			result = makeComposedKey(protection->challenge_groups, composed_key);
+			if (result == 0) {
+				// Cipher all the current content of the file
+				invokeDecipher(protection->cipher, buffer3, buffer1, MARK_LENGTH, 0, composed_key);
+				invokeDecipher(protection->cipher, &(((byte*)buffer3)[MARK_LENGTH]), buffer2, (new_file_size - MARK_LENGTH), MARK_LENGTH, composed_key);
 			} else {
 				fprintf(stderr, "ERROR composing key in postWriteLogic (%d)", result);
 				error_code = result;
@@ -1458,10 +1700,10 @@ int postWriteLogic(
 				goto POST_WRITE_CLEANUP;
 			}
 		}
+
+
+		// CLEAR ALL THE BUFFERS USED
 		POST_WRITE_CLEANUP:
-		/*if (handle && handle != INVALID_HANDLE_VALUE) {
-			CloseHandle(handle);
-		}*/
 		if (buffer1 != NULL) {
 			free(buffer1);
 		}

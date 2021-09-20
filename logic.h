@@ -18,8 +18,8 @@
 
 struct FileMarkInfo {
 	WCHAR file_path[MAX_PATH];	// Contains the path to the file
-	int8_t orig_mark_lvl;		// Contains the original ciphering level (-1, 0, 1) of the mark or unknown (represented by -128)
-	int8_t curr_mark_lvl;		// Contains the current ciphering level (-1, 0, 1) of the mark or unknown (represented by -128)
+	int8_t write_buffer_mark_lvl;		// Contains the original ciphering level (-1, 0, 1) of the mark or unknown (represented by -128)
+	int8_t file_mark_lvl;		// Contains the current ciphering level (-1, 0, 1) of the mark or unknown (represented by -128)
 };
 
 #define INVALID_MARK_LEVEL -128
@@ -39,9 +39,10 @@ BOOL checkMarkOLD(uint8_t* input);
 BOOL markOLD(uint8_t* input);
 BOOL unmarkOLD(uint8_t* input);
 
-int8_t checkMark(uint8_t* input);
+//int8_t checkMark(uint8_t* input);
 int8_t mark(uint8_t* input, int8_t level);
 int8_t unmark(uint8_t* input);
+void testFMItable();
 
 
 // Logic functions
@@ -49,7 +50,7 @@ int8_t unmark(uint8_t* input);
 BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path);
 
 int preReadLogic(
-	uint64_t file_size, enum Operation op,
+	uint64_t file_size, enum Operation op, WCHAR* file_path,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID*  aux_buffer, DWORD*  aux_buffer_length, LPDWORD*  aux_read_length, LONGLONG*  aux_offset
 );

@@ -799,7 +799,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	// Initialize new read variables with updated values adjusted for the mark and possible block cipher
 	error_code = preReadLogic(
-		file_size, op_final,
+		file_size, op_final, file_path,
 		&Buffer, &BufferLength, &ReadLength, &Offset,
 		&aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
 	);
