@@ -937,7 +937,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	}
 
 	error_code = preWriteLogic(
-		file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile, &mark_at_the_end,
+		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile, &mark_at_the_end,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);
@@ -1046,7 +1046,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	}
 
 	error_code = postWriteLogic(
-		file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile, &mark_at_the_end,
+		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile, &mark_at_the_end,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);

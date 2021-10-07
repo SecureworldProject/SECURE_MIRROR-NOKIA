@@ -16,6 +16,8 @@
 
 /////  DEFINITIONS  /////
 
+#define MARK_LENGTH 512
+
 struct FileMarkInfo {
 	WCHAR file_path[MAX_PATH];	// Contains the path to the file
 	int8_t write_buffer_mark_lvl;		// Contains the original ciphering level (-1, 0, 1) of the mark or unknown (represented by -128)
@@ -62,13 +64,13 @@ int postReadLogic(
 );
 
 int preWriteLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 );
 
 int postWriteLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 );

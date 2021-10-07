@@ -79,7 +79,7 @@
 			{
 				"AppType": "BROWSER",
 				"READ": "CIPHER",
-				"WRITE": "NOTHING"
+				"WRITE": "DECIPHER"
 			},
 			{
 				"AppType": "MAILER",

@@ -36,6 +36,9 @@ extern "C" {
 	#define SUBKEY_SIZE 64
 	#endif //SUBKEY_SIZE
 
+	#define MIN(a,b) (((a)<(b))?(a):(b))
+	#define MAX(a,b) (((a)>(b))?(a):(b))
+	#define ABS(N) ((N<0)?(-N):(N))
 
 	#define NOOP ((void)0)
 	#define ENABLE_PRINTS 1					// Affects the PRINT() functions. If 0 does not print anything. If 1 traces are printed.
@@ -62,6 +65,9 @@ extern "C" {
 	inline struct App* getApp(WCHAR* app_full_path);
 	inline WCHAR getDiskType(WCHAR* file_full_path);
 	inline enum Operation* getOperations(enum AppType app_type, struct OpTable* table);
+	struct Protection* getProtectionFromFilePath(WCHAR* file_path);
+	WCHAR* getRealPathFromMirrored(WCHAR* orig_path);
+	void clearPathSlashes(WCHAR* path);
 	void formatPathOLD(char** full_path);
 	void formatPath(WCHAR** full_path);
 	int fromDeviceToLetter(WCHAR** full_path);

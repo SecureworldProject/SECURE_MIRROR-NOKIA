@@ -19,11 +19,6 @@ Nokia Febrero 2021
 
 /////  DEFINITIONS  /////
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define ABS(N) ((N<0)?(-N):(N))
-
-#define MARK_LENGTH 512
 #define MAX_SIMULTANEOUS_DOWNLOADS 10		// OLD can be removed
 #define FILE_MARK_INFO_TABLE_INITIAL_SIZE 32
 #define FILE_MARK_INFO_TABLE_SIZE_INCREMENT 8
@@ -81,9 +76,11 @@ void addToTableOLD(WCHAR* file_path);
 struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path);
 struct FileMarkInfo* getFMITableEntry(WCHAR* file_path);
 struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info);
+void printFMITable();
 
 struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t write_buffer_mark_lvl, int8_t file_mark_lvl);	// Allocates memory
-void destroyFMI(struct FileMarkInfo* file_mark_info);											// Frees memory
+void destroyFMI(struct FileMarkInfo* file_mark_info);													// Frees memory
+void printFMI(struct FileMarkInfo* fmi);
 
 
 
@@ -209,6 +206,7 @@ struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path) {
 			result = file_mark_info_table[i];
 			file_mark_info_table[i] = NULL;
 			PRINT("FMI removed from the table\n");
+			printFMI(result);
 			break;
 		}
 	}
@@ -232,6 +230,7 @@ struct FileMarkInfo* getFMITableEntry(WCHAR* file_path) {
 		if (file_mark_info_table[i] != NULL && 0 == wcscmp(file_path, file_mark_info_table[i]->file_path)) {
 			result = file_mark_info_table[i];
 			PRINT("FMI found in the table\n");
+			printFMI(result);
 			break;
 		}
 	}
@@ -303,6 +302,22 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 }
 
 /**
+* Prints all the values inside the FileMarkInfo struct (write_bufer_mark_lvl, file_mark_lvl and file_path) or NULL if it is the case.
+*
+* @param struct FileMarkInfo* fmi
+*		The struct FileMarkInfo* to be printed.
+*
+* @return
+**/
+void printFMI(struct FileMarkInfo* fmi) {
+	if (fmi == NULL) {
+		PRINT("FileMarkInfo --> NULL \n");
+	} else {
+		PRINT("FileMarkInfo --> write_buf_mark: %d \t file_mark: %d   \t path: %ws\n", fmi->write_buffer_mark_lvl, fmi->file_mark_lvl, fmi->file_path);
+	}
+}
+
+/**
 * Prints the table itself (pointers in memory as hexadecimal) and then all the values of the structs inside (write_bufer_mark_lvl, file_mark_lvl and file_path).
 *
 * @return
@@ -316,11 +331,8 @@ void printFMITable() {
 	// Print if the pointers are NULL and struct internal data (write_bufer_mark_lvl, file_mark_lvl and file_path) if not
 	for (size_t i = 0; i < file_mark_info_table_size; i++) {
 		fmi = file_mark_info_table[i];
-		if (fmi == NULL) {
-			PRINT1("row %llu -->\t NULL \n", i);
-		} else {
-			PRINT1("row % llu --> \t write_buf_mark: %d \t file_mark: %d   \t path: %ws\n", i, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl, fmi->file_path);
-		}
+		PRINT1("row %llu", i);
+		printFMI(fmi);
 	}
 }
 
@@ -1139,7 +1151,7 @@ int postReadLogic(
 
 
 int preWriteLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {
@@ -1151,7 +1163,7 @@ int preWriteLogic(
 
 	PRINT("preWriteLogic!!\n");
 	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n - Write_to_eof: %u\n",
-		file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
+		*file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
 	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
 	//PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
@@ -1176,12 +1188,22 @@ int preWriteLogic(
 
 	// Writting to EOF is the same as the offset being the original file size
 	if (write_to_eof) {
-		*orig_offset = file_size;
+		*orig_offset = *file_size;
 		PRINT("Write to EOF translated to new orig offset: %lld\n", *orig_offset);
 	}
 	#pragma endregion
 
-	BOOL small_file = file_size < MARK_LENGTH;
+
+	// Check if the file is small
+	BOOL small_file = *file_size < MARK_LENGTH;
+	// Check if the file is big but we are rewriting the file completely
+	if (!small_file && *orig_offset==0 && *orig_bytes_to_write==*file_size) {
+		small_file = TRUE;
+		fmi = removeFMITableEntry(file_path);
+		free(fmi);
+		fmi = NULL;
+		*file_size = 0;
+	}
 	PRINT("The file %s small\n", small_file ? "IS" : "is NOT");
 
 	// By default: buffer is the same and write starts and ends on the same place
@@ -1457,7 +1479,7 @@ int preWriteLogic(
 
 
 int postWriteLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {
@@ -1481,7 +1503,7 @@ int postWriteLogic(
 
 	PRINT("postWriteLogic!!\n");
 	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n - write_to_eof: %u\n",
-		file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
+		*file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
 	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
 	PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
@@ -1501,8 +1523,8 @@ int postWriteLogic(
 	}
 
 	// Check files that become larger or smaller than MARK_LENGTH
-	if (file_size < MARK_LENGTH && new_file_size >= MARK_LENGTH) {
-		PRINT("File has grown enough to admit mark (prev file_size = %llu, new file_size = %llu)\n", file_size, new_file_size);
+	if (*file_size < MARK_LENGTH && new_file_size >= MARK_LENGTH) {
+		PRINT("File has grown enough to admit mark (prev file_size = %llu, new file_size = %llu)\n", *file_size, new_file_size);
 
 		// Create new handle
 		/*CloseHandle(handle);
@@ -1623,11 +1645,11 @@ int postWriteLogic(
 				NULL)
 				) {
 				printf("ERROR writing mark in postWrite!!!\n");
-				error_code = ERROR_READ_FAULT;
+				error_code = ERROR_WRITE_FAULT;
 				goto POST_WRITE_CLEANUP;
 			}
 			if (bytes_done != new_file_size) {
-				error_code = ERROR_READ_FAULT;
+				error_code = ERROR_WRITE_FAULT;
 				goto POST_WRITE_CLEANUP;
 			}
 		}
@@ -1692,11 +1714,11 @@ int postWriteLogic(
 				NULL)
 				) {
 				printf("ERROR writing mark in postWrite!!!\n");
-				error_code = ERROR_READ_FAULT;
+				error_code = ERROR_WRITE_FAULT;
 				goto POST_WRITE_CLEANUP;
 			}
 			if (bytes_done != new_file_size) {
-				error_code = ERROR_READ_FAULT;
+				error_code = ERROR_WRITE_FAULT;
 				goto POST_WRITE_CLEANUP;
 			}
 		}
@@ -1717,7 +1739,7 @@ int postWriteLogic(
 			return error_code;
 		}
 	} else {
-		PRINT("File as already big or it is still small (prev file_size = %llu, new file_size = %llu)\n", file_size, new_file_size);
+		PRINT("File as already big or it is still small (prev file_size = %llu, new file_size = %llu)\n", *file_size, new_file_size);
 	}
 
 	// Make handle point to where it should based on the read the application asked to do

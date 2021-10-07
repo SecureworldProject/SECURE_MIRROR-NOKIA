@@ -1,16 +1,28 @@
 /////  FILE INCLUDES  /////
 
-#include "sharing_app.h"
 #include <Windows.h>
 #include <fileapi.h>
 #include <time.h>
+#include <Shlwapi.h>
+#pragma comment( lib, "shlwapi.lib")
+
+#include "sharing_app.h"
 #include "context.h"
 #include "logic.h"
+#include "keymaker.h"
 
+
+
+
+/////  DEFINITIONS  /////
 
 #define MAX_INPUT_LENGTH 500
-#define READ_BUF_SIZE 1024 * 1024	// 1 MB
+#define READ_BUF_SIZE (1024 * 1024)		// 1 MB
 #define DECIPHERED_SUFFIX_WCS L"_deciphered"
+#define DECIPHERED_SUFFIX_WCS_LEN wcslen(DECIPHERED_SUFFIX_WCS)
+
+
+
 
 /////  FUNCTION PROTOTYPES  /////
 void decipherFileMenu();
@@ -68,16 +80,23 @@ void sharingMainMenu() {
 
 
 void decipherFileMenu() {
-	WCHAR input_file_path[MAX_PATH] = { 0 };
+	//WCHAR input_file_path[MAX_PATH] = { 0 };
+	WCHAR* input_file_path = NULL;
 	int result = 0;
+
+	input_file_path = malloc(MAX_PATH * sizeof(WCHAR));
+	if (input_file_path == NULL) {
+		printf("\tError: cannot allocate memory.\n");
+		return;
+	}
 
 	printf("\n\tYou have entered the decipher option.\n");
 
 	// Get the input file path
 	printf("\n\tEnter the full path of the file from which you want to create a deciphered copy below.\n");
 	printf("\t--> ");
-	if (fgetws(input_file_path, MAX_PATH, stdin)) {	// fgets() ensures that string ends with '\0'
-		input_file_path[strcspn(input_file_path, L"\n")] = L'\0';		// Remove trailing '\n'
+	if (fgetws(input_file_path, MAX_PATH, stdin)) {		// fgets() ensures that string ends with '\0'
+		input_file_path[wcscspn(input_file_path, L"\n")] = L'\0';		// Remove trailing '\n'
 
 		if (!PathFileExistsW(input_file_path)) {
 			printf("\tThe specified path does not exist.\n");
@@ -89,24 +108,10 @@ void decipherFileMenu() {
 		}
 	}
 
-	// Get the output file path
-	printf("\n\tEnter the full path of the file from which you want to create a deciphered copy below.\n");
-	printf("\t--> ");
-	if (fgetws(input_file_path, MAX_PATH, stdin)) {	// fgets() ensures that string ends with '\0'
-		input_file_path[strcspn(input_file_path, L"\n")] = L'\0';		// Remove trailing '\n'
+	// TO DO: allow user to write output file path??? For the moment use only the first path adding DECIPHERED_SUFFIX_WCS at the end
 
-		if (!PathFileExistsW(input_file_path)) {
-			printf("\tThe specified path does not exist.\n");
-			return;
-		}
-		if (PathIsDirectoryW(input_file_path)) {
-			printf("\tThe specified path matches a directory not a file.\n");
-			return;
-		}
-	}
-
+	// Create deciphered copy
 	printf("\tThe deciphered file copy is being created...\n");
-
 	result = createDecipheredFileCopy(input_file_path);
 
 	if (result != 0) {
@@ -261,32 +266,84 @@ void uvaFileMenu() {
 	return;
 }
 
-int createDecipheredFileCopy(WCHAR* file_path) {
-	printf("\t TO DO\n");
+int createDecipheredFileCopy(WCHAR* input_file_path) {
 	// This function will:
 	// - Create a file in the same path adding "_deciphered" at the end (but before extension).
 	// - Read the original file and call decipher() for all the content.
-	// - Add blockchain traces
+	// - TO DO: Add blockchain traces
 	// - If everything goes well, returns 0. In case something goes wrong, removes newly created file and returns an error code.
-
 
 	HANDLE read_file_handle = NULL;
 	HANDLE write_file_handle = NULL;
-	LPVOID* read_buf = NULL;
+
 	size_t file_size = 0;
+	LPVOID read_buf = NULL;
+	LPVOID write_buf = NULL;
+	DWORD rw_buf_size = 0;
 	DWORD bytes_read = 0;
+	DWORD bytes_written = 0;
+
+	int8_t mark_lvl = 0;
+
+	struct Protection* protection = NULL;
+	struct KeyData* composed_key = NULL;
+
+	WCHAR* file_path = NULL;
 	WCHAR* file_path_write = NULL;
-	int file_path_write_len = 0;
+	WCHAR* file_path_ext = NULL;
+	size_t file_path_len = 0;
+	size_t file_path_write_len = 0;
+	size_t file_path_ext_len = 0;
+	size_t path_cpy_pos = 0;
+
 	LARGE_INTEGER distance_to_move = { 0 };
 
 	DWORD error_code = ERROR_SUCCESS;
 	DWORD result = ERROR_SUCCESS;
 
+	// Get the path to the real (non-mirrored and non-surveilled) drive
+	file_path = getRealPathFromMirrored(input_file_path);
+	if (file_path == NULL) {
+		error_code = -1;
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: cannot allocate memory for the clean file path.\n");
+		goto DECIPHERED_FILE_COPY_CLEANUP;
+	}
+	formatPath(&file_path);
+
+	// Fill path lengths variables and check if path is short enough to add DECIPHERED_SUFFIX_WCS and still fit in MAX_PATH characters
+	file_path_len = wcslen(file_path);
+	file_path_write_len = file_path_len + DECIPHERED_SUFFIX_WCS_LEN;
+	if (file_path_write_len >= MAX_PATH) {
+		error_code = -1;
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: file path is too long to append (%ws)\n", DECIPHERED_SUFFIX_WCS);
+		goto DECIPHERED_FILE_COPY_CLEANUP;
+	}
+	file_path_ext = PathFindExtensionW(file_path);	// Pointer to "." before the extension or to the L'\0' if path does not have extension.
+	file_path_ext_len = wcslen(file_path_ext);
+
+	// Compose the write path
+	file_path_write = malloc((file_path_write_len + 1) * sizeof(WCHAR));
+	//file_path_write = malloc((MAX_PATH) * sizeof(WCHAR));
+	if (file_path_write == NULL) {
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: cannot allocate memory for the writing file path.\n");
+		error_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto DECIPHERED_FILE_COPY_CLEANUP;
+	}
+
+	path_cpy_pos = 0;
+	wcsncpy_s(&(file_path_write[path_cpy_pos]), file_path_write_len + 1 - path_cpy_pos, file_path, file_path_len - file_path_ext_len);
+	path_cpy_pos = file_path_len - file_path_ext_len;
+	wcsncpy_s(&(file_path_write[path_cpy_pos]), file_path_write_len + 1 - path_cpy_pos, DECIPHERED_SUFFIX_WCS, DECIPHERED_SUFFIX_WCS_LEN);
+	path_cpy_pos = file_path_len - file_path_ext_len + DECIPHERED_SUFFIX_WCS_LEN;
+	wcsncpy_s(&(file_path_write[path_cpy_pos]), file_path_write_len + 1 - path_cpy_pos, file_path_ext, file_path_ext_len);
+	file_path_write[file_path_write_len] = L'\0';
+
+
 	// Open original file
 	read_file_handle = CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 	if (!read_file_handle || read_file_handle == INVALID_HANDLE_VALUE) {
 		error_code = GetLastError();
-		PRINT1("ERROR in createDecipheredFileCopy: creating handle (error = %lu)\n", error_code);
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: creating handle (error = %lu)\n", error_code);
 		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
@@ -294,89 +351,163 @@ int createDecipheredFileCopy(WCHAR* file_path) {
 	result = getFileSize(&file_size, read_file_handle, file_path);
 	if (result != 0) {
 		error_code = result;
-		PRINT1("ERROR in createDecipheredFileCopy: getting file size (error = %lu)\n", error_code);
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: getting file size (error = %lu)\n", error_code);
 		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 	if (file_size == 0) {
-		PRINT1("File size is 0\n");
-		error_code = -1;
+		PRINT("File size is 0\n");
+		error_code = -2;
 		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
-	// Make handle point to the beginning of the file
+	// Make sure read handle points to the beginning of the file
 	if (!SetFilePointerEx(read_file_handle, distance_to_move, NULL, FILE_BEGIN)) {
 		error_code = GetLastError();
-		PRINT1("ERROR handle seeking in postWrite (error=%lu)\n", error_code);
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: read handle seeking position FILE_BEGIN (error=%lu)\n", error_code);
 		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
-	// Allocate read buffer
-	/*read_buf = calloc(file_size, sizeof(byte));
+	// Allocate read and write buffers
+	//read_buf = malloc(file_size * sizeof(byte));		// May be too much (e.g. >100MB is A LOT)
+	//read_buf = malloc(READ_BUF_SIZE * sizeof(byte));
+	rw_buf_size = (DWORD)MIN(READ_BUF_SIZE, file_size);
+	read_buf = malloc(rw_buf_size * sizeof(byte));
 	if (read_buf == NULL) {
-		PRINT1("ERROR allocate memory for reading.\n");
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: cannot allocate memory for read buffer.\n");
+		error_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto DECIPHERED_FILE_COPY_CLEANUP;
+	}
+	write_buf = malloc(rw_buf_size * sizeof(byte));
+	if (write_buf == NULL) {
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: cannot allocate memory for write buffer.\n");
 		error_code = ERROR_NOT_ENOUGH_MEMORY;
 		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
 	// Open write file
-	file_path_write_len = wcslen(file_path) + wcslen(DECIPHERED_SUFFIX_WCS) +1;		// +1 for the '\0'
-	file_path_write = malloc(file_path_write_len * sizeof(WCHAR));
-	if (file_path_write == NULL) {
-		PRINT1("ERROR allocate memory for write path (%ws)\n", file_path_write);
-		error_code = ERROR_NOT_ENOUGH_MEMORY;
-		goto DECIPHERED_FILE_COPY_CLEANUP;
-	}
-	wcscpy_s(file_path_write, wcslen(file_path) + 1, file_path);	// +1 for the '\0' (maybe not needed because another string is copied afterwards)
-	wcscpy_s(&(file_path_write[wcslen(file_path)]), wcslen(DECIPHERED_SUFFIX_WCS) + 1, DECIPHERED_SUFFIX_WCS);		// +1 for the '\0'
-	write_file_handle = _wfopen(file_path_write, L"rb");
-	if (write_file_handle == NULL) {
-		PRINT1("ERROR opening write file (%ws)\n", file_path_write);
+	write_file_handle = CreateFileW(file_path_write, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (write_file_handle == NULL || write_file_handle == INVALID_HANDLE_VALUE) {
+		fprintf(stderr, "ERROR opening write file (%ws)\n", file_path_write);
 		error_code = ERROR_OPEN_FAILED;
 		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
+	// Make sure write handle points to the beginning of the file
+	if (!SetFilePointerEx(write_file_handle, distance_to_move, NULL, FILE_BEGIN)) {
+		error_code = GetLastError();
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: write handle seeking position FILE_BEGIN (error=%lu)\n", error_code);
+		goto DECIPHERED_FILE_COPY_CLEANUP;
+	}
 
-	// Read original file
-	while (!feof(read_file_handle)) {
-		bytes_read = fread_s(read_buf, file_size, sizeof(byte), file_size, read_file_handle);
-		if (ferror(read_file_handle)) {
-			PRINT1("ERROR reading file.\n");
+
+	// Iterate enough times to process all the file
+	//	- Read original file
+	//	- Unmark if needed
+	//	- Decipher if needed (always unless file is already on level -1)
+	//	- Mark if needed
+	//	- Write to the destination file
+	for (size_t i = 0; i < 1 + (size_t)(file_size / READ_BUF_SIZE); i++) {
+		// Read original file
+		if (!ReadFile(
+			read_file_handle,
+			read_buf,
+			rw_buf_size,
+			&bytes_read,
+			NULL)
+			) {
+			fprintf(stderr, "ERROR in createDecipheredFileCopy: trying to read the original file\n");
 			error_code = ERROR_READ_FAULT;
 			goto DECIPHERED_FILE_COPY_CLEANUP;
 		}
 
-		// TO DO ///////////////////////////////////
+		// Only do operations if file is bigger than MARK_LENGTH
+		if (file_size >= MARK_LENGTH) {
 
+			// If it is the first iteration, take care of the possible mark
+			if (i == 0) {
+				// Unmark if needed
+				mark_lvl = unmark(read_buf);
+			}
+
+			// Decipher if needed (always unless file is already on level -1)
+			if (mark_lvl == 0 || mark_lvl == 1) {
+				// The first time it is needed to initialize the protection and composed key
+				if (i == 0) {
+					// Get the protection to use based on the file_path
+					protection = getProtectionFromFilePath(file_path);	// Uses input_file_path because it is easier to retrieve the protection
+					if (protection == NULL) {
+						fprintf(stderr, "ERROR in createDecipheredFileCopy: could not get protection associated to the path.\n");
+						error_code = -3;
+						goto DECIPHERED_FILE_COPY_CLEANUP;
+					}
+
+					// Compose the key
+					composed_key = protection->key;
+					result = makeComposedKey(protection->challenge_groups, composed_key);
+					if (0 != result) {
+						fprintf(stderr, "ERROR in createDecipheredFileCopy: trying to compose key (%d)\n", result);
+						error_code = -4;
+						goto DECIPHERED_FILE_COPY_CLEANUP;
+					}
+				}
+
+				// Decipher
+				invokeDecipher(protection->cipher, write_buf, read_buf, rw_buf_size, i * READ_BUF_SIZE, composed_key);
+
+				// If it is the first iteration, mark with one level less (1 --> 0, 0 --> -1)
+				if (i == 0) {
+					// Mark if needed
+					mark(write_buf, mark_lvl - 1);
+				}
+			} else {
+				memcpy_s(write_buf, rw_buf_size, read_buf, rw_buf_size);
+			}
+		} else {
+			// If there is no need to modify data, just copy the buffer
+			memcpy_s(write_buf, rw_buf_size, read_buf, rw_buf_size);
+		}
+
+		// Write new content to file
+		if (!WriteFile(
+			write_file_handle,
+			write_buf,
+			bytes_read,
+			&bytes_written,
+			NULL)
+			) {
+			fprintf(stderr, "ERROR in createDecipheredFileCopy: could not write read data\n");
+			error_code = ERROR_WRITE_FAULT;
+			goto DECIPHERED_FILE_COPY_CLEANUP;
+		}
+
+		// Check all the bytes read from this iteration have been written
+		if (bytes_read != bytes_written) {
+			error_code = -5;
+			fprintf(stderr, "ERROR in createDecipheredFileCopy: could not write all the read bytes\n");
+			goto DECIPHERED_FILE_COPY_CLEANUP;
+		}
 	}
-
-
-	// Cycle until end of file reached:
-	//while (!feof(stream)) {
-	//	// Attempt to read in 100 bytes:
-	//	count = fread(buffer, sizeof(char), 100, stream);
-	//	if (ferror(stream)) {
-	//		perror("Read error");
-	//		break;
-	//	}
-
-	//	// Total up actual bytes read
-	//	total += count;
-	//}
-	// TO DO ///////////////////////////////////
-	*/
-
 
 
 	// Make sure of freeing everything before leaving the function
 	DECIPHERED_FILE_COPY_CLEANUP:
+	if (file_path != NULL) {
+		free(file_path);
+	}
 	if (read_file_handle != NULL) {
-		fclose(read_file_handle);
+		CloseHandle(read_file_handle);
 	}
 	if (write_file_handle != NULL) {
-		fclose(write_file_handle);
+		if (write_file_handle != INVALID_HANDLE_VALUE) {
+			DeleteFileW(file_path_write);
+		}
+		CloseHandle(write_file_handle);
 	}
 	if (read_buf != NULL) {
 		free(read_buf);
+	}
+	if (write_buf != NULL) {
+		free(write_buf);
 	}
 
 	return error_code;

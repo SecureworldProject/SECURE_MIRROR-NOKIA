@@ -238,6 +238,104 @@ inline enum Operation* getOperations(enum AppType app_type, struct OpTable* tabl
 	return operations;
 }
 
+struct Protection* getProtectionFromFilePath(WCHAR* file_path) {
+	size_t ctx_folder_len = 0;
+	size_t file_path_len = 0;
+	WCHAR* tmp_ptr = NULL;
+
+	file_path_len = wcslen(file_path);
+	PRINT("file_path = %ws  (file_path_len=%llu)\n", file_path, file_path_len);
+
+	// Check if any of the ctx folders are prefix substring of the file_path
+	for (int j = 0; j < _msize(ctx.folders) / sizeof(struct Folder*); j++) {
+		ctx_folder_len = wcslen(ctx.folders[j]->path);
+		PRINT("j=%d, folder_path=%ws\n", j, ctx.folders[j]->path);
+
+		// The ctx folder can only be substring of file_path if it is strictly smaller
+		if (ctx_folder_len < file_path_len) {
+			// Look for the ctx folder as substring in the beginning of the file_path
+			tmp_ptr = wcsstr(file_path, ctx.folders[j]->path);
+			if (tmp_ptr != NULL && tmp_ptr == file_path) {
+				return ctx.folders[j]->protection;
+			}
+		}
+	}
+
+	// No coincidences. This should never happen if user follows the rule of working only with mirrored paths.
+	// TO DO: maybe check also pendrives??
+	return NULL;
+}
+
+/**
+* Converts a path that uses a mirrored letter into the equivalent (but non-surveilled) path.
+* Example:
+*  - Let the folder "C:\Users\Pepito\Documents\" be mirrored to "F:\"
+*  - Let the orig_path be "F:\example.txt"
+*  - The resulting real_path will be "C:\Users\Pepito\Documents\example.txt"
+*
+* @param WCHAR* orig_path
+*		The original path on a letter mounted by Dokan or WinFSP.
+*
+* @return WCHAR*
+*		The equivalent (but non-surveilled) path.
+**/
+WCHAR* getRealPathFromMirrored(WCHAR* orig_path) {
+	// Converts a path like "F:\example.txt" into "C:\Users\Pepito\Documents\example.txt" given that the mirrored folder: "C:\Users\Pepito\Documents\" is mapped to "F:\"
+
+	WCHAR* real_path = NULL;
+	//struct Folder* mirror = NULL;
+	WCHAR* mirr_path = NULL;
+	WCHAR mirr_letter = '\0';
+	WCHAR letter_path[4] = L"_:\\";	// represents any path like "X:\"
+	size_t orig_path_len = 0;
+	size_t mirr_path_len = 0;
+	size_t real_path_len = 0;
+
+	WCHAR* tmp_ptr = NULL;
+
+	clearPathSlashes(orig_path);
+	orig_path_len = wcslen(orig_path);
+
+	// Check if any of the ctx folders are prefix substring of the orig_path
+	for (int j = 0; j < _msize(ctx.folders) / sizeof(struct Folder*); j++) {
+		letter_path[0] = ctx.folders[j]->mount_point;
+		PRINT("j=%d, letter_path=%ws\n", j, letter_path);
+
+		// Look for letter_path as substring in the beginning of the file_path
+		tmp_ptr = wcsstr(orig_path, letter_path);
+		if (tmp_ptr != NULL && tmp_ptr == orig_path) {
+			PRINT1("Match found\n");
+			mirr_path = ctx.folders[j]->path;
+			mirr_path_len = wcslen(mirr_path);
+
+			real_path_len = orig_path_len - 3 + mirr_path_len + 1;					// -3 to remove letter ("X:\") +1 to add '\\'
+			real_path = (WCHAR*)malloc(sizeof(WCHAR) * (real_path_len + 1));		// +1 to add L'\0'
+			if (real_path != NULL) {
+				real_path[0] = L'\0';
+				wcscat_s(real_path, real_path_len + 1, mirr_path);
+				wcscat_s(real_path, real_path_len + 1, L"\\");
+				wcscat_s(real_path, real_path_len + 1, &(orig_path[3]));
+				PRINT("real_path=%ws\n", real_path);
+				// wcscat() ensures null terminated string so no    real_path[real_path_len] = L'\0'   is needed
+			}
+			break;
+		}
+	}
+	return real_path;
+}
+
+void clearPathSlashes(WCHAR* path) {
+	WCHAR* tmp_str = NULL;
+
+	// Clear possible forward slashes into backward slashes
+	PRINT("Clearing slashes in '%ws'\n", path);
+	tmp_str = wcschr(path, L'/');
+	while (tmp_str != NULL) {
+		*tmp_str = L'\\';
+		tmp_str = wcschr(path, L'/');
+	}
+}
+
 __declspec(deprecated) void formatPathOLD(char** full_path) {
 	char* tmp_str = NULL;
 
@@ -276,12 +374,7 @@ int fromDeviceToLetter(WCHAR** full_path) {
 	size_t device_len;
 
 	// Clear possible forward slashes into backward slashes
-	PRINT("Clearing slashes in '%ws'\n", *full_path);
-	tmp_str = wcschr(*full_path, L'/');
-	while (tmp_str != NULL) {
-		*tmp_str = L'\\';
-		tmp_str = wcschr(*full_path, L'/');
-	}
+	clearPathSlashes(*full_path);
 
 	// Change Device path for DOS letter path
 	PRINT("Looking for Device path match in '%ws'\n", *full_path);
@@ -345,6 +438,8 @@ void formatPath(WCHAR** full_path) {
 		PRINT("Skipping device to letter conversion...\n");
 	}
 
+	// Warning: VirtualBox shared folder paths like "\Device\Mup\VBoxSvr\SECUREWORLD\SECURE_MIRROR-NOKIA\x64\Release\SecureMirror.exe" are shown as Non-existent
+	// TODO: check if it can be fixed or at least skip this print in this case
 	if (!PathFileExistsW(*full_path)) {
 		fprintf(stderr, "ERROR: path does not exist.\n");
 		printLastError(GetLastError());
@@ -360,8 +455,9 @@ void formatPath(WCHAR** full_path) {
 	}*/
 
 	handle = CreateFileW(*full_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, attributes_flags, NULL);
+	PRINT("handle = %p, full_path = %ws\n", handle, *full_path);
 
-	if (handle != INVALID_HANDLE_VALUE) {
+	if (handle != INVALID_HANDLE_VALUE && handle != NULL) {
 		result = GetFinalPathNameByHandleW(handle, new_full_path, 0, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
 		if (result != 0) {
 			new_full_path = malloc(result * sizeof(WCHAR));
@@ -370,14 +466,14 @@ void formatPath(WCHAR** full_path) {
 					free(*full_path);
 					*full_path = new_full_path;
 				} else {
-					fprintf(stderr, "ERROR: something went wrong obtaining the path by handle (%lu)\n", GetLastError());
+					fprintf(stderr, "ERROR: something went wrong obtaining the final path with GetFinalPathNameByHandleW (%lu)\n", GetLastError());
 					free(new_full_path);
 				}
 			} else {
 				fprintf(stderr, "ERROR: could not allocate memory\n");
 			}
 		} else {
-			fprintf(stderr, "ERROR: something went wrong obtaining the path by handle (%lu)\n", GetLastError());
+			fprintf(stderr, "ERROR: something went wrong obtaining the path length with GetFinalPathNameByHandleW (%lu)\n", GetLastError());
 		}
 		CloseHandle(handle);
 	} else {
