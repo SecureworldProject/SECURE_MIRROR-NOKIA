@@ -470,7 +470,7 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD
 		}
 	}
 
-	typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*, uint32_t);
+	typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*);
 
 	cipher_func_type cipher_func;
 	int result;
@@ -478,9 +478,9 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD
 	cipher_func = (cipher_func_type)GetProcAddress(p_cipher->lib_handle, "cipher");
 	if (cipher_func != NULL) {
 		if (src_buf_copy==NULL) {
-			result = cipher_func(dst_buf, src_buf, buf_size, offset, composed_key, 0);
+			result = cipher_func(dst_buf, src_buf, buf_size, offset, composed_key);
 		} else {
-			result = cipher_func(dst_buf, src_buf_copy, buf_size, offset, composed_key, 0);
+			result = cipher_func(dst_buf, src_buf_copy, buf_size, offset, composed_key);
 			free(src_buf_copy);
 		}
 		if (result != 0) {
@@ -515,7 +515,7 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWO
 		}
 	}
 
-	typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*, uint32_t);
+	typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*);
 
 	decipher_func_type decipher_func;
 	int result;
@@ -523,9 +523,9 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWO
 	decipher_func = (decipher_func_type)GetProcAddress(p_cipher->lib_handle, "decipher");
 	if (decipher_func != NULL) {
 		if (src_buf_copy==NULL) {
-			result = decipher_func(dst_buf, src_buf, buf_size, offset, composed_key, 0);
+			result = decipher_func(dst_buf, src_buf, buf_size, offset, composed_key);
 		} else {
-			result = decipher_func(dst_buf, src_buf_copy, buf_size, offset, composed_key, 0);
+			result = decipher_func(dst_buf, src_buf_copy, buf_size, offset, composed_key);
 			free(src_buf_copy);
 		}
 
@@ -1250,7 +1250,7 @@ int preWriteLogic(
 		}
 
 		// Allocate space for the aux buffer
-		*aux_buffer = malloc(*aux_bytes_to_write);
+		*aux_buffer = malloc(*aux_bytes_to_write * sizeof(byte));
 		PRINT("Allocation for aux_buffer\n");
 		if (*aux_buffer == NULL) {
 			return ERROR_NOT_ENOUGH_MEMORY;
@@ -1344,75 +1344,85 @@ int preWriteLogic(
 	}
 
 	// For each of the possible cases: do the ciphering/deciphering/marking operations when needed
+	// NOTE: each case can be divided into 3 phases (to ease understanding):
+	//	- Checking
+	//	- Transformation of the whole buffer (do nothing, cipher the buffer or decipher the buffer)
+	//	- Mark or not the first part (MARK_LENGTH) of the buffer (only in the case of orig_offset is within the mark)
 	switch (op) {
 		case NOTHING:		// Do nothing (leave mark as it was)
 			// Check that write_buffer_mark_level is the same than file_mark_level
 			if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->write_buffer_mark_lvl != fmi->file_mark_lvl) {
-				printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
 				printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
 				error_code = -3;
 				goto PRE_WRITE_CLEANUP;
 			}
 
-			// Offset further than the mark
-			if (*orig_offset >= MARK_LENGTH) {
-				NOOP;
-			}
-			// Offset within the mark  (*orig_offset < MARK_LENGTH)
-			else {
+			// Do not modify the whole buffer
+			NOOP;
+
+			// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+			if (*orig_offset < MARK_LENGTH) {
 				// Set the mark level to 'fmi->write_buffer_mark_lvl' (that should be the same than it was in the file)
 				mark(*aux_buffer, fmi->write_buffer_mark_lvl);
 			}
+
 			break;
 		case CIPHER:
 			switch (fmi->write_buffer_mark_lvl) {
-				case 1:		// This should never happen // Do nothing (because would make marks of lvl 2)
-					printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check excel
-					printf("WARNING in preWriteLogic: this should never happen (operation = %d, write_buffer_mark_lvl = %d)\n", op, fmi->write_buffer_mark_lvl);
-					error_code = -4;
-					goto PRE_WRITE_CLEANUP;
+				case 1:		// Do nothing (leave mark as it was --> mark buffer if before MARK_LENGTH). Note this should never happen
+					// Check that write_buffer_mark_level is the same than file_mark_level (1)
+					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl != 1) {
+						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+						error_code = -3;
+						goto PRE_WRITE_CLEANUP;
+					} else {
+						printf("NOTE in preWriteLogic: this operation was probably not intended. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+					}
+
+					// Do not modify the whole buffer
+					NOOP;
+
+					// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+					if (*orig_offset < MARK_LENGTH) {
+						// Set the mark level to 'fmi->write_buffer_mark_lvl' (that should be the same than it was in the file)
+						mark(*aux_buffer, fmi->write_buffer_mark_lvl);
+					}
+
+					break;
 				case 0:		// Cipher (and mark buffer if before MARK_LENGTH)
 					// Check that write_buffer_mark_level is one less than file_mark_level
 					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl!=1) {
-						printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
 						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
 						error_code = -3;
 						goto PRE_WRITE_CLEANUP;
 					}
 
-					// Cipher
+					// Cipher the whole buffer
 					invokeCipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_bytes_to_write, *aux_offset, composed_key);
 
-					// Offset further than the mark
-					if (*orig_offset >= MARK_LENGTH) {
-						NOOP;
-					}
-					// Offset within the mark  (inicio < MARK_LENGTH)
-					else {
+					// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+					if (*orig_offset < MARK_LENGTH) {
 						// Set the mark to level 1
 						mark(*aux_buffer, 1);
 					}
+
 					break;
 				case -1:	// Cipher (and leave without mark)
 					// Check that write_buffer_mark_level is one less than file_mark_level
 					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl != 0) {
-						printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
 						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
 						error_code = -3;
 						goto PRE_WRITE_CLEANUP;
 					}
 
-					// Cipher
+					// Cipher the whole buffer
 					invokeCipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_bytes_to_write, *aux_offset, composed_key);
 
-					//// Offset further than the mark
-					//if (*orig_offset >= MARK_LENGTH) {
-					//	NOOP;
-					//}
-					//// Offset within the mark  (inicio < MARK_LENGTH)
-					//else {
-					//	NOOP;	// Set the mark to 0 (which is, don't mark)
-					//}
+					// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+					if (*orig_offset < MARK_LENGTH) {
+						NOOP;	// Set the mark to 0 (which is, don't mark)
+					}
+
 					break;
 			}
 			break;
@@ -1421,42 +1431,36 @@ int preWriteLogic(
 				case 1:		// Decipher (and leave without mark)
 					// Check that write_buffer_mark_level is one more than file_mark_level
 					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl != 0) {
-						printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
 						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
 						error_code = -3;
 						goto PRE_WRITE_CLEANUP;
 					}
 
-					// Decipher
+					// Decipher the whole buffer
 					invokeDecipher(protection->cipher, *aux_buffer, *aux_buffer, *aux_bytes_to_write, *aux_offset, composed_key);
 
-					// Offset further than the mark
-					//if (*orig_offset >= MARK_LENGTH) {
-					//	NOOP;
-					//}
-					//// Offset within the mark  (inicio < MARK_LENGTH)
-					//else {
-					//	NOOP;
-					//}
+					// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+					if (*orig_offset < MARK_LENGTH) {
+						NOOP;	// Set the mark to 0 (which is, don't mark)
+					}
+
 					break;
 				case 0:		// Do nothing (and leave without mark)
 					// Check that write_buffer_mark_level is the same as file_mark_level
 					if (fmi->file_mark_lvl != INVALID_MARK_LEVEL && fmi->file_mark_lvl != 0) {
-						printf("WARNING????????????????????????????????????????????????????????????????????????? check excel table\n");	// TO DO check
 						printf("WARNING in preWriteLogic: inconsistent mark levels. This should never happen (operation=%d, fmi->write_buffer_mark_lvl=%d, fmi->file_mark_lvl=%d)\n", op, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
 						error_code = -3;
 						goto PRE_WRITE_CLEANUP;
 					}
 
+					// Do not modify the whole buffer
 					NOOP;
-					//// Offset further than the mark
-					//if (*orig_offset >= MARK_LENGTH) {
-					//	NOOP;
-					//}
-					//// Offset within the mark  (inicio < MARK_LENGTH)
-					//else {
-					//	NOOP;
-					//}
+
+					// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+					if (*orig_offset < MARK_LENGTH) {
+						NOOP;	// Set the mark to 0 (which is, don't mark)
+					}
+
 					break;
 				case -1:	// This should never happen
 					printf("WARNING in preWriteLogic: this should never happen (operation = %d, write_buffer_mark_lvl = %d)\n", op, fmi->write_buffer_mark_lvl);
@@ -1466,7 +1470,6 @@ int preWriteLogic(
 			}
 			break;
 	}
-
 
 
 	PRE_WRITE_CLEANUP:
