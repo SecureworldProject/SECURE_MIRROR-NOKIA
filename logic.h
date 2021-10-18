@@ -44,7 +44,9 @@ BOOL unmarkOLD(uint8_t* input);
 //int8_t checkMark(uint8_t* input);
 int8_t mark(uint8_t* input, int8_t level);
 int8_t unmark(uint8_t* input);
+
 void testFMItable();
+void printFMITable();
 
 
 // Logic functions
@@ -64,13 +66,13 @@ int postReadLogic(
 );
 
 int preWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 );
 
 int postWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 );

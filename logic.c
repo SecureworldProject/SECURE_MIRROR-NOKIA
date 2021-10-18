@@ -76,7 +76,6 @@ void addToTableOLD(WCHAR* file_path);
 struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path);
 struct FileMarkInfo* getFMITableEntry(WCHAR* file_path);
 struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info);
-void printFMITable();
 
 struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t write_buffer_mark_lvl, int8_t file_mark_lvl);	// Allocates memory
 void destroyFMI(struct FileMarkInfo* file_mark_info);													// Frees memory
@@ -331,7 +330,7 @@ void printFMITable() {
 	// Print if the pointers are NULL and struct internal data (write_bufer_mark_lvl, file_mark_lvl and file_path) if not
 	for (size_t i = 0; i < file_mark_info_table_size; i++) {
 		fmi = file_mark_info_table[i];
-		PRINT1("row %llu", i);
+		PRINT1("Row %llu: ", i);
 		printFMI(fmi);
 	}
 }
@@ -950,7 +949,6 @@ int postReadLogic(
 	struct KeyData* composed_key = protection->key;
 
 	BOOL marked = FALSE;
-	BOOL mark_at_the_end = FALSE;
 	BOOL small_file = file_size < MARK_LENGTH;
 
 	LPVOID extra_read_buffer = NULL;
@@ -1151,7 +1149,7 @@ int postReadLogic(
 
 
 int preWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {
@@ -1177,8 +1175,6 @@ int preWriteLogic(
 	DWORD bytes_read = 0;
 
 	BOOL marked = FALSE;
-	//BOOL *mark_at_the_end = FALSE;
-	*mark_at_the_end = FALSE;
 
 	LARGE_INTEGER distanceToMove = { 0 };
 	DWORD error_code = ERROR_SUCCESS;
@@ -1482,7 +1478,7 @@ int preWriteLogic(
 
 
 int postWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof, BOOL* mark_at_the_end,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {

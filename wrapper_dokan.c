@@ -909,7 +909,6 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	DWORD aux_bytes_to_write = 0;
 	LPDWORD aux_bytes_written = NULL;
 	LONGLONG aux_offset = 0;
-	BOOL mark_at_the_end = FALSE;
 
 	DWORD error_code = 0;
 
@@ -937,7 +936,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	}
 
 	error_code = preWriteLogic(
-		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile, &mark_at_the_end,
+		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);
@@ -1008,7 +1007,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		if ((UINT64)Offset > fileSize) {
 			// In the mirror sample helperZeroFileData is not necessary. NTFS will zero a hole.
 			// But if user's file system is different from NTFS (or other Windows's file systems)
-			// then  users will have to zero the hole themselves.
+			// then users will have to zero the hole themselves.
 		}
 
 		distanceToMove.QuadPart = aux_offset;
@@ -1046,7 +1045,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	}
 
 	error_code = postWriteLogic(
-		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile, &mark_at_the_end,
+		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);

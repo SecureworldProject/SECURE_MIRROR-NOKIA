@@ -16,6 +16,8 @@
 
 /////  DEFINITIONS  /////
 
+#define DEBUG_OPTIONS 1		// When set to 1, includes debugging options in the sharing menu.
+
 #define MAX_INPUT_LENGTH 500
 #define READ_BUF_SIZE (1024 * 1024)		// 1 MB
 #define DECIPHERED_SUFFIX_WCS L"_deciphered"
@@ -53,22 +55,38 @@ void sharingMainMenu() {
 	do {
 		printf("\n");
 		printf("Select an option:\n");
+		printf("  0) Exit (also closes mirrored disks)\n");
 		printf("  1) Decipher mode (share with anyone)\n");
 		printf("  2) Create .uva file (share with third party)\n");
-		printf("  0) Exit (also closes mirrored disks)\n");
+		if (DEBUG_OPTIONS) {
+			printf("  3) (Debug only) Print the File Mark Info Table\n");
+			printf("  4) (Debug only) Test Wrapper\n");
+		}
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &choice)) {
 				switch (choice) {
+					case 0:
+						printf("Exitting...\n");
+						quit_menu = TRUE;
+						break;
 					case 1:
 						decipherFileMenu();
 						break;
 					case 2:
 						uvaFileMenu();
 						break;
-					case 0:
-						printf("Exitting...\n");
-						quit_menu = TRUE;
-						break;
+					case 3:
+						if (DEBUG_OPTIONS) {
+							printFMITable();
+							break;
+						}
+						// else goes through case 4 and default
+					case 4:
+						if (DEBUG_OPTIONS) {
+							printf("Not implemented yet.\n");
+							break;
+						}
+						// else goes through default
 					default:
 						printf("Invalid option, try again.\n");
 						break;
