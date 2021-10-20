@@ -1,12 +1,22 @@
+/////  DEFINITIONS  /////
+
+//#define ENABLE_WINFSP
+
+
+
 
 /////  FILE INCLUDES  /////
 
 #include "main.h"
 #include "context.h"
 #include "sharing_app.h"
-#include "wrapper_dokan.h"
-//#include "wrapper_winfsp.h"
 #include "volume_mounter.h"
+
+#include "wrapper_dokan.h"
+#ifdef ENABLE_WINFSP
+	#include "wrapper_winfsp.h"
+#endif // ENABLE_WINFSP
+
 
 
 
@@ -98,22 +108,16 @@ int main(int argc, char* argv[]) {
 
 int threadDokan(struct ThreadData *th_data) {
 	dokanMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->name, th_data->protection);
-	/*while (TRUE) {
-		printf("Hello, Dokan thread with id=%d reporting alive.\n", th_data->index);
-		Sleep(8000);
-	}*/
 
 	return 0;
 }
 
 int threadWinFSP(struct ThreadData *th_data) {
-	//winfspMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->name, th_data->protection);		////////////////// TO DO UNCOMMENT
-	PRINT("WinFSPMapAndLaunch parameters:   index=%2d     letter=%wc     path='%ws' \t\t\t (not implemented yet)\n", th_data->index, th_data->letter, th_data->path);
-
-	/*while (TRUE) {
-		printf("Hello, WinFSP thread with id=%d reporting alive.\n", th_data->index);
-		Sleep(8000);
-	}*/
+	#ifdef ENABLE_WINFSP
+		winfspMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->name, th_data->protection);
+	#else
+		PRINT("WinFSPMapAndLaunch parameters:   index=%2d     letter=%wc     path='%ws' \t\t\t (not implemented yet)\n", th_data->index, th_data->letter, th_data->path);
+	#endif // ENABLE_WINFSP
 
 	return 0;
 }
