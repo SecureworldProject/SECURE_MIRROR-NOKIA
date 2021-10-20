@@ -5,8 +5,7 @@
 /////  FILE INCLUDES  /////
 
 #include <Windows.h>
-#include "dokan.h"
-#include <synchapi.h>
+#include "dokan/DokanFiles/dokan.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "config.h"
@@ -18,8 +17,10 @@
 
 /////  DEFINITIONS  /////
 
+//#define ENABLE_WINFSP						// Uncomment to enable WinFSP functionality
+
 #define NUM_LETTERS 26
-#define ENABLE_VOLUME_MOUNTER 0					// If 1 volume mounter thread is launched. If 0, it is not.
+#define ENABLE_VOLUME_MOUNTER 0				// If 1 volume mounter thread is launched. If 0, it is not.
 
 
 

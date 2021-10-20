@@ -3,13 +3,16 @@
 
 /////  FILE INCLUDES  /////
 
-#include "dokan.h"
-#include "context.h"
-#include "winnt.h"
+#include "context.h"	// This inclde has to be on the top
+#include <winnt.h>
 #include <psapi.h>
-#include "context.h"
-#include "wrapper_dokan.h"
-//#include "wrapper_winfsp.h"
+#include "dokan/DokanFiles/dokan.h"
+#include "main.h"
+
+#include "dokan/wrapper_dokan.h"
+#ifdef ENABLE_WINFSP
+	#include "winfsp/wrapper_winfsp.h"
+#endif // ENABLE_WINFSP
 
 
 

@@ -2,18 +2,18 @@
 /////  FILE INCLUDES  /////
 
 #include <Windows.h>
-#include "dokan.h"
+#include "DokanFiles/dokan.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "psapi.h"
+#include <psapi.h>
 #include <malloc.h>
 
 //includes propios
-#include "config.h"
-#include "context.h"
+#include "../config.h"
+#include "../context.h"
 #include "wrapper_dokan.h"
-#include "main.h"
-#include "logic.h"
+#include "../main.h"
+#include "../logic.h"
 
 
 

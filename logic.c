@@ -11,7 +11,7 @@ Nokia Febrero 2021
 
 #include "logic.h"
 #include "keymaker.h"
-#include <Lmcons.h>	// to get UNLEN
+#include <Lmcons.h>		// only to get UNLEN
 #include "huffman.h"
 
 

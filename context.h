@@ -13,7 +13,7 @@ Nokia Febrero 2021
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "windows.h"
+#include <windows.h>
 #include <stdint.h>
 
 

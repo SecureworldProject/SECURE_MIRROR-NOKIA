@@ -2,7 +2,7 @@
 
 
 #include "context.h"
-#include "string.h"
+#include <string.h>
 #include <ctype.h>
 #include <Windows.h>
 #include "main.h"

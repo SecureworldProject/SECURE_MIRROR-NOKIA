@@ -1,10 +1,3 @@
-/////  DEFINITIONS  /////
-
-//#define ENABLE_WINFSP
-
-
-
-
 /////  FILE INCLUDES  /////
 
 #include "main.h"
@@ -12,9 +5,9 @@
 #include "sharing_app.h"
 #include "volume_mounter.h"
 
-#include "wrapper_dokan.h"
+#include "dokan/wrapper_dokan.h"
 #ifdef ENABLE_WINFSP
-	#include "wrapper_winfsp.h"
+	#include "winfsp/wrapper_winfsp.h"
 #endif // ENABLE_WINFSP
 
 
