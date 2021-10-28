@@ -149,16 +149,21 @@ inline struct App* getApp(WCHAR* app_full_path) {
 		return app;
 	}
 
-	// Find last position of a forward slash, which divides string in "path" and "name" (e.g.:  C:/path/to/folder/name.exe)
+	// Find last position of a backward slash, which divides string in "path" and "name" (e.g.:  C:/path/to/folder/name.exe)
 	tmp_str = wcsrchr(app_full_path, L'\\');
-
-	// Fill app path and name
-	*tmp_str = L'\0';
-	len = wcslen(app_full_path);
-	wcscpy(app->path, app_full_path);
-	app->path[len] = L'\\';
-	app->path[len + 1] = L'\0';
-	wcscpy(app->name, tmp_str + 1);
+	if (tmp_str != NULL) {
+		// Fill app path and name
+		*tmp_str = L'\0';
+		len = wcslen(app_full_path);
+		wcscpy(app->path, app_full_path);
+		app->path[len] = L'\\';
+		app->path[len + 1] = L'\0';
+		wcscpy(app->name, tmp_str + 1);
+		*tmp_str = L'\\';
+	} else {
+		wcscpy(app->path, app_full_path);
+		//wcscpy(app->name, L"");			// Already empty string by default
+	}
 
 	// For every app in the list check if the path is the same
 	for (int i = 0; !match_found && i < _msize(ctx.apps) / sizeof(struct App*); i++) {
@@ -441,7 +446,7 @@ void formatPath(WCHAR** full_path) {
 	// Warning: VirtualBox shared folder paths like "\Device\Mup\VBoxSvr\SECUREWORLD\SECURE_MIRROR-NOKIA\x64\Release\SecureMirror.exe" are shown as Non-existent
 	// TODO: check if it can be fixed or at least skip this print in this case
 	if (!PathFileExistsW(*full_path)) {
-		fprintf(stderr, "ERROR: path does not exist.\n");
+		fprintf(stderr, "WARNING: path does not exist.\n");
 		printLastError(GetLastError());
 		return;
 	}

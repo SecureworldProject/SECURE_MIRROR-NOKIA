@@ -3,7 +3,14 @@
 #include "main.h"
 #include "context.h"
 #include "sharing_app.h"
-#include "volume_mounter.h"
+
+#ifdef RUN_VOLUME_MOUNTER
+	#include "volume_mounter.h"
+#endif //RUN_VOLUME_MOUNTER
+
+#ifdef RUN_FMI_TABLE_TEST
+	#include "logic.h"
+#endif //RUN_FMI_TABLE_TEST
 
 #include "dokan/wrapper_dokan.h"
 #ifdef ENABLE_WINFSP
@@ -43,6 +50,11 @@ int main(int argc, char* argv[]) {
 
 	*/
 
+	// Test the FMI table
+	#ifdef RUN_FMI_TABLE_TEST
+		testFMItable();
+	#endif //RUN_FMI_TABLE_TEST
+
 	// Fill the table of equivalences between harddiskvolumes and letters
 	initLetterDeviceMapping();
 
@@ -76,14 +88,14 @@ int main(int argc, char* argv[]) {
 	}
 
 	// Launch volume mounter thread
-	if (ENABLE_VOLUME_MOUNTER) {
+	#ifdef RUN_VOLUME_MOUNTER
 		struct VolumeMounterThreadData vol_mount_th_data = { 0 };
 		vol_mount_th_data.index = number_of_folders;
 		vol_mount_th_data.threads_p = &threads;
 		vol_mount_th_data.th_data_p = &th_data;
 
 		volume_mounter_thread = CreateThread(NULL, 0, volumeMounterThread, &vol_mount_th_data, 0, NULL);		// 1st idx for pendrives is number_of_folders+1-1
-	}
+	#endif //RUN_VOLUME_MOUNTER
 
 	// Initialize the parameters for the challenges
 	initChallenges();

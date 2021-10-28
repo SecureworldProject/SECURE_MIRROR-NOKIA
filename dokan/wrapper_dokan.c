@@ -229,7 +229,9 @@ WCHAR* getAppPathDokan(PDOKAN_FILE_INFO dokan_file_info) {
 			return process_full_path;
 		}
 		CloseHandle(process_handle);
-		free(process_full_path);
+		wcscpy_s(process_full_path, process_full_path_length, L"Memory Mapping");
+		return process_full_path;
+		//free(process_full_path);
 	}
 
 	return NULL;
@@ -799,7 +801,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	// Initialize new read variables with updated values adjusted for the mark and possible block cipher
 	error_code = preReadLogic(
-		file_size, op_final, file_path,
+		file_size, op_final, file_path, full_app_path,
 		&Buffer, &BufferLength, &ReadLength, &Offset,
 		&aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
 	);
@@ -852,7 +854,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	// Initialize new read variables with updated values adjusted for the mark and possible block cipher
 	error_code = postReadLogic(
-		file_size, op_final, file_path, protections[THREAD_INDEX], handle,
+		file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], handle,
 		&Buffer, &BufferLength, &ReadLength, &Offset,
 		&aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
 	);
@@ -936,7 +938,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	}
 
 	error_code = preWriteLogic(
-		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
+		&file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);
@@ -1045,7 +1047,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	}
 
 	error_code = postWriteLogic(
-		&file_size, op_final, file_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
+		&file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], handle, DokanFileInfo->WriteToEndOfFile,
 		&Buffer, &NumberOfBytesToWrite, &NumberOfBytesWritten, &Offset,
 		&aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
 	);

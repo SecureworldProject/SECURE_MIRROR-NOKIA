@@ -17,10 +17,16 @@
 
 /////  DEFINITIONS  /////
 
-//#define ENABLE_WINFSP						// Uncomment to enable WinFSP functionality
+// Uncomment to enable WinFSP functionality
+//#define ENABLE_WINFSP
+
+// Uncomment to launch volume mounter thread
+//#define RUN_VOLUME_MOUNTER
+
+// Uncomment to launch fmi table test at the beginning
+//#define RUN_FMI_TABLE_TEST
 
 #define NUM_LETTERS 26
-#define ENABLE_VOLUME_MOUNTER 0				// If 1 volume mounter thread is launched. If 0, it is not.
 
 
 

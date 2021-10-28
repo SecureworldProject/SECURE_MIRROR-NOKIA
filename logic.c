@@ -19,9 +19,9 @@ Nokia Febrero 2021
 
 /////  DEFINITIONS  /////
 
-#define MAX_SIMULTANEOUS_DOWNLOADS 10		// OLD can be removed
 #define FILE_MARK_INFO_TABLE_INITIAL_SIZE 32
 #define FILE_MARK_INFO_TABLE_SIZE_INCREMENT 8
+#define FMI_TABLE_ENTRY_EXPIRATION_TIME 20			// Defined in secconds
 
 
 // This is a byte array of length 'MARK_LENGTH'
@@ -52,15 +52,6 @@ byte FILLING_SEQUENCE[] = {
 };
 
 
-/*union UNION_UINT16 {
-	struct {
-		uint8_t low;
-		uint8_t high;
-	} part;
-	uint16_t full;
-};*/
-
-WCHAR remote_marked_file_table[MAX_SIMULTANEOUS_DOWNLOADS][MAX_PATH] = { 0 };		// OLD can be removed
 
 struct FileMarkInfo** file_mark_info_table = NULL;
 size_t file_mark_info_table_size = 0;
@@ -69,16 +60,13 @@ size_t file_mark_info_table_size = 0;
 
 
 /////  FUNCTION PROTOTYPES  /////
-void removeFromTableOLD(WCHAR* file_path);
-BOOL checkTableOLD(WCHAR* file_path);
-void addToTableOLD(WCHAR* file_path);
 
-struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path);
-struct FileMarkInfo* getFMITableEntry(WCHAR* file_path);
+struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path, WCHAR* app_path);
+struct FileMarkInfo* getFMITableEntry(WCHAR* file_path, WCHAR* app_path);
 struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info);
 
-struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t write_buffer_mark_lvl, int8_t file_mark_lvl);	// Allocates memory
-void destroyFMI(struct FileMarkInfo* file_mark_info);													// Frees memory
+struct FileMarkInfo* createFMI(WCHAR* file_path, WCHAR* app_path, int8_t write_buffer_mark_lvl, int8_t file_mark_lvl, uint32_t frn, time_t last_closed);
+void destroyFMI(struct FileMarkInfo* file_mark_info);
 void printFMI(struct FileMarkInfo* fmi);
 
 
@@ -153,55 +141,28 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2) {
 	return NOTHING;
 }
 
-void removeFromTableOLD(WCHAR* file_path) {
-	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
-		if (0 == wcscmp(file_path, remote_marked_file_table[i])) {
-			wcscpy(remote_marked_file_table[i], L"");
-			return;
-		}
-	}
-	return;
-}
-
-BOOL checkTableOLD(WCHAR* file_path) {
-	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
-		PRINT("Checking TABLE: %ws\n", remote_marked_file_table[i]);
-		if (0 == wcscmp(file_path, remote_marked_file_table[i])) {
-			return TRUE;
-		}
-	}
-	return FALSE;
-}
-
-void addToTableOLD(WCHAR* file_path) {
-	for (size_t i = 0; i < MAX_SIMULTANEOUS_DOWNLOADS; i++) {
-		if (0 == wcscmp(L"", remote_marked_file_table[i])) {
-			wcscpy(remote_marked_file_table[i], file_path);
-			return;
-		}
-	}
-	return;
-}
 
 /**
-* Removes from the the file_mark_info_table the struct FileMarkInfo* associated to the file_path passed as parameter.
+* Removes from the the file_mark_info_table the struct FileMarkInfo* associated to the file_path and app_path passed as parameters.
 * Note: the returned pointer should be freed when its use has finished.
 *
 * @param WCHAR* file_path
 *		The file path associated to the struct FileMarkInfo* wanted to be removed.
+* @param WCHAR* app_path
+*		The file path of the application associated to the struct FileMarkInfo* wanted to be removed.
 *
 * @return struct FileMarkInfo*
 *		The (valid) pointer to the struct FileMarkInfo associated to the file_path passed as parameter. Remember to free after use.
 **/
-struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path) {
+struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path, WCHAR* app_path) {
 	struct FileMarkInfo* result = NULL;
 
-	if (file_path==NULL) {
+	if (file_path==NULL || app_path==NULL) {
 		return NULL;
 	}
 
 	for (size_t i = 0; i < file_mark_info_table_size; i++) {
-		if (file_mark_info_table[i] != NULL && 0 == wcscmp(file_path, file_mark_info_table[i]->file_path)) {
+		if (file_mark_info_table[i] != NULL && 0 == wcscmp(file_path, file_mark_info_table[i]->file_path) && 0 == wcscmp(app_path, file_mark_info_table[i]->app_path)) {
 			result = file_mark_info_table[i];
 			file_mark_info_table[i] = NULL;
 			PRINT("FMI removed from the table\n");
@@ -213,20 +174,26 @@ struct FileMarkInfo* removeFMITableEntry(WCHAR* file_path) {
 }
 
 /**
-* Finds the struct FileMarkInfo* associated to the file_path passed as parameter in the file_mark_info_table.
+* Finds the struct FileMarkInfo* associated to the file_path and app_path passed as parameters in the file_mark_info_table.
 * Note: the returned pointer must not be freed in any case.
 *
 * @param WCHAR* file_path
 *		The file path associated to the struct FileMarkInfo* wanted to be retrieved.
+* @param WCHAR* app_path
+*		The file path of the application associated to the struct FileMarkInfo* wanted to be removed.
 *
 * @return struct FileMarkInfo*
 *		The pointer to the struct FileMarkInfo associated to the file_path passed as parameter. Do not free on any circumstances.
 **/
-struct FileMarkInfo* getFMITableEntry(WCHAR* file_path) {
+struct FileMarkInfo* getFMITableEntry(WCHAR* file_path, WCHAR* app_path) {
 	struct FileMarkInfo* result = NULL;
 
+	if (file_path == NULL || app_path == NULL) {
+		return NULL;
+	}
+
 	for (size_t i = 0; i < file_mark_info_table_size; i++) {
-		if (file_mark_info_table[i] != NULL && 0 == wcscmp(file_path, file_mark_info_table[i]->file_path)) {
+		if (file_mark_info_table[i] != NULL && 0 == wcscmp(file_path, file_mark_info_table[i]->file_path) && 0 == wcscmp(app_path, file_mark_info_table[i]->app_path)) {
 			result = file_mark_info_table[i];
 			PRINT("FMI found in the table\n");
 			printFMI(result);
@@ -238,10 +205,11 @@ struct FileMarkInfo* getFMITableEntry(WCHAR* file_path) {
 
 /**
 * Adds the struct FileMarkInfo* passed as parameter in the file_mark_info_table.
-* If the file_path specified in the parameter already exists in the table the value is overwritten, if not, the value is inserted on a free space.
+* If file_path and app_path values from parameter fields already exist in the table, the value is overwritten, if not, it is inserted on a free space.
 * If there are not available slots for the struct to be added to the table, more space is allocated.
 * In the case that no more space is allocable, NULL is returned.
 * Note: the returned pointer must not be freed in any case.
+* Note 2: you can still modify data from the pointer after adding it to the table
 *
 * @param struct FileMarkInfo* file_mark_info
 *		The struct FileMarkInfo* to add to the table.
@@ -252,7 +220,7 @@ struct FileMarkInfo* getFMITableEntry(WCHAR* file_path) {
 struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 	BOOL found_empty = FALSE;
 	size_t empty_index = 0;
-	struct FileMarkInfo* tmp_table = NULL;
+	struct FileMarkInfo** tmp_table = NULL;
 
 	for (size_t i = 0; i < file_mark_info_table_size; i++) {
 		if (file_mark_info_table[i] == NULL) {
@@ -260,7 +228,7 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 				empty_index = i;
 				found_empty = TRUE;
 			}
-		} else if (0 == wcscmp(file_mark_info->file_path, file_mark_info_table[i]->file_path)) {
+		} else if (0 == wcscmp(file_mark_info->file_path, file_mark_info_table[i]->file_path) && 0 == wcscmp(file_mark_info->app_path, file_mark_info_table[i]->app_path)) {
 			if (file_mark_info_table[i] != file_mark_info) {
 				destroyFMI(file_mark_info_table[i]);
 				file_mark_info_table[i] = file_mark_info;
@@ -300,6 +268,35 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 	return file_mark_info;
 }
 
+// Removes old entries from the FMITable and returns the number of removed table entries
+/**
+* Removes old entries from the FMITable.
+* To consider an entry old, it is checked if its last_closed member is FMI_TABLE_ENTRY_EXPIRATION_TIME secconds older than current time.
+*
+* @return int
+*		The number of removed entries from the table. If an error occurs -1 is returned.
+**/
+int purgeFMITable() {
+	int removed_entries = 0;
+
+	time_t current_time = 0;
+
+	// Get current time
+	time(&current_time);
+
+	for (size_t i = 0; i < file_mark_info_table_size; i++) {
+		if (file_mark_info_table[i] != NULL) {
+			if (file_mark_info_table[i]->last_closed != 0 && current_time > file_mark_info_table[i]->last_closed + FMI_TABLE_ENTRY_EXPIRATION_TIME) {
+				destroyFMI(file_mark_info_table[i]);
+				file_mark_info_table[i] = NULL;
+				removed_entries++;
+			}
+		}
+	}
+
+	return removed_entries;
+}
+
 /**
 * Prints all the values inside the FileMarkInfo struct (write_bufer_mark_lvl, file_mark_lvl and file_path) or NULL if it is the case.
 *
@@ -309,10 +306,22 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 * @return
 **/
 void printFMI(struct FileMarkInfo* fmi) {
+	struct tm* time_info;
+
 	if (fmi == NULL) {
 		PRINT("FileMarkInfo --> NULL \n");
 	} else {
-		PRINT("FileMarkInfo --> write_buf_mark: %d \t file_mark: %d   \t path: %ws\n", fmi->write_buffer_mark_lvl, fmi->file_mark_lvl, fmi->file_path);
+		if (fmi->last_closed == 0) {
+			time_info = NULL;
+		} else {
+			time_info = localtime(&(fmi->last_closed));
+		}
+
+		PRINT("FileMarkInfo:\n\t file_path: '%ws', \n\t app_path:  '%ws', \n\t write_buf_mark: %4d,   file_mark: %4d,   frn: 0x%08X,   last_closed: %s",
+			fmi->file_path, fmi->app_path, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl, fmi->frn, (time_info == NULL)?"currently open":"");
+		if (time_info != NULL)
+			printDateNice(time_info);
+		PRINT("\n");
 	}
 }
 
@@ -330,14 +339,14 @@ void printFMITable() {
 	// Print if the pointers are NULL and struct internal data (write_bufer_mark_lvl, file_mark_lvl and file_path) if not
 	for (size_t i = 0; i < file_mark_info_table_size; i++) {
 		fmi = file_mark_info_table[i];
-		PRINT1("Row %llu: ", i);
+		PRINT("Row %llu: ", i);
 		printFMI(fmi);
 	}
 }
 
 // Allocates memory
-struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t write_buffer_mark_lvl, int8_t file_mark_lvl) {
-	if (file_path == NULL) {
+struct FileMarkInfo* createFMI(WCHAR* file_path, WCHAR* app_path, int8_t write_buffer_mark_lvl, int8_t file_mark_lvl, uint32_t frn, time_t last_closed) {
+	if (file_path == NULL || app_path == NULL) {
 		return NULL;
 	}
 
@@ -345,8 +354,11 @@ struct FileMarkInfo* createFMI(WCHAR* file_path, int8_t write_buffer_mark_lvl, i
 	fmi = malloc(1 * sizeof(struct FileMarkInfo));
 	if (fmi != NULL) {
 		wcscpy(fmi->file_path, file_path);
+		wcscpy(fmi->app_path, app_path);
 		fmi->write_buffer_mark_lvl = write_buffer_mark_lvl;
 		fmi->file_mark_lvl = file_mark_lvl;
+		fmi->frn = frn;
+		fmi->last_closed = last_closed;
 	}
 	return fmi;
 }
@@ -363,6 +375,7 @@ void destroyFMI(struct FileMarkInfo* file_mark_info) {
 **/
 void testFMItable() {
 	WCHAR wstring[] = L"C:/test/00";
+	WCHAR wstring_app[] = L"C:/appX/00";
 	struct FileMarkInfo *fmi = NULL;
 
 	srand(time(NULL));
@@ -374,11 +387,11 @@ void testFMItable() {
 
 		// Fill the table
 		PRINT1("\nFilling the table...\n");
-		for (size_t i = 0; i < 3; i++) {
-			for (size_t j = 0; j < 10; j++) {
-				wstring[8] = L'0' + i;
-				wstring[9] = L'0' + j;
-				addFMITableEntry(createFMI(wstring, 128, 128));
+		for (size_t i = 0; i < 4; i++) {
+			for (size_t j = 0; j < 4; j++) {
+				wstring[9] = L'0' + i;
+				wstring_app[9] = L'0' + j;
+				addFMITableEntry(createFMI(wstring, wstring_app, 128, 128, 0, 0));
 			}
 		}
 
@@ -389,11 +402,11 @@ void testFMItable() {
 		// Retrieve 5 random values
 		PRINT1("\nRetrieving 5 random values from the table...\n");
 		for (size_t i = 0; i < 5; i++) {
-			wstring[8] = L'0' + rand() % 3;
-			wstring[9] = L'0' + rand() % 10;
-			fmi = getFMITableEntry(wstring);
+			wstring[9] = L'0' + rand() % 4;
+			wstring_app[9] = L'0' + rand() % 4;
+			fmi = getFMITableEntry(wstring, wstring_app);
 			if (fmi != NULL) {
-				PRINT2("path: %ws \t write_buf_mark: %d \t file_mark: %d\n", fmi->file_path, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+				PRINT2("Got entry: path: %ws \t write_buf_mark: %d \t file_mark: %d\n", fmi->file_path, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
 			}
 		}
 
@@ -404,9 +417,9 @@ void testFMItable() {
 		// Add 5 random values that will collide. This time with different mark levels
 		PRINT1("\nAdding 5 random values to the table...\n");
 		for (size_t i = 0; i < 5; i++) {
-			wstring[8] = L'0' + rand() % 3;
-			wstring[9] = L'0' + rand() % 10;
-			addFMITableEntry(createFMI(wstring, (rand() % 3) - 1, (rand() % 3) - 1));
+			wstring[9] = L'0' + rand() % 4;
+			wstring_app[9] = L'0' + rand() % 4;
+			addFMITableEntry(createFMI(wstring, wstring_app, (rand() % 3) - 1, (rand() % 3) - 1, 0, 0));
 		}
 
 		// Print full table
@@ -417,13 +430,13 @@ void testFMItable() {
 		// Remove 5 random values
 		PRINT1("\nRemoving 5 random values from the table...\n");
 		for (size_t i = 0; i < 5; i++) {
-			wstring[8] = L'0' + rand() % 3;
-			wstring[9] = L'0' + rand() % 10;
-			fmi = removeFMITableEntry(wstring);
+			wstring[9] = L'0' + rand() % 4;
+			wstring_app[9] = L'0' + rand() % 4;
+			fmi = removeFMITableEntry(wstring, wstring_app);
 			if (fmi != NULL) {
 				PRINT2("path: %ws \t write_buf_mark: %d \t file_mark: %d\n", fmi->file_path, fmi->write_buffer_mark_lvl, fmi->file_mark_lvl);
+				destroyFMI(fmi);
 			}
-			destroyFMI(fmi);
 		}
 
 		// Print full table
@@ -433,11 +446,11 @@ void testFMItable() {
 
 		// Clear the table
 		PRINT1("\nClearing the table...\n");
-		for (size_t i = 0; i < 3; i++) {
-			for (size_t j = 0; j < 10; j++) {
-				wstring[8] = L'0' + i;
-				wstring[9] = L'0' + j;
-				fmi = removeFMITableEntry(wstring);
+		for (size_t i = 0; i < 4; i++) {
+			for (size_t j = 0; j < 4; j++) {
+				wstring[9] = L'0' + i;
+				wstring_app[9] = L'0' + j;
+				fmi = removeFMITableEntry(wstring, wstring_app);
 				destroyFMI(fmi);
 			}
 		}
@@ -567,106 +580,6 @@ DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path) {
 		CloseHandle(handle);
 
 	return error_code;	// 0 = Success
-}
-
-/**
-* Returns if the input buffer is marked.
-* Assumes that the input buffer is long enough.
-*
-* @param uint8_t* input
-*		The buffer to be checked.
-*
-* @return BOOL
-*		TRUE if the buffer is marked. FALSE otherwise.
-**/
-BOOL checkMarkOLD(uint8_t* input) {
-	uint16_t decompressed_length = ((uint16_t*)(input))[0];	//*(uint32_t*)&input[0];
-	uint16_t compressed_length = ((uint16_t*)(input))[1];	//*(uint32_t*)&input[1];
-	uint16_t header_bit_length = ((uint16_t*)(input))[2] + (6 /*HEADER_BASE_SIZE*/ << 3); //*(uint16_t*)&input[4] + (6 /*HEADER_BASE_SIZE*/ << 3);
-
-	PRINT("Checking mark. decompressed_length=%u, compressed_length=%u, header_bit_length=%u (%ubytes)\n", decompressed_length, compressed_length, header_bit_length, header_bit_length/8 + ((header_bit_length%8)?0:1));
-
-	if (decompressed_length != (uint16_t)MARK_LENGTH) {
-		return FALSE;
-	}
-
-	if (compressed_length > MARK_LENGTH) {
-		return FALSE;
-	}
-
-	if (memcmp(&(input[compressed_length]), FILLING_SEQUENCE, MARK_LENGTH - compressed_length) != 0) {
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-/**
-* Marks the buffer if it is possible. Returns if the resulting input buffer was marked.
-* Assumes that the input buffer is long enough and it is not marked.
-*
-* @param uint8_t* input
-*		The buffer to be marked. In case it cannot be marked, it is not modified.
-* @return BOOL
-*		TRUE if the buffer was marked. FALSE if it could not.
-**/
-BOOL markOLD(uint8_t* input) {
-	uint8_t* output = NULL;		// Allocated inside huffman_encode
-	uint32_t total_compressed_length;
-
-	PRINT("Trying to mark...\n");
-
-	// Get first M bytes (stream) from file and compress them (resulting a compressed stream of C bytes).
-	// Check if (C > M - 2), in that case, mark is omitted. Else:
-	if (huffman_encode(input, &output, (uint32_t)MARK_LENGTH, &total_compressed_length) != 0 || total_compressed_length >= MARK_LENGTH) {
-		free(output);
-		PRINT("Could not be marked\n");
-		return FALSE;
-	}
-	PRINT("Marked\n");
-
-	/*// Substitute first 2 bytes with a codification of the C number
-	union UNION_UINT16 dummy;
-	dummy.full = compressed_length;
-	input[0] = dummy.part.high;
-	input[1] = dummy.part.low;*/
-
-	// Then, copy compressed stream
-	memcpy(input, output, total_compressed_length);
-
-	// Fill the rest of the bytes until completing the M bytes with the filling sequence
-	memcpy(&(input[total_compressed_length]), FILLING_SEQUENCE, MARK_LENGTH - total_compressed_length);
-
-	free(output);
-	return TRUE;
-}
-
-/**
-* Unmarks the buffer if it is possible. Returns if the resulting input buffer was unmarked.
-* Assumes that the input buffer is long enough and it is marked.
-*
-* @param uint8_t* input
-*		The buffer to be unmarked. In case it cannot be unmarked, it is not modified.
-* @return BOOL
-*		TRUE if the buffer was marked and has been unmarked. FALSE if it could not.
-**/
-BOOL unmarkOLD(uint8_t* input) {
-	uint8_t* output = NULL;		// Allocated inside huffman_decode
-	PRINT("Trying to unmark...\n");
-
-	// Uncompress bytes the input
-	if (huffman_decode(input, &output) != 0) {
-		PRINT("Could not be unmarked\n");
-		return FALSE;
-	}
-	PRINT("Unmarked\n");
-
-	// Copy decoded buffer into input buffer
-	memcpy(input, output, MARK_LENGTH);
-
-	free(output);
-
-	return TRUE;
 }
 
 
@@ -857,19 +770,19 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 
 
 int preReadLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
 ) {
 
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_buffer_length == NULL || orig_read_length == NULL || *orig_read_length == NULL ||
-		orig_offset == NULL) {
+		orig_offset == NULL || file_path == NULL || app_path == NULL) {
 		return ERROR_INVALID_PARAMETER;
 	}
 
 	PRINT("preReadLogic!!\n");
-	PRINT(" - File size: %llu\n - Operation: %d\n",
-		file_size, op);
+	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - App path: %ws\n",
+		file_size, op, file_path, app_path);
 	PRINT(" - Orig buffer: %p\n - Orig buffer length: %lu\n - Orig bytes done: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_buffer_length, **orig_read_length, *orig_offset);
 	//PRINT(" - Aux buffer: %p\n - Aux buffer length: %lu\n - Aux bytes done: %lu\n - Aux offset: %lld\n",
@@ -925,20 +838,22 @@ int preReadLogic(
 
 
 int postReadLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
 ) {
 
 	// Parameter checking
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_buffer_length == NULL || orig_read_length == NULL || *orig_read_length == NULL ||
-		orig_offset == NULL || protection == NULL) {
+		orig_offset == NULL || protection == NULL || file_path == NULL || app_path == NULL) {
 		return ERROR_INVALID_PARAMETER;
 	}
 
 	PRINT("postReadLogic!!\n");
-	PRINT(" - File size: %llu\n - Operation: %d\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n",
-		file_size, op, protection, protection->cipher->id, protection->key, handle);
+	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - App path: %ws\n",
+		file_size, op, file_path, app_path);
+	PRINT(" - Protection: %p (cipher->id: %s, key: %p)\n - Handle: %p\n",
+		protection, protection->cipher->id, protection->key, handle);
 	PRINT(" - Orig buffer: %p\n - Orig buffer length: %lu\n - Orig bytes done: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_buffer_length, **orig_read_length, *orig_offset);
 	PRINT(" - Aux buffer: %p\n - Aux buffer length: %lu\n - Aux bytes done: %lu\n - Aux offset: %lld\n",
@@ -965,11 +880,12 @@ int postReadLogic(
 		goto POST_READ_CLEANUP;
 	}
 
+
 	// BIG FILES (file_size >= MARK_LENGTH)
 	// Check the table
-	fmi = getFMITableEntry(file_path);
+	fmi = getFMITableEntry(file_path, app_path);
 	if (fmi == NULL) {
-		fmi = createFMI(file_path, INVALID_MARK_LEVEL, INVALID_MARK_LEVEL);
+		fmi = createFMI(file_path, app_path, INVALID_MARK_LEVEL, INVALID_MARK_LEVEL, 0, 0);
 		addFMITableEntry(fmi);
 	}
 
@@ -1149,19 +1065,22 @@ int postReadLogic(
 
 
 int preWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {
 	#pragma region COLLAPSABLE_REGION
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
-		orig_offset == NULL || protection == NULL || aux_buffer == NULL || aux_bytes_to_write == NULL || aux_bytes_written == NULL || aux_offset == NULL) {
+		orig_offset == NULL || protection == NULL || aux_buffer == NULL || aux_bytes_to_write == NULL || aux_bytes_written == NULL || aux_offset == NULL ||
+		file_path == NULL || app_path ==  NULL) {
 		return ERROR_INVALID_PARAMETER;
 	}
 
 	PRINT("preWriteLogic!!\n");
-	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n - Write_to_eof: %u\n",
-		*file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
+	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - App path: %ws\n",
+		*file_size, op, file_path, app_path);
+	PRINT(" - Protection: %p (cipher->id: %s, key: %p)\n - Handle: %p\n - write_to_eof: %u\n",
+		protection, protection->cipher->id, protection->key, handle, write_to_eof);
 	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
 	//PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
@@ -1195,7 +1114,7 @@ int preWriteLogic(
 	// Check if the file is big but we are rewriting the file completely
 	if (!small_file && *orig_offset==0 && *orig_bytes_to_write==*file_size) {
 		small_file = TRUE;
-		fmi = removeFMITableEntry(file_path);
+		fmi = removeFMITableEntry(file_path, app_path);
 		free(fmi);
 		fmi = NULL;
 		*file_size = 0;
@@ -1218,13 +1137,13 @@ int preWriteLogic(
 
 	// BIG FILES (file_size >= MARK_LENGTH)
 	// Check the table
-	fmi = getFMITableEntry(file_path);
+	fmi = getFMITableEntry(file_path, app_path);
 	printf("fmi %s null\n", fmi==NULL ? "IS" : "is NOT");
 	if (op == DECIPHER && (fmi==NULL || fmi->write_buffer_mark_lvl == INVALID_MARK_LEVEL)) {
 		printf("WARNING in preWriteLogic: this should never happen (operation = %d, mark_lvl = %d)\n", op, fmi->write_buffer_mark_lvl);
 	}
 	if (fmi == NULL) {
-		fmi = createFMI(file_path, 0, INVALID_MARK_LEVEL);
+		fmi = createFMI(file_path, app_path, 0, INVALID_MARK_LEVEL, 0, 0);
 		addFMITableEntry(fmi);
 	}
 
@@ -1311,8 +1230,9 @@ int preWriteLogic(
 		}
 
 		// Compose the buffer of what will be actually written (data extended up to the mark)
-		memcpy(*aux_buffer, read_buffer, MARK_LENGTH);				// Copy bytes from file to the buffer
-		memcpy(*aux_buffer, *orig_buffer, orig_bytes_to_write);		// Overwrite (or fill) the buffer with the bytes to write from the application
+		#pragma warning(suppress: 6386)
+		memcpy(*aux_buffer, read_buffer, MARK_LENGTH);										// Copy bytes from file to the buffer
+		memcpy(&(((byte*)*aux_buffer)[*orig_offset]), *orig_buffer, *orig_bytes_to_write);	// Fill (and partially overwrite) with the original bytes form application
 
 	}
 
@@ -1478,7 +1398,7 @@ int preWriteLogic(
 
 
 int postWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {
@@ -1496,13 +1416,15 @@ int postWriteLogic(
 	int8_t mark_lvl = INVALID_MARK_LEVEL;
 
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
-		orig_offset == NULL || protection == NULL) {
+		orig_offset == NULL || protection == NULL || file_path == NULL || app_path == NULL) {
 		return ERROR_INVALID_PARAMETER;
 	}
 
 	PRINT("postWriteLogic!!\n");
-	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - Protection: %p   (cipher->id: %s, key:%p)\n - Handle: %p\n - write_to_eof: %u\n",
-		*file_size, op, file_path, protection, protection->cipher->id, protection->key, handle, write_to_eof);
+	PRINT(" - File size: %llu\n - Operation: %d\n - File path: %ws\n - App path: %ws\n",
+		*file_size, op, file_path, app_path);
+	PRINT(" - Protection: %p (cipher->id: %s, key: %p)\n - Handle: %p\n - write_to_eof: %u\n",
+		 protection, protection->cipher->id, protection->key, handle, write_to_eof);
 	PRINT(" - Orig buffer: %p\n - Orig bytes to write: %lu\n - Orig bytes written: %lu\n - Orig offset: %lld\n",
 		*orig_buffer, *orig_bytes_to_write, **orig_bytes_written, *orig_offset);
 	PRINT(" - Aux buffer: %p\n - Aux bytes to write: %lu\n - Aux bytes written: %lu\n - Aux offset: %lld\n",
@@ -1577,7 +1499,7 @@ int postWriteLogic(
 		mark_lvl = unmark(buffer1);
 
 		// Add to the table
-		addFMITableEntry(createFMI(file_path, mark_lvl, mark_lvl));
+		addFMITableEntry(createFMI(file_path, app_path, mark_lvl, mark_lvl, 0, 0));
 
 
 		// CASE OF CIPHER
@@ -1755,7 +1677,7 @@ int postWriteLogic(
 /**
 * Marks, checks and unmarks a predefined buffer and prints it in the screen to see if mark and internal huffman functions are working well.
 **/
-void testMark(){
+/*void testMarkOLD() {		// NOT WORKING due to OLD marking is used
 	PRINT("MARK TEST STARTS\n");
 	uint8_t* orig_buffer = NULL;
 	uint8_t* result_buffer = NULL;
@@ -1808,4 +1730,4 @@ void testMark(){
 	free(result_buffer);
 
 	PRINT("MARK TEST ENDS\n");
-}
+}*/

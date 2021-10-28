@@ -3,7 +3,7 @@
 
 /////  FILE INCLUDES  /////
 
-#include "context.h"	// This inclde has to be on the top
+#include "context.h"	// This include has to be on the top
 #include <winnt.h>
 #include <psapi.h>
 #include "dokan/DokanFiles/dokan.h"
@@ -22,9 +22,12 @@
 #define MARK_LENGTH 512
 
 struct FileMarkInfo {
-	WCHAR file_path[MAX_PATH];	// Contains the path to the file
+	WCHAR file_path[MAX_PATH];			// Contains the path to the file
+	WCHAR app_path[MAX_PATH];			// Contains the path of the application that used the file
 	int8_t write_buffer_mark_lvl;		// Contains the original ciphering level (-1, 0, 1) of the mark or unknown (represented by -128)
-	int8_t file_mark_lvl;		// Contains the current ciphering level (-1, 0, 1) of the mark or unknown (represented by -128)
+	int8_t file_mark_lvl;				// Contains the current ciphering level (-1, 0, 1) of the mark or unknown (represented by -128)
+	uint32_t frn;						// File Random Number
+	time_t last_closed;					// Time of last close (initialized to 0)
 };
 
 #define INVALID_MARK_LEVEL -128
@@ -40,16 +43,12 @@ DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path);
 void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key);
 void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key);
 
-BOOL checkMarkOLD(uint8_t* input);
-BOOL markOLD(uint8_t* input);
-BOOL unmarkOLD(uint8_t* input);
-
-//int8_t checkMark(uint8_t* input);
 int8_t mark(uint8_t* input, int8_t level);
 int8_t unmark(uint8_t* input);
 
 void testFMItable();
 void printFMITable();
+int purgeFMITable();
 
 
 // Logic functions
@@ -57,25 +56,25 @@ void printFMITable();
 BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path);
 
 int preReadLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID*  aux_buffer, DWORD*  aux_buffer_length, LPDWORD*  aux_read_length, LONGLONG*  aux_offset
 );
 
 int postReadLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID*  aux_buffer, DWORD*  aux_buffer_length, LPDWORD*  aux_read_length, LONGLONG*  aux_offset
 );
 
 int preWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 );
 
 int postWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID*   aux_buffer, DWORD*  aux_bytes_to_write, LPDWORD*  aux_bytes_written, LONGLONG*  aux_offset
 );
