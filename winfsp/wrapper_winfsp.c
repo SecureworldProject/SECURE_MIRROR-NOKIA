@@ -494,7 +494,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 
     // Initialize new read variables with updated values adjusted for the mark and possible block cipher
     error_code = preReadLogic(
-        file_size, op_final, file_path,
+        file_size, op_final, file_path, full_app_path,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
     );
@@ -513,7 +513,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 
     // Initialize new read variables with updated values adjusted for the mark and possible block cipher
     error_code = postReadLogic(
-        file_size, op_final, file_path, protections[THREAD_INDEX], Handle,
+        file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
     );
@@ -613,7 +613,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     }
 
     error_code = preWriteLogic(
-        &file_size, op_final, file_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
+        &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
     );
@@ -637,7 +637,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     }
 
     error_code = postWriteLogic(
-        &file_size, op_final, file_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
+        &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
     );
@@ -650,7 +650,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     }
 
     error_code = postWriteLogic(
-        &file_size, op_final, file_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
+        &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
     );

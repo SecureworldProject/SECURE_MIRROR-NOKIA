@@ -15,7 +15,7 @@
 #include "dokan/wrapper_dokan.h"
 #ifdef ENABLE_WINFSP
 	#include "winfsp/wrapper_winfsp.h"
-#endif // ENABLE_WINFSP
+#endif ENABLE_WINFSP
 
 
 

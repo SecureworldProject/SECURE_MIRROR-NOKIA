@@ -11,14 +11,14 @@
 #include "config.h"
 #include <Shlwapi.h>
 #pragma comment( lib, "shlwapi.lib")
-
+#include "winfsp/winfspFiles/winfsp.h"
 
 
 
 /////  DEFINITIONS  /////
 
 // Uncomment to enable WinFSP functionality
-//#define ENABLE_WINFSP
+#define ENABLE_WINFSP
 
 // Uncomment to launch volume mounter thread
 //#define RUN_VOLUME_MOUNTER

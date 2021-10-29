@@ -161,6 +161,7 @@
     <ClCompile Include="main.c" />
     <ClCompile Include="sharing_app.c" />
     <ClCompile Include="volume_mounter.c" />
+    <ClCompile Include="winfsp\wrapper_winfsp.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h" />
@@ -172,6 +173,7 @@
     <ClInclude Include="main.h" />
     <ClInclude Include="sharing_app.h" />
     <ClInclude Include="volume_mounter.h" />
+    <ClInclude Include="winfsp\wrapper_winfsp.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -45,6 +45,9 @@
     <ClCompile Include="dokan\wrapper_dokan.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="winfsp\wrapper_winfsp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
@@ -72,6 +75,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="dokan\wrapper_dokan.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="winfsp\wrapper_winfsp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
