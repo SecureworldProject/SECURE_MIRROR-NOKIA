@@ -29,7 +29,7 @@
 #define WIN32_NO_STATUS
 #include <windows.h>
 #undef WIN32_NO_STATUS
-#include <winternl.h>
+#include "winternl_winfsp.h"
 #pragma warning(push)
 #pragma warning(disable:4005)           /* macro redefinition */
 #include <ntstatus.h>
@@ -2021,11 +2021,11 @@ static inline
 NTSTATUS FspLoad(PVOID *PModule)
 {
 #if defined(_WIN64)
-#define FSP_DLLNAME                     "winfsp-x64.dll"
+#define FSP_DLLNAME                     L"winfsp-x64.dll"
 #else
-#define FSP_DLLNAME                     "winfsp-x86.dll"
+#define FSP_DLLNAME                     L"winfsp-x86.dll"
 #endif
-#define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
+#define FSP_DLLPATH                     L"bin\\" FSP_DLLNAME
 
     WINADVAPI
     LSTATUS

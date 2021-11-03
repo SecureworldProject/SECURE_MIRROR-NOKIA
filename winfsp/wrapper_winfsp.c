@@ -13,6 +13,8 @@
 //================================================================================================================
 /////  DEFINITIONS  /////
 
+#define WIDEN_(x)  L ## x
+#define WIDEN(x)   WIDEN_(x)
 
 #define PROGNAME                        "passthrough"
 #define ALLOCATION_UNIT                 4096
@@ -113,18 +115,21 @@ static NTSTATUS SvcStop(FSP_SERVICE* Service);
 
 /////  FUNCTION DEFINITIONS  /////
 
+#define DbgPrint(...) wprintf(__VA_ARGS__)
+
+
 int winfspMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
-    FSP_FILE_SYSTEM* FileSystem;
+    FSP_FILE_SYSTEM FileSystem;     // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
     PRINT("winfspMapAndLaunchMapAndLaunch parameters:    index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
 
     // Fill
-    FileSystem->thread_index = index;
+    FileSystem.thread_index = index;    // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
     wcscpy_s(RootDirectory[index], sizeof(RootDirectory[index]) / sizeof(WCHAR), path);
 
     WCHAR letter_and_null[2] = { L'\0', L'\0' };
     letter_and_null[0] = letter;
     wcscpy_s(MountPoint[index], 2, letter_and_null);
-    FileSystem->MountPoint = MountPoint[index];
+    FileSystem.MountPoint = MountPoint[index];  // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
 
     protections[index] = protection;
     volume_names[index] = volume_name;
@@ -996,10 +1001,10 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),
-        L"" PROGNAME);
+        WIDEN(PROGNAME));
 
     Result = FspFileSystemCreate(
-        VolumeParams.Prefix[0] ? L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME,
+        VolumeParams.Prefix[0] ? WIDEN(FSP_FSCTL_NET_DEVICE_NAME) : WIDEN(FSP_FSCTL_DISK_DEVICE_NAME),
         &VolumeParams,
         &PtfsInterface,
         &Ptfs->FileSystem);
@@ -1078,6 +1083,16 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
 #define argtos(v)                       if (arge > ++argp) v = *argp; else goto usage
 #define argtol(v)                       if (arge > ++argp) v = wcstol_deflt(*argp, v); else goto usage
+
+    static wchar_t usage[] = L""
+        WIDEN("usage: %s OPTIONS\n")
+        WIDEN("\n")
+        WIDEN("options:\n")
+        WIDEN("    -d DebugFlags       [-1: enable all debug logs]\n")
+        WIDEN("    -D DebugLogFile     [file path; use - for stderr]\n")
+        WIDEN("    -u \\Server\\Share    [UNC prefix (single backslash)]\n")
+        WIDEN("    -p Directory        [directory to expose as pass through file system]\n")
+        WIDEN("    -m MountPoint       [X:|*|directory]\n");
 
     wchar_t **argp, **arge;
     PWSTR DebugLogFile = 0;
@@ -1186,7 +1201,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     MountPoint = FspFileSystemMountPoint(Ptfs->FileSystem);
 
     info(L"%s%s%s -p %s -m %s",
-        L"" PROGNAME,
+        WIDEN(PROGNAME),
         0 != VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
             0 != VolumePrefix && L'\0' != VolumePrefix[0] ? VolumePrefix : L"",
         PassThrough,
@@ -1202,17 +1217,7 @@ exit:
     return Result;
 
 usage:
-    static wchar_t usage[] = L""
-        "usage: %s OPTIONS\n"
-        "\n"
-        "options:\n"
-        "    -d DebugFlags       [-1: enable all debug logs]\n"
-        "    -D DebugLogFile     [file path; use - for stderr]\n"
-        "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
-        "    -p Directory        [directory to expose as pass through file system]\n"
-        "    -m MountPoint       [X:|*|directory]\n";
-
-    fail(usage, L"" PROGNAME);
+    fail(usage, WIDEN(PROGNAME));
 
     return STATUS_UNSUCCESSFUL;
 
@@ -1236,5 +1241,5 @@ int WinfspMain(int argc, wchar_t **argv)
     if (!NT_SUCCESS(FspLoad(0)))
         return ERROR_DELAY_LOAD_FAILED;
     
-    return FspServiceRun(L"" PROGNAME, SvcStart, SvcStop, 0);
+    return FspServiceRun(WIDEN(PROGNAME), SvcStart, SvcStop, 0);
 }

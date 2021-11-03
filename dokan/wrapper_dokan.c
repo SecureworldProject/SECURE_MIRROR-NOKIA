@@ -93,16 +93,6 @@ static NTSTATUS DOKAN_CALLBACK MirrorDokanGetDiskFreeSpace(PULONGLONG FreeBytesA
  *
  * BEGIN
  */
-#pragma warning(push)
-#pragma warning(disable : 4201)
-typedef struct _IO_STATUS_BLOCK {
-	union {
-		NTSTATUS Status;
-		PVOID Pointer;
-	} DUMMYUNIONNAME;
-	ULONG_PTR Information;
-} IO_STATUS_BLOCK, * PIO_STATUS_BLOCK;
-#pragma warning(pop)
 
 NTSYSCALLAPI NTSTATUS NTAPI NtQueryInformationFile(_In_ HANDLE FileHandle, _Out_ PIO_STATUS_BLOCK IoStatusBlock, _Out_writes_bytes_(Length) PVOID FileInformation, _In_ ULONG Length, _In_ FILE_INFORMATION_CLASS FileInformationClass);
 /**

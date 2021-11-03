@@ -1355,4 +1355,16 @@ typedef struct _UNICODE_STRING {
   PWSTR Buffer;
 } UNICODE_STRING, *PUNICODE_STRING;
 
+#pragma warning(push)
+#pragma warning(disable : 4201)
+typedef struct _IO_STATUS_BLOCK {
+	union {
+		NTSTATUS Status;
+		PVOID Pointer;
+	} DUMMYUNIONNAME;
+	ULONG_PTR Information;
+} IO_STATUS_BLOCK, * PIO_STATUS_BLOCK;
+#pragma warning(pop)
+
+
 #endif // FILEINFO_H_

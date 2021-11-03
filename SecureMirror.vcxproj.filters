@@ -80,5 +80,16 @@
     <ClInclude Include="winfsp\wrapper_winfsp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="winfsp\winfspFiles\winternl_winfsp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="winfsp\winfspFiles\winfsp-x64.lib">
+      <Filter>Resource Files</Filter>
+    </Library>
+    <Library Include="winfsp\winfspFiles\winfsp-x86.lib">
+      <Filter>Resource Files</Filter>
+    </Library>
   </ItemGroup>
 </Project>
