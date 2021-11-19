@@ -333,7 +333,7 @@ void clearPathSlashes(WCHAR* path) {
 	WCHAR* tmp_str = NULL;
 
 	// Clear possible forward slashes into backward slashes
-	PRINT("Clearing slashes in '%ws'\n", path);
+	//PRINT("Clearing slashes in '%ws'\n", path);
 	tmp_str = wcschr(path, L'/');
 	while (tmp_str != NULL) {
 		*tmp_str = L'\\';
@@ -382,7 +382,7 @@ int fromDeviceToLetter(WCHAR** full_path) {
 	clearPathSlashes(*full_path);
 
 	// Change Device path for DOS letter path
-	PRINT("Looking for Device path match in '%ws'\n", *full_path);
+	//PRINT("Looking for Device path match in '%ws'\n", *full_path);
 	initial_len = wcslen(*full_path);
 	for (size_t i = 0; i < _msize(letter_device_table) / sizeof(struct LetterDeviceMap); i++) {
 		device_len = wcslen(letter_device_table[i].device);
@@ -422,15 +422,15 @@ void formatPath(WCHAR** full_path) {
 	DWORD attributes_flags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS;
 
 
-	PRINT("Function formatPath() starts with '%ws'\n", *full_path);
+	//PRINT("Function formatPath() starts with '%ws'\n", *full_path);
 	if (wcsstr(*full_path, L"Device") != NULL) {	//== &((*full_path)[1])) {
-		PRINT("Starting fromDeviceToLetter() function on '%ws'\n", *full_path);
+		//PRINT("Starting fromDeviceToLetter() function on '%ws'\n", *full_path);
 		switch (fromDeviceToLetter(full_path)) {
 			case 0:
-				PRINT("New path is: %ws\n", *full_path);
+				//PRINT("New path is: %ws\n", *full_path);
 				break;
 			case 1:
-				PRINT("No matches found\n");
+				//PRINT("No matches found\n");
 				break;
 			case 2:
 				fprintf(stderr, "ERROR: could not allocate memory\n");
@@ -440,7 +440,7 @@ void formatPath(WCHAR** full_path) {
 				break;
 		}
 	} else {
-		PRINT("Skipping device to letter conversion...\n");
+		//PRINT("Skipping device to letter conversion...\n");
 	}
 
 	// Warning: VirtualBox shared folder paths like "\Device\Mup\VBoxSvr\SECUREWORLD\SECURE_MIRROR-NOKIA\x64\Release\SecureMirror.exe" are shown as Non-existent
@@ -460,7 +460,7 @@ void formatPath(WCHAR** full_path) {
 	}*/
 
 	handle = CreateFileW(*full_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, attributes_flags, NULL);
-	PRINT("handle = %p, full_path = %ws\n", handle, *full_path);
+	//PRINT("handle = %p, full_path = %ws\n", handle, *full_path);
 
 	if (handle != INVALID_HANDLE_VALUE && handle != NULL) {
 		result = GetFinalPathNameByHandleW(handle, new_full_path, 0, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
@@ -485,7 +485,7 @@ void formatPath(WCHAR** full_path) {
 		fprintf(stderr, "ERROR: invalid file handle (%lu)\n", GetLastError());
 	}
 
-	PRINT("Function formatPath() ends with '%ws'\n", *full_path);
+	//PRINT("Function formatPath() ends with '%ws'\n", *full_path);
 }
 
 void printLastError(DWORD error_value){

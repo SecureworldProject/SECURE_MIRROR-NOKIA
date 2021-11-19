@@ -302,6 +302,7 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 	DWORD bytes_written = 0;
 
 	int8_t mark_lvl = 0;
+	uint32_t frn = 0;
 
 	struct Protection* protection = NULL;
 	struct KeyData* composed_key = NULL;
@@ -444,7 +445,7 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 			// If it is the first iteration, take care of the possible mark
 			if (i == 0) {
 				// Unmark if needed
-				mark_lvl = unmark(read_buf);
+				mark_lvl = unmark(read_buf, &frn);
 			}
 
 			// Decipher if needed (always unless file is already on level -1)
@@ -470,12 +471,12 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 				}
 
 				// Decipher
-				invokeDecipher(protection->cipher, write_buf, read_buf, rw_buf_size, i * READ_BUF_SIZE, composed_key);
+				invokeDecipher(protection->cipher, write_buf, read_buf, rw_buf_size, i * READ_BUF_SIZE, composed_key, frn);
 
 				// If it is the first iteration, mark with one level less (1 --> 0, 0 --> -1)
 				if (i == 0) {
 					// Mark if needed
-					mark(write_buf, mark_lvl - 1);
+					mark(write_buf, mark_lvl - 1, frn);
 				}
 			} else {
 				memcpy_s(write_buf, rw_buf_size, read_buf, rw_buf_size);

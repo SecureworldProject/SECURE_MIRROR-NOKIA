@@ -1,20 +1,6 @@
 #ifndef __MAIN_H
 #define __MAIN_H
 
-
-/////  FILE INCLUDES  /////
-
-#include <Windows.h>
-#include "dokan/DokanFiles/dokan.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include "config.h"
-#include <Shlwapi.h>
-#pragma comment( lib, "shlwapi.lib")
-#include "winfsp/winfspFiles/winfsp.h"
-
-
-
 /////  DEFINITIONS  /////
 
 // Uncomment to enable WinFSP functionality
@@ -26,7 +12,26 @@
 // Uncomment to launch fmi table test at the beginning
 //#define RUN_FMI_TABLE_TEST
 
+// Uncomment to print context at the beginning
+//#define RUN_PRINT_CONTEXT
+
 #define NUM_LETTERS 26
+
+
+
+/////  FILE INCLUDES  /////
+
+#include <Windows.h>
+#include "dokan/DokanFiles/dokan.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "config.h"
+#include <Shlwapi.h>
+#pragma comment( lib, "shlwapi.lib")
+#ifdef ENABLE_WINFSP
+	#include "winfsp/winfspFiles/winfsp.h"
+#endif //ENABLE_WINFSP
+
 
 
 

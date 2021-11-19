@@ -8,9 +8,7 @@
 	#include "volume_mounter.h"
 #endif //RUN_VOLUME_MOUNTER
 
-#ifdef RUN_FMI_TABLE_TEST
-	#include "logic.h"
-#endif //RUN_FMI_TABLE_TEST
+#include "logic.h"
 
 #include "dokan/wrapper_dokan.h"
 #ifdef ENABLE_WINFSP
@@ -62,7 +60,14 @@ int main(int argc, char* argv[]) {
 	loadContext();
 
 	// Print the context
-	printContext();
+	#ifdef RUN_PRINT_CONTEXT
+		printContext();
+	#endif //RUN_PRINT_CONTEXT
+
+	// Launch purge thread
+	HANDLE purge_thread;
+	purge_thread = CreateThread(NULL, 0, threadPurge, NULL, 0, NULL);
+
 
 	// For each folder create and launch a thread and make it call threadDokan() or threadWinFSP()
 	number_of_folders = _msize(ctx.folders) / sizeof(struct Folder*);

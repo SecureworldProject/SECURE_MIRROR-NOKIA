@@ -399,14 +399,13 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 	GetFilePath(file_path, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 
 	DbgPrint(L"CreateFile : %s\n", file_path);
-	//==========================================================
-	//VER EL PATH
-	//wprintf(L"Path: %s, Op: CreateFile\n", filePath);
-	//==========================================================
 
 	WCHAR* full_app_path;
 	full_app_path = getAppPathDokan(DokanFileInfo);
 
+	#ifdef PRINT_OP_CREATE
+	PRINT("Op: MIRROR CREATE FILE,   APP_Path: %ws,   FILE_path: %ws\n", (full_app_path != NULL) ? full_app_path : L"NULL", file_path);
+	#endif
 
 	if (preCreateLogic(file_path, full_app_path)) {
 		return STATUS_IO_PRIVILEGE_FAILED;
@@ -691,60 +690,86 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 
 static void DOKAN_CALLBACK MirrorCloseFile(LPCWSTR FileName,
 	PDOKAN_FILE_INFO DokanFileInfo) {
-	WCHAR filePath[DOKAN_MAX_PATH];
-	GetFilePath(filePath, DOKAN_MAX_PATH, FileName, DokanFileInfo);
-	//==========================================================
-	//VER EL PATH
-	//wprintf(L"Path: %s, Op: CloseFile\n", filePath);
-	//==========================================================
-	if (DokanFileInfo->Context) {
-		DbgPrint(L"CloseFile: %s\n", filePath);
+
+	#ifdef PRINT_OP_CLOSE
+	WCHAR file_path[MAX_PATH];
+	WCHAR* full_app_path = NULL;
+
+	GetFilePath(file_path, MAX_PATH, FileName, DokanFileInfo);
+	if (DokanFileInfo) {
+		full_app_path = getAppPathDokan(DokanFileInfo);
+		formatPath(&full_app_path);
+	}
+
+	PRINT("Op: MIRROR CLOSE FILE,   APP_Path: %ws,   FILE_path: %ws\n", (full_app_path != NULL) ? full_app_path : L"NULL", file_path);
+	#endif
+
+	if (DokanFileInfo && DokanFileInfo->Context) {
+		if (CloseHandle((HANDLE)DokanFileInfo->Context)) {
+			DokanFileInfo->Context = 0;
+		}
+	}
+
+	#ifdef PRINT_OP_CLOSE
+	free(full_app_path);
+	#endif
+
+	/*if (DokanFileInfo->Context) {
+		DbgPrint(L"CloseFile: %s\n", file_path);
 		DbgPrint(L"\terror : not cleanuped file\n\n");
 		CloseHandle((HANDLE)DokanFileInfo->Context);
 		DokanFileInfo->Context = 0;
 	} else {
-		DbgPrint(L"Close: %s\n\n", filePath);
-	}
+		DbgPrint(L"Close: %s\n\n", file_path);
+	}*/
 }
 
 static void DOKAN_CALLBACK MirrorCleanup(LPCWSTR FileName,
 	PDOKAN_FILE_INFO DokanFileInfo) {
-	WCHAR filePath[DOKAN_MAX_PATH];
-	GetFilePath(filePath, DOKAN_MAX_PATH, FileName, DokanFileInfo);
+	WCHAR file_path[MAX_PATH];
+	WCHAR* full_app_path = NULL;
 
-	//==========================================================
-	//VER EL PATH
-	//wprintf(L"Path: %s, Op: CleanUp\n", filePath);
-	//==========================================================
-
-	if (DokanFileInfo->Context) {
-		DbgPrint(L"Cleanup: %s\n\n", filePath);
-		CloseHandle((HANDLE)(DokanFileInfo->Context));
-		DokanFileInfo->Context = 0;
-	} else {
-		DbgPrint(L"Cleanup: %s\n\tinvalid handle\n\n", filePath);
+	GetFilePath(file_path, MAX_PATH, FileName, DokanFileInfo);
+	if (DokanFileInfo) {
+		full_app_path = getAppPathDokan(DokanFileInfo);
+		formatPath(&full_app_path);
 	}
 
-	if (DokanFileInfo->DeleteOnClose) {
-		// Should already be deleted by CloseHandle
-		// if open with FILE_FLAG_DELETE_ON_CLOSE
+	#ifdef PRINT_OP_CLEANUP
+	PRINT("Op: MIRROR CLEANUP FILE,   APP_Path: %ws,   FILE_path: %ws\n", (full_app_path != NULL) ? full_app_path : L"NULL", file_path);
+	#endif
+
+	if (DokanFileInfo && DokanFileInfo->Context) {
+		//DbgPrint(L"Cleanup: %s\n\n", file_path);
+		if (CloseHandle((HANDLE)(DokanFileInfo->Context))) {
+			postCleanupLogic(file_path, full_app_path);
+			DokanFileInfo->Context = 0;
+		}
+	} else {
+		DbgPrint(L"Cleanup: %s\n\tinvalid handle\n\n", file_path);
+	}
+
+	if (DokanFileInfo && DokanFileInfo->DeleteOnClose) {
+		// Should already be deleted by CloseHandle if open with FILE_FLAG_DELETE_ON_CLOSE
 		DbgPrint(L"\tDeleteOnClose\n");
 		if (DokanFileInfo->IsDirectory) {
 			DbgPrint(L"  DeleteDirectory ");
-			if (!RemoveDirectory(filePath)) {
+			if (!RemoveDirectory(file_path)) {
 				DbgPrint(L"error code = %d\n\n", GetLastError());
 			} else {
 				DbgPrint(L"success\n\n");
 			}
 		} else {
 			DbgPrint(L"  DeleteFile ");
-			if (DeleteFile(filePath) == 0) {
+			if (!DeleteFile(file_path)) {
 				DbgPrint(L" error code = %d\n\n", GetLastError());
 			} else {
 				DbgPrint(L"success\n\n");
 			}
 		}
 	}
+
+	free(full_app_path);
 }
 
 static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
@@ -755,7 +780,6 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	WCHAR file_path[DOKAN_MAX_PATH];
 	HANDLE handle = (HANDLE)DokanFileInfo->Context;
-	//ULONG offset = (ULONG)Offset;
 	BOOL opened = FALSE;
 	GetFilePath(file_path, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 

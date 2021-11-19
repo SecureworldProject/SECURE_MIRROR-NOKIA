@@ -148,7 +148,7 @@ extern "C" {
 
 	struct KeyData {
 		byte* data;
-		int size;
+		int size;			// Size in bytes of data
 		time_t expires;		// In the case of the full key we will take the first expire date
 	};
 
