@@ -1850,9 +1850,9 @@ int postWriteLogic(
 
 
 int postCleanupLogic(WCHAR* file_path, WCHAR* app_path) {
-	PRINT("postCleanupLogic!!\n");
-	PRINT(" - File path: %ws\n - App path: %ws\n",
-		file_path, app_path);
+	//PRINT("postCleanupLogic!!\n");
+	//PRINT(" - File path: %ws\n - App path: %ws\n",
+	//	file_path, app_path);
 
 	struct FileMarkInfo* fmi = NULL;
 	time_t current_time = 0;
@@ -1861,7 +1861,7 @@ int postCleanupLogic(WCHAR* file_path, WCHAR* app_path) {
 	time(&current_time);
 
 	fmi = getFMITableEntry(file_path, app_path);
-	printFMI(fmi);
+	//printFMI(fmi);
 	if (fmi != NULL) {
 		fmi->last_closed = current_time;
 	}

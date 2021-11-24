@@ -118,9 +118,30 @@ static NTSTATUS SvcStop(FSP_SERVICE* Service);
 #define DbgPrint(...) wprintf(__VA_ARGS__)
 
 
+PPEB getPeb() {
+    #if defined(_M_X64) // x64
+    PTEB tebPtr = (PTEB)__readgsqword(offsetof(NT_TIB, Self));
+    #else // x86
+    PTEB tebPtr = (PTEB)__readfsdword(offsetof(NT_TIB, Self));
+    #endif
+    return tebPtr->ProcessEnvironmentBlock;
+}
+
 int winfspMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
-    FSP_FILE_SYSTEM FileSystem;     // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
-    PRINT("winfspMapAndLaunchMapAndLaunch parameters:    index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
+    PRINT("winfspMapAndLaunch parameters:   index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
+    PRINT("CMDLINE: %ws \n", GetCommandLineW());
+
+
+    wcscpy_s(RootDirectory[0], sizeof(RootDirectory[index]) / sizeof(WCHAR), path);
+
+    WCHAR letter_colon_and_null[3] = { L'\0', L':', L'\0' };
+    letter_colon_and_null[0] = letter;
+    wcscpy_s(MountPoint[0], 3, letter_colon_and_null);
+
+    protections[0] = protection;
+    volume_names[0] = volume_name;
+
+    /*FSP_FILE_SYSTEM FileSystem;     // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
 
     // Fill
     FileSystem.thread_index = index;    // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
@@ -133,10 +154,48 @@ int winfspMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name,
 
     protections[index] = protection;
     volume_names[index] = volume_name;
-    
-    
-    static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UINT32 DebugFlags, PTFS * *PPtfs);
-    int WinfspMain(int argc, wchar_t** argv);
+
+    SvcStart();
+
+    PTFS* ptfs = NULL;
+    NTSTATUS result = ERROR_SUCCESS;
+    result = PtfsCreate(path, L"", letter_and_null, 0, &ptfs);
+    if (!NT_SUCCESS(result)) {    // volume prefix = &L'\0' = L""
+        PRINT("ERROR in PtfsCreate(): %lu\n", result);
+        printLastError(result);
+        return -1;  // Error
+    }*/
+    //static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UINT32 DebugFlags, PTFS **PPtfs);
+
+
+    /*PPEB peb = getPeb();
+    if (peb == NULL) {
+        PRINT("ERROR geting PEB\n");
+        return -1;
+    }
+    UNICODE_STRING cmd_line = peb->ProcessParameters->CommandLine;
+
+    PRINT("PEB CMDLINE: %ws, currlen=%us, maxlen = %us\n", cmd_line.Buffer, cmd_line.Length, cmd_line.MaximumLength);
+
+    //peb->ProcessParameters->CommandLine.Buffer = malloc(peb->ProcessParameters->CommandLine.MaximumLength *sizeof(WCHAR));
+    wcscpy(cmd_line.Buffer, L"passthrough -p C:/Users/Juanito/ -m G:");
+    cmd_line.Length = wcslen(cmd_line.Buffer);
+
+    PRINT("PEB CMDLINE2: %ws \n", cmd_line.Buffer);
+    PRINT("NEW CMDLINE: %ws \n", GetCommandLineW());*/
+
+
+    // Basically only calls FspServiceRun() which is a macro from FspServiceRunEx().
+    // At some point this function calls FspServiceLoop().
+    // This function (among other things) calls StartServiceCtrlDispatcherW() with a ServiceTable in which the SvcStart pointer is set.
+    // If it fails, does the following:
+        // Gets the arguments from cmd with the call:
+        // Argv = CommandLineToArgvW(GetCommandLineW(), &Argc);
+        // Then, uses the obtained parameters to create a thread with this call:
+        // Thread = CreateThread(0, 0, FspServiceConsoleModeThread, Argv, 0, 0);
+    int argc = 0;
+    WCHAR* argv = NULL;
+    WinfspMain(argc, argv);     // Parameters are not used
 }
 
 WCHAR* getAppPathWinfsp() {
@@ -1099,14 +1158,15 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     ULONG DebugFlags = 0;
     PWSTR VolumePrefix = 0;
     PWSTR PassThrough = 0;
-    PWSTR MountPoint = 0;
+    PWSTR MountPointLocal = 0;
     HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
     WCHAR PassThroughBuf[MAX_PATH];
     PTFS *Ptfs = 0;
     NTSTATUS Result;
 
-    for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
+    /*for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
     {
+        PRINT("argp: %ws\n", argp[0]);
         if (L'-' != argp[0][0])
             break;
         switch (argp[0][1])
@@ -1135,6 +1195,12 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     if (arge > argp)
         goto usage;
+    */
+
+    // Use global variables as input parameters, instead of CMD line arguments
+    PassThrough = RootDirectory[0];
+    MountPointLocal = MountPoint[0];
+    PRINT("SvcStart: RootDirectory[0] = %ws , MountPoint[0] = %ws \n", RootDirectory[0], MountPoint[0]);
 
     if (0 == PassThrough && 0 != VolumePrefix)
     {
@@ -1157,7 +1223,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         }
     }
 
-    if (0 == PassThrough || 0 == MountPoint)
+    if (0 == PassThrough || 0 == MountPointLocal)
         goto usage;
 
     EnableBackupRestorePrivileges();
@@ -1184,7 +1250,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         FspDebugLogSetHandle(DebugLogHandle);
     }
 
-    Result = PtfsCreate(PassThrough, VolumePrefix, MountPoint, DebugFlags, &Ptfs);
+    Result = PtfsCreate(PassThrough, VolumePrefix, MountPointLocal, DebugFlags, &Ptfs);
     if (!NT_SUCCESS(Result))
     {
         fail(L"cannot create file system");
@@ -1198,14 +1264,14 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         goto exit;
     }
 
-    MountPoint = FspFileSystemMountPoint(Ptfs->FileSystem);
+    MountPointLocal = FspFileSystemMountPoint(Ptfs->FileSystem);
 
     info(L"%s%s%s -p %s -m %s",
         WIDEN(PROGNAME),
         0 != VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
             0 != VolumePrefix && L'\0' != VolumePrefix[0] ? VolumePrefix : L"",
         PassThrough,
-        MountPoint);
+        MountPointLocal);
 
     Service->UserContext = Ptfs;
     Result = STATUS_SUCCESS;
