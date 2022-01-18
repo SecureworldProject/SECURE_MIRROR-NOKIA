@@ -64,6 +64,8 @@ struct LetterDeviceMap {
 
 struct LetterDeviceMap* letter_device_table;
 
+static BOOL testing_mode_on = FALSE;
+
 
 
 

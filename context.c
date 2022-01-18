@@ -223,8 +223,8 @@ inline enum Operation* getOperations(enum AppType app_type, struct OpTable* tabl
 
 		for (int i = 0; i < _msize(table->tuples) / sizeof(struct Tuple*); i++) {
 			if (table->tuples[i]->app_type == app_type) {
-				operations[ON_READ] = table->tuples[i]->on_read;
-				operations[ON_WRITE] = table->tuples[i]->on_write;
+				operations[IRP_OP_READ] = table->tuples[i]->on_read;
+				operations[IRP_OP_WRITE] = table->tuples[i]->on_write;
 				return operations;
 			}
 			if (table->tuples[i]->app_type == ANY) {
@@ -232,8 +232,8 @@ inline enum Operation* getOperations(enum AppType app_type, struct OpTable* tabl
 			}
 		}
 		if (tab_tuple_default != NULL) {
-			operations[ON_READ] = tab_tuple_default->on_read;
-			operations[ON_WRITE] = tab_tuple_default->on_write;
+			operations[IRP_OP_READ] = tab_tuple_default->on_read;
+			operations[IRP_OP_WRITE] = tab_tuple_default->on_write;
 		} else {
 			free(operations);
 			operations = NULL;

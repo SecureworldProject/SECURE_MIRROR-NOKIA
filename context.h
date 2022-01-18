@@ -90,10 +90,11 @@ extern "C" {
 	/////  CONTEXT STRUCTS AND ENUMS  /////
 
 	enum IrpOperation {
-		ON_READ,
-		ON_WRITE
+		IRP_OP_READ = 0,
+		IRP_OP_WRITE
 	};
 	#define NUM_IRP_OPERATIONS 2
+	static const char* IRP_OPERATION_STRINGS[] = { "READ", "WRITE" };
 
 	// FOR FUTURE USE - performance improvement: create a context for each volume (each mirror thread) and a context for each file handle (in PDOKAN_FILE_INFO.Context)
 	/*
@@ -135,7 +136,7 @@ extern "C" {
 	};
 
 	enum Driver {
-		DOKAN,
+		DOKAN = 0,
 		WINFSP
 	};
 
@@ -176,22 +177,20 @@ extern "C" {
 	};
 
 	enum AppType {
-		ANY,
+		ANY = 0,
 		BROWSER,
 		MAILER,
-		BLOCKED
+		BLOCKED,
+		TEST
 	};
-	//const char* APP_TYPE_STRINGS[] = { "ANY, "BROWSER", "MAILER", "BLOCKED" };
+	static const char* APP_TYPE_STRINGS[] = { "ANY", "BROWSER", "MAILER", "BLOCKED", "TEST"};
 
 	enum Operation {
-		NOTHING,
+		NOTHING = 0,
 		CIPHER,
-		DECIPHER,
-		MARK,
-		UNMARK,
-		IF_MARK_UNMARK_ELSE_CIPHER,
-		IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING
+		DECIPHER
 	};
+	static const char* OPERATION_STRINGS[] = { "NOTHING", "CIPHER", "DECIPHER" };
 
 	struct App {		// We search by path and name, not by type
 		WCHAR* path;

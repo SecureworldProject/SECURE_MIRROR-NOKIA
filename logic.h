@@ -51,8 +51,9 @@ enum Operation operationAddition(enum Operation op1, enum Operation op2);
 enum Operation getOpSyncFolder(enum IrpOperation irp_op, WCHAR file_path[]);
 DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path);
 
-void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn);
-void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn);
+void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn);
+void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn);
+uint32_t createFRN();
 
 int8_t mark(uint8_t* input, int8_t level, uint32_t frn);
 int8_t unmark(uint8_t* input, uint32_t* frn);

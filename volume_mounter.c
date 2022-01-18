@@ -163,13 +163,13 @@ DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_
 
 
 	// Print all volumes "volumes_to_mount" list
-	/*
+
 	PRINT("\n\nThe volumes to mount are the following:\n");
 	for (size_t i = 0; i < *num_volumes_to_mount; i++) {
 		PRINT1("%ws \n", volumes_to_mount[i]);
 	}
 	PRINT("\n\n");
-	*/
+
 
 	return error;
 }
@@ -234,22 +234,26 @@ DWORD securelyMountVolumes(
 
 		// Mount the volume in the new folder
 		// eg.: SetVolumeMountPointW("C:\\drives\\{090dccd9-a5f5-4983-b685-ddd6331ef319}\\", "\\\\?\\Volume{090dccd9-a5f5-4983-b685-ddd6331ef319}\\");
-		SetVolumeMountPointW(new_folder_path, volumes_to_mount[i]);
+		if (!SetVolumeMountPointW(new_folder_path, volumes_to_mount[i])) {
+			PRINT1("%ws could NOT be mounted in %ws\n", volumes_to_mount[i], new_folder_path);
+			printLastError(GetLastError());
+			break;
+		}
 		PRINT1("MOUNTED %ws in %ws\n", volumes_to_mount[i], new_folder_path);
 
 
 		// Get the first available letter that is allowed by configuration (ctx.pendrive->mount_points)
 		for (size_t j = 0; j < NUM_LETTERS; j++) {
-			if (available_letters[j] != (WCHAR)'\0' && wcschr(ctx.pendrive->mount_points, available_letters[j]) != NULL) {
+			if (available_letters[j] != L'\0' && wcschr(ctx.pendrive->mount_points, available_letters[j]) != NULL) {
 				first_available_letter = available_letters[j];
-				available_letters[j] = '\0';
+				available_letters[j] = L'\0';
 				PRINT2("LETTER: %wc \n", first_available_letter);
 				break;
 			}
 		}
 
 		// Mount the created folder in the selected letter
-		mountVolume(thread_data_first_index + adding_thread_data_index, new_folder_path, first_available_letter, L"Automounted", ctx.pendrive->protection, threads, th_data);
+		mountVolume(thread_data_first_index + adding_thread_data_index, new_folder_path, first_available_letter, L"SecureWorld Automounted", ctx.pendrive->protection, threads, th_data);
 		adding_thread_data_index++;
 	}
 
@@ -264,6 +268,8 @@ void mountVolume(int index, WCHAR* path, WCHAR letter, WCHAR* name, struct Prote
 	data.letter = letter;
 	data.name = name;
 	data.protection = protection;
+
+	th_data[index] = data;
 
 	switch (ctx.pendrive->driver) {
 		case DOKAN:
@@ -342,8 +348,8 @@ BOOL hasVolumePaths(__in PWCHAR volume_name) {
 
 	paths = getVolumePaths(volume_name);
 
-	//PRINT("First path: '%ws'\n", paths);                   // Prints the first path
-	//PRINT("Legnth of first path: %llu\n", wcslen(paths));  // Prints the length of the first path (if it is 0, then there are no paths)
+	PRINT("First path: '%ws'\n", paths);                   // Prints the first path
+	PRINT("Legnth of first path: %llu\n", wcslen(paths));  // Prints the length of the first path (if it is 0, then there are no paths)
 
 	// Check if there is any path (length of first path >= 0)
 	if (wcslen(paths) > 0) {
