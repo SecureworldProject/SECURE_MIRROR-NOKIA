@@ -246,14 +246,14 @@ static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM* FileSystem, FSP_FSCTL_VOLUME_INFO* VolumeInfo)
 {
     PTFS* Ptfs = (PTFS*)FileSystem->UserContext;
-   // WCHAR Root[MAX_PATH];
+    WCHAR Root[MAX_PATH];
     ULARGE_INTEGER TotalSize, FreeSize;
 
 
-    if (!GetVolumePathName(Ptfs->Path, RootDirectory, THREAD_INDEX))
+    if (!GetVolumePathName(Ptfs->Path, Root, MAX_PATH))
         return FspNtStatusFromWin32(GetLastError());
 
-    if (!GetDiskFreeSpaceEx(RootDirectory, 0, &TotalSize, &FreeSize))
+    if (!GetDiskFreeSpaceEx(Root, 0, &TotalSize, &FreeSize))
         return FspNtStatusFromWin32(GetLastError());
 
     VolumeInfo->TotalSize = TotalSize.QuadPart;
@@ -521,7 +521,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     OVERLAPPED Overlapped = { 0 }; ///REVISAR TIPO DE DATO DISTINTO DE DOKAN////////////////////////////
 
     Overlapped.Offset = (DWORD)Offset; ///REVISAR EN DOKAN COMENTADO////////////////////////////
-    Overlapped.OffsetHigh = (DWORD)(Offset >> 32); ///REVISAR EN DOCAN COMENTADO////////////////////////////
+    Overlapped.OffsetHigh = (DWORD)(Offset >> 32); ///REVISAR EN DOkAN COMENTADO////////////////////////////
 
    
     //--------------------------------------------------------------------------------------
