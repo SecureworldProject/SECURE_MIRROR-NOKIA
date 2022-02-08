@@ -10,6 +10,7 @@
 #include "context.h"
 #include "logic.h"
 #include "keymaker.h"
+#include "system_test.h"
 
 
 
@@ -60,7 +61,8 @@ void sharingMainMenu() {
 		printf("  2) Create .uva file (share with third party)\n");
 		if (DEBUG_OPTIONS) {
 			printf("  3) (Debug only) Print the File Mark Info Table\n");
-			printf("  4) (Debug only) Test Wrapper\n");
+			printf("  4) (Debug only) Test System\n");
+			printf("  5) (Debug only) Print Unit Test Information\n");
 		}
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &choice)) {
@@ -84,6 +86,14 @@ void sharingMainMenu() {
 					case 4:
 						if (DEBUG_OPTIONS) {
 							printf("Not implemented yet.\n");
+							testEverything();
+							break;
+						}
+						// else goes through default
+					case 5:
+						if (DEBUG_OPTIONS) {
+							printf("Not implemented yet.\n");
+							printUnitTestData();
 							break;
 						}
 						// else goes through default

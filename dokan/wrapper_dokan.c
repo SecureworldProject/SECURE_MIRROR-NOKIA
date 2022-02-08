@@ -799,8 +799,8 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	full_app_path = getAppPathDokan(DokanFileInfo);
 	PRINT("Op: MIRROR READ FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-	op1 = getTableOperation(ON_READ, &full_app_path, MountPoint[THREAD_INDEX][0]);
-	op2 = getOpSyncFolder(ON_READ, file_path);
+	op1 = getTableOperation(IRP_OP_READ, &full_app_path, MountPoint[THREAD_INDEX][0]);
+	op2 = getOpSyncFolder(IRP_OP_READ, file_path);
 
 	op_final = operationAddition(op1, op2);
 	PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);
@@ -936,8 +936,8 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	full_app_path = getAppPathDokan(DokanFileInfo);
 	printf("Op: MIRROR WRITE FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-	op1 = getTableOperation(ON_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
-	op2 = getOpSyncFolder(ON_WRITE, file_path);
+	op1 = getTableOperation(IRP_OP_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
+	op2 = getOpSyncFolder(IRP_OP_WRITE, file_path);
 
 	op_final = operationAddition(op1, op2);
 	PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);

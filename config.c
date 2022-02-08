@@ -10,12 +10,12 @@ Nokia Febrero 2021
 /////  FILE INCLUDES  /////
 
 #include "config.h"
-//#include "json.h"         // Already in config.h
-//#include "context.h"      // Already in config.h
+//#include "json.h"			// Already in config.h
+//#include "context.h"		// Already in config.h
 #include <sys/stat.h>
 #include <stdio.h>
 #include <inttypes.h>
-//#include <stdint.h>       // Already in inttypes.h
+//#include <stdint.h>		// Already in inttypes.h
 #include <wchar.h>
 
 
@@ -120,11 +120,11 @@ static void processProtection(struct Protection* ctx_value, json_value* value, i
 		else if (strcmp(value->u.object.values[x].name, "ChallengeEqGroups") == 0) {
 			//Este objeto es un array
 			num_groups = value->u.object.values[x].value->u.array.length;
-			if (num_groups <= 0) {          // Fixes warning C6386 (Visual Studio bug)
+			if (num_groups <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 				ctx_value->challenge_groups = NULL;
 			} else {
 				#pragma warning(suppress: 4133)
-				ctx_value->challenge_groups = (char**) malloc(num_groups * sizeof(char*));   // Allocate space for all pointers to char
+				ctx_value->challenge_groups = (char**) malloc(num_groups * sizeof(char*));		// Allocate space for all pointers to char
 				if (ctx_value->challenge_groups) {
 					for (int i = 0; i < num_groups; i++) {
 						#pragma warning(suppress: 4133)
@@ -151,9 +151,9 @@ static void processProtection(struct Protection* ctx_value, json_value* value, i
 	ctx_value->key = (struct KeyData*)malloc(sizeof(struct KeyData) * 1);
 	struct KeyData* key = ctx_value->key;
 	if (key) {
-		key->size = 0;                                            // Obtain from config.json?
-		key->data = (byte*)malloc(sizeof(byte) * key->size);      // Key data is allocated as many space as indicated by the size member of the struct
-		key->expires = (time_t)0;                                 // Key expired in 1970
+		key->size = 0;											// Obtain from config.json?
+		key->data = (byte*)malloc(sizeof(byte) * key->size);	// Key data is allocated as many space as indicated by the size member of the struct
+		key->expires = (time_t)0;								// Key expired in 1970
 	} // else --> The pointer is null because it was not possible to allocate memory
 
 }
@@ -196,9 +196,9 @@ static void processFolder(int index, json_value* value, int depth) {
 
 		else if (strcmp(value->u.object.values[x].name, "Driver") == 0) {
 			driver_str = value->u.object.values[x].value->u.string.ptr;
-			if (strcmp(driver_str, "WinFSP") == 0)          driver = WINFSP;
-			else if (strcmp(driver_str, "DOKAN") == 0)      driver = DOKAN;
-			else                                            driver = DOKAN;     // This is the default driver: Dokan
+			if (strcmp(driver_str, "WinFSP") == 0)			driver = WINFSP;
+			else if (strcmp(driver_str, "Dokan") == 0)		driver = DOKAN;
+			else											driver = DOKAN;		// This is the default driver: Dokan
 			ctx.folders[index]->driver = driver;
 		}
 
@@ -220,7 +220,7 @@ static void processFolders(json_value* value, int depth) {
 	int in_folder_pos = 0;
 
 	array_length = value->u.array.length;
-	if (array_length <= 0) {        // Fixes warning C6386 (Visual Studio bug)
+	if (array_length <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 		ctx.folders = NULL;
 	} else {
 		ctx.folders = (struct Folder**)malloc(array_length * sizeof(struct Folder*));
@@ -253,7 +253,7 @@ static void processPendrive(json_value* value, int depth) {
 			ctx.pendrive->mount_points = (WCHAR*)malloc(sizeof(WCHAR) * ((value->u.object.values[x].value->u.string.length) + 1));
 			if (ctx.pendrive->mount_points) {
 				//strcpy(ctx.pendrive->mount_points, value->u.object.values[x].value->u.string.ptr);
-				for (size_t i = 0; i < value->u.object.values[x].value->u.string.length; i++) 		{
+				for (size_t i = 0; i < value->u.object.values[x].value->u.string.length; i++) {
 					ctx.pendrive->mount_points[i] = btowc(toupper(value->u.object.values[x].value->u.string.ptr[i]));
 				}
 				#pragma warning(suppress: 6386)
@@ -263,9 +263,9 @@ static void processPendrive(json_value* value, int depth) {
 
 		else if (strcmp(value->u.object.values[x].name, "Driver") == 0) {
 			driver_str = value->u.object.values[x].value->u.string.ptr;
-			if (strcmp(driver_str, "WinFSP") == 0)          driver = WINFSP;
-			else if (strcmp(driver_str, "DOKAN") == 0)      driver = DOKAN;
-			else                                            driver = DOKAN;     // This is the default driver: Dokan
+			if (strcmp(driver_str, "WinFSP") == 0)			driver = WINFSP;
+			else if (strcmp(driver_str, "Dokan") == 0)		driver = DOKAN;
+			else											driver = DOKAN;		// This is the default driver: Dokan
 			ctx.pendrive->driver = driver;
 		}
 
@@ -286,7 +286,7 @@ static void processParentalControls(json_value* value, int depth) {
 	json_value* array_value;
 
 	array_length = value->u.array.length;
-	if (array_length <= 0) {    // Fixes warning C6386 (Visual Studio bug)
+	if (array_length <= 0) {	// Fixes warning C6386 (Visual Studio bug)
 		ctx.parentals = NULL;
 	} else {
 		ctx.parentals = (struct ParentalControl**)malloc(array_length * sizeof(struct ParentalControl*));
@@ -307,7 +307,7 @@ static void processParentalControls(json_value* value, int depth) {
 
 						else if (strcmp(array_value->u.object.values[j].name, "Users") == 0) {
 							users_array_length = array_value->u.object.values[j].value->u.array.length;
-							if (users_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+							if (users_array_length <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 								ctx.parentals[i]->users = NULL;
 							} else {
 								ctx.parentals[i]->users = (WCHAR**)malloc(users_array_length * sizeof(WCHAR*));
@@ -324,7 +324,7 @@ static void processParentalControls(json_value* value, int depth) {
 
 						else if (strcmp(array_value->u.object.values[j].name, "ChallengeEqGroups") == 0) {
 							groups_array_length = array_value->u.object.values[j].value->u.array.length;
-							if (groups_array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+							if (groups_array_length <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 								ctx.parentals[i]->challenge_groups = NULL;
 							} else {
 								// This will be a ChallengeEquivalenceGroup pointer pointer but for now it will hold ids, so force it to char pointer pointer
@@ -356,7 +356,7 @@ static void processSyncFolders(json_value* value, int depth) {
 	PRINT(" - processSyncFolders() starts\n");
 	int array_length;
 	array_length = value->u.array.length;
-	if (array_length <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+	if (array_length <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 		ctx.sync_folders = NULL;
 	} else {
 		ctx.sync_folders = (WCHAR**)malloc(array_length * sizeof(WCHAR*));
@@ -386,45 +386,37 @@ static void processTableTuple(int table_index, int row_index, json_value* value,
 		for (x = 0; x < num_elems; x++) {
 			if (strcmp(value->u.object.values[x].name, "AppType") == 0) {
 				app_type_str = value->u.object.values[x].value->u.string.ptr;
-				if (strcmp(app_type_str, "BROWSER") == 0) app_type = BROWSER;
-				else if (strcmp(app_type_str, "MAILER") == 0) app_type = MAILER;
-				else if (strcmp(app_type_str, "BLOCKED") == 0) app_type = BLOCKED;
-				else if (strcmp(app_type_str, "ANY") == 0) app_type = ANY;
+				if (strcmp(app_type_str, APP_TYPE_STRINGS[BROWSER]) == 0)		app_type = BROWSER;
+				else if (strcmp(app_type_str, APP_TYPE_STRINGS[MAILER]) == 0)	app_type = MAILER;
+				else if (strcmp(app_type_str, APP_TYPE_STRINGS[BLOCKED]) == 0)	app_type = BLOCKED;
+				else if (strcmp(app_type_str, APP_TYPE_STRINGS[ANY]) == 0)		app_type = ANY;
 				else {
 					fprintf(stderr, "WARNING: incorrect apptype, defaulting to ANY.\n");
-					app_type = ANY;         // If string does not match, ANY is used by default
+					app_type = ANY;			// If string does not match, ANY is used by default
 				}
 				ctx.tables[table_index]->tuples[row_index]->app_type = app_type;
 			}
 
-			else if (strcmp(value->u.object.values[x].name, "READ") == 0) {
+			else if (strcmp(value->u.object.values[x].name, IRP_OPERATION_STRINGS[IRP_OP_READ]) == 0) {
 				op_str = value->u.object.values[x].value->u.string.ptr;
-				if (strcmp(op_str, "NOTHING") == 0)         op = NOTHING;
-				else if (strcmp(op_str, "CIPHER") == 0)     op = CIPHER;
-				else if (strcmp(op_str, "DECIPHER") == 0)   op = DECIPHER;
-				else if (strcmp(op_str, "MARK") == 0)       op = MARK;
-				else if (strcmp(op_str, "UNMARK") == 0)     op = UNMARK;
-				else if (strcmp(op_str, "IF_MARK_UNMARK_ELSE_CIPHER") == 0)             op = IF_MARK_UNMARK_ELSE_CIPHER;
-				else if (strcmp(op_str, "IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING") == 0)  op = IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING;
+				if (strcmp(op_str, OPERATION_STRINGS[NOTHING]) == 0)		op = NOTHING;
+				else if (strcmp(op_str, OPERATION_STRINGS[CIPHER]) == 0)	op = CIPHER;
+				else if (strcmp(op_str, OPERATION_STRINGS[DECIPHER]) == 0)	op = DECIPHER;
 				else {
 					fprintf(stderr, "WARNING: incorrect read operation, defaulting to NOTHING.\n");
-					op = NOTHING;          // If string does not match, NOTHING is used by default
+					op = NOTHING;		// If string does not match, NOTHING is used by default
 				}
 				ctx.tables[table_index]->tuples[row_index]->on_read = op;
 			}
 
-			else if (strcmp(value->u.object.values[x].name, "WRITE") == 0) {
+			else if (strcmp(value->u.object.values[x].name, IRP_OPERATION_STRINGS[IRP_OP_WRITE]) == 0) {
 				op_str = value->u.object.values[x].value->u.string.ptr;
-				if (strcmp(op_str, "NOTHING") == 0)         op = NOTHING;
-				else if (strcmp(op_str, "CIPHER") == 0)     op = CIPHER;
-				else if (strcmp(op_str, "DECIPHER") == 0)   op = DECIPHER;
-				else if (strcmp(op_str, "MARK") == 0)       op = MARK;
-				else if (strcmp(op_str, "UNMARK") == 0)     op = UNMARK;
-				else if (strcmp(op_str, "IF_MARK_UNMARK_ELSE_CIPHER") == 0)             op = IF_MARK_UNMARK_ELSE_CIPHER;
-				else if (strcmp(op_str, "IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING") == 0)  op = IF_MARK_UNMARK_DECHIPHER_ELSE_NOTHING;
+				if (strcmp(op_str, OPERATION_STRINGS[NOTHING]) == 0)		op = NOTHING;
+				else if (strcmp(op_str, OPERATION_STRINGS[CIPHER]) == 0)	op = CIPHER;
+				else if (strcmp(op_str, OPERATION_STRINGS[DECIPHER]) == 0)	op = DECIPHER;
 				else {
 					fprintf(stderr, "WARNING: incorrect write operation, defaulting to NOTHING.\n");
-					op = NOTHING;          // If string does not match, NOTHING is used by default
+					op = NOTHING;		// If string does not match, NOTHING is used by default
 				}
 				ctx.tables[table_index]->tuples[row_index]->on_write = op;
 			}
@@ -439,7 +431,7 @@ static void processOperativeTables(json_value* value, int depth) {
 	json_value* row_value;
 
 	num_tables = value->u.object.length;
-	if (num_tables <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+	if (num_tables <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 		ctx.tables = NULL;
 	} else {
 		ctx.tables = (struct OpTable**)malloc(num_tables * sizeof(struct OpTable*));
@@ -454,7 +446,7 @@ static void processOperativeTables(json_value* value, int depth) {
 
 						// Each Tuple is a row of the Table (the number of tuples is the number of rows)
 						num_rows = value->u.object.values[i].value->u.array.length;
-						if (num_rows <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+						if (num_rows <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 							ctx.tables[i]->tuples = NULL;
 						} else {
 							ctx.tables[i]->tuples = (struct Tuple**)malloc(num_rows * sizeof(struct Tuple*));
@@ -499,13 +491,13 @@ static void processApp(int index, json_value* value, int depth) {
 
 			else if (strcmp(value->u.object.values[i].name, "AppType") == 0) {
 				app_type_str = value->u.object.values[i].value->u.string.ptr;
-				if (strcmp(app_type_str, "BROWSER") == 0) type = BROWSER;
-				else if (strcmp(app_type_str, "MAILER") == 0) type = MAILER;
-				else if (strcmp(app_type_str, "BLOCKED") == 0) type = BLOCKED;
-				else if (strcmp(app_type_str, "ANY") == 0) type = ANY;
+				if (strcmp(app_type_str, APP_TYPE_STRINGS[BROWSER]) == 0)		type = BROWSER;
+				else if (strcmp(app_type_str, APP_TYPE_STRINGS[MAILER]) == 0)	type = MAILER;
+				else if (strcmp(app_type_str, APP_TYPE_STRINGS[BLOCKED]) == 0)	type = BLOCKED;
+				else if (strcmp(app_type_str, APP_TYPE_STRINGS[ANY]) == 0)		type = ANY;
 				else {
 					fprintf(stderr, "WARNING: incorrect apptype, defaulting to ANY.\n");
-					type = ANY;         // If string does not match, ANY is used by default
+					type = ANY;			// If string does not match, ANY is used by default
 				}
 				ctx.apps[index]->type = type;
 			}
@@ -520,7 +512,7 @@ static void processApps(json_value* value, int depth) {
 	json_value* app_value;
 	num_apps = value->u.array.length;
 
-	if (num_apps <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+	if (num_apps <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 		ctx.apps = NULL;
 	} else {
 		ctx.apps = (struct App**)malloc(num_apps * sizeof(struct App*));
@@ -573,7 +565,7 @@ static void processChallengeEqGroup(int index, json_value* value, int depth) {
 	for (i = 0; i < num_elems; i++) {
 		if (strcmp(value->u.object.values[i].name, "ChallengeList") == 0) {
 			num_challenges = value->u.object.values[i].value->u.array.length;
-			if (num_challenges <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+			if (num_challenges <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 				ctx.groups[index]->challenges = NULL;
 			} else {
 				ctx.groups[index]->challenges = (struct Challenge**)malloc(num_challenges * sizeof(struct Challenge*));
@@ -591,9 +583,9 @@ static void processChallengeEqGroup(int index, json_value* value, int depth) {
 	ctx.groups[index]->subkey = (struct KeyData*)malloc(sizeof(struct KeyData) * 1);
 	struct KeyData *key = ctx.groups[index]->subkey;
 	if (key) {
-		key->size = 0;                                            // Obtain from config.json?
-		key->data = (byte*)malloc(sizeof(byte) * key->size);      // Key data is allocated as many space as indicated by the size member of the struct
-		key->expires = (time_t)0;                                 // Key expired in 1970
+		key->size = 0;											// Obtain from config.json?
+		key->data = (byte*)malloc(sizeof(byte) * key->size);	// Key data is allocated as many space as indicated by the size member of the struct
+		key->expires = (time_t)0;								// Key expired in 1970
 	} // else --> The pointer is null because it was not possible to allocate memory
 
 }
@@ -604,7 +596,7 @@ static void processChallengeEqGroups(json_value* value, int depth) {
 	json_value* group_value;
 
 	num_groups = value->u.object.length;
-	if (num_groups <= 0) {      // Fixes warning C6386 (Visual Studio bug)
+	if (num_groups <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 		ctx.groups = NULL;
 	} else {
 		ctx.groups = (struct ChallengeEquivalenceGroup**)malloc(num_groups * sizeof(struct ChallengeEquivalenceGroup*));
@@ -662,7 +654,7 @@ static void processCiphers(json_value* value, int depth) {
 	json_value* cipher_value;
 
 	num_ciphers = value->u.object.length;
-	if (num_ciphers <= 0) {     // Fixes warning C6386 (Visual Studio bug)
+	if (num_ciphers <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 		ctx.ciphers = NULL;
 	} else {
 		ctx.ciphers = (struct Cipher**)malloc(num_ciphers * sizeof(struct Cipher*));
@@ -715,7 +707,7 @@ static void processThirdParties(json_value* value, int depth) {
 	json_value* third_party_value;
 
 	num_third_parties = value->u.object.length;
-	if (num_third_parties <= 0) {     // Fixes warning C6386 (Visual Studio bug)
+	if (num_third_parties <= 0) {		// Fixes warning C6386 (Visual Studio bug)
 		ctx.third_parties = NULL;
 	} else {
 		ctx.third_parties = (struct ThirdParty**)malloc(num_third_parties * sizeof(struct ThirdParty*));
@@ -748,15 +740,15 @@ static void processContext(json_value* value, int depth) {
 	PRINT("\nProcessing config.json and filling context...\n");
 	num_main_fields = value->u.object.length;
 	for (int i = 0;i < num_main_fields;i++) {
-		if      (strcmp(value->u.object.values[i].name, "Folders") == 0)            processFolders(value->u.object.values[i].value, depth + 1);
-		else if (strcmp(value->u.object.values[i].name, "Pendrive") == 0)           processPendrive(value->u.object.values[i].value, depth + 1);
-		else if (strcmp(value->u.object.values[i].name, "ParentalControl") == 0)    processParentalControls(value->u.object.values[i].value, depth + 1);
-		else if (strcmp(value->u.object.values[i].name, "SyncFolders") == 0)        processSyncFolders(value->u.object.values[i].value, depth + 1);
-		else if (strcmp(value->u.object.values[i].name, "OperativeTables") == 0)    processOperativeTables(value->u.object.values[i].value, depth + 1);
-		else if (strcmp(value->u.object.values[i].name, "Apps") == 0)               processApps(value->u.object.values[i].value, depth + 1);
-		else if (strcmp(value->u.object.values[i].name, "ChallengeEqGroups") == 0)  processChallengeEqGroups(value->u.object.values[i].value, depth + 1);
-		else if (strcmp(value->u.object.values[i].name, "Ciphers") == 0)            processCiphers(value->u.object.values[i].value, depth + 1);
-		else if (strcmp(value->u.object.values[i].name, "ThirdParties") == 0)       processThirdParties(value->u.object.values[i].value, depth + 1);
+		if		(strcmp(value->u.object.values[i].name, "Folders") == 0)			processFolders(value->u.object.values[i].value, depth + 1);
+		else if (strcmp(value->u.object.values[i].name, "Pendrive") == 0)			processPendrive(value->u.object.values[i].value, depth + 1);
+		else if (strcmp(value->u.object.values[i].name, "ParentalControl") == 0)	processParentalControls(value->u.object.values[i].value, depth + 1);
+		else if (strcmp(value->u.object.values[i].name, "SyncFolders") == 0)		processSyncFolders(value->u.object.values[i].value, depth + 1);
+		else if (strcmp(value->u.object.values[i].name, "OperativeTables") == 0)	processOperativeTables(value->u.object.values[i].value, depth + 1);
+		else if (strcmp(value->u.object.values[i].name, "Apps") == 0)				processApps(value->u.object.values[i].value, depth + 1);
+		else if (strcmp(value->u.object.values[i].name, "ChallengeEqGroups") == 0)	processChallengeEqGroups(value->u.object.values[i].value, depth + 1);
+		else if (strcmp(value->u.object.values[i].name, "Ciphers") == 0)			processCiphers(value->u.object.values[i].value, depth + 1);
+		else if (strcmp(value->u.object.values[i].name, "ThirdParties") == 0)		processThirdParties(value->u.object.values[i].value, depth + 1);
 		else fprintf(stderr, "WARINING: the field '%s' included in config.json is not registered and will not be processed.\n", value->u.object.values[i].name);
 	}
 	PRINT("Processing completed\n");
@@ -798,10 +790,10 @@ void loadContext() {
 	}
 
 	// Try to open file
-	fp = fopen(file_name, "rb");    // Read is done y binary mode. Othrewise fread() does not return (fails)
+	fp = fopen(file_name, "rb");	// Read is done y binary mode. Othrewise fread() does not return (fails)
 	if (fp == NULL) {
 		fprintf(stderr, "Unable to open %s\n", file_name);
-		//fclose(fp);       // It is not needed to close file if fopen() fails
+		//fclose(fp);		// It is not needed to close file if fopen() fails
 		free(file_contents);
 		exit(1);
 	}
@@ -827,7 +819,7 @@ void loadContext() {
 	processContext(value, 0);
 
 	// Free unnecessary pointers
-	json_value_free(value);     // This frees all the internal pointers. Be sure to have copied the data and not just pointed to it.
+	json_value_free(value);		// This frees all the internal pointers. Be sure to have copied the data and not just pointed to it.
 	free(file_contents);
 
 	// Translate strings ids to pointers
@@ -849,10 +841,10 @@ void loadContext() {
 * Translates the char pointers which hold identifiers refering to other structs into pointers to those corresponding structs. 
 * Frees the identifier pointers so there is no memory leak. 
 * More specifically modifies the following fields: 
-*   (Folders[i]->Protection->OpTable & ChallengeEqGroups & Cipher),
-*   (Pendrive->Protection->OpTable & ChallengeEqGroups & Cipher),
-*   (Parental Control->ChallengeEqGroups),
-*   (Third Parties->Cipher).
+*	(Folders[i]->Protection->OpTable & ChallengeEqGroups & Cipher),
+*	(Pendrive->Protection->OpTable & ChallengeEqGroups & Cipher),
+*	(Parental Control->ChallengeEqGroups),
+*	(Third Parties->Cipher).
 * 
 * @return
 **/
@@ -864,33 +856,33 @@ void translateIdsToPointers() {
 	//PRINT("Translating ids to pointers: Folders  -->  Protection\n");
 	for (int i = 0; i < _msize(ctx.folders) / sizeof(struct Folder*); i++) {
 
-		// Fix ids from:    Folders  -->  Protection  -->  OpTable
+		// Fix ids from:	Folders  -->  Protection  -->  OpTable
 		//PRINT1("Translating ids to pointers: Folders  -->  Protection  -->  OpTable\n");
 
 		//PRINT1("ID before changes: %s\n", (char*)ctx.folders[i]->protection->op_table);
-		tmp_ptr = getOpTableById((char*)ctx.folders[i]->protection->op_table);  // Get true pointer
-		free(ctx.folders[i]->protection->op_table);                             // Free the char* of the ID
-		ctx.folders[i]->protection->op_table = tmp_ptr;                         // Assign the true pointer
+		tmp_ptr = getOpTableById((char*)ctx.folders[i]->protection->op_table);	// Get true pointer
+		free(ctx.folders[i]->protection->op_table);								// Free the char* of the ID
+		ctx.folders[i]->protection->op_table = tmp_ptr;							// Assign the true pointer
 		//PRINT1("ID after changes: %s\n", ctx.folders[i]->protection->op_table->id);
 
-		// Fix ids from:    Folders  -->  Protection  -->  ChallengeEqGroups
+		// Fix ids from:	Folders  -->  Protection  -->  ChallengeEqGroups
 		//PRINT1("Translating ids to pointers: Folders  -->  Protection  -->  ChallengeEqGroups: \n");
 		for (int j = 0; j < _msize(ctx.folders[i]->protection->challenge_groups) / sizeof(char*); j++) {
 
 			//PRINT2("ID before changes: %s\n", (char*)ctx.folders[i]->protection->challenge_groups[j]);
-			tmp_ptr = getChallengeGroupById((char*)ctx.folders[i]->protection->challenge_groups[j]);    // Get true pointer
-			free(ctx.folders[i]->protection->challenge_groups[j]);                                      // Free the char* of the ID
-			ctx.folders[i]->protection->challenge_groups[j] = tmp_ptr;                                  // Assign the true pointer
+			tmp_ptr = getChallengeGroupById((char*)ctx.folders[i]->protection->challenge_groups[j]);	// Get true pointer
+			free(ctx.folders[i]->protection->challenge_groups[j]);										// Free the char* of the ID
+			ctx.folders[i]->protection->challenge_groups[j] = tmp_ptr;									// Assign the true pointer
 			//PRINT2("ID after changes: %s\n", ctx.folders[i]->protection->challenge_groups[j]->id);
 		}
 
-		// Fix ids from:    Folders  -->  Protection  -->  Cipher
+		// Fix ids from:	Folders  -->  Protection  -->  Cipher
 		//PRINT1("Translating ids to pointers: Folders  -->  Protection  -->  Cipher\n");
 
 		//PRINT1("ID before changes: %s\n", (char*)ctx.folders[i]->protection->cipher);
-		tmp_ptr = getCipherById((char*)ctx.folders[i]->protection->cipher);     // Get true pointer
-		free(ctx.folders[i]->protection->cipher);                               // Free the char* of the ID
-		ctx.folders[i]->protection->cipher = tmp_ptr;                           // Assign the true pointer
+		tmp_ptr = getCipherById((char*)ctx.folders[i]->protection->cipher);		// Get true pointer
+		free(ctx.folders[i]->protection->cipher);								// Free the char* of the ID
+		ctx.folders[i]->protection->cipher = tmp_ptr;							// Assign the true pointer
 		//PRINT1("ID after changes: %s\n", ctx.folders[i]->protection->cipher->id);
 
 
@@ -899,57 +891,57 @@ void translateIdsToPointers() {
 
 	//PRINT("Translating ids to pointers: Pendrive  -->  Protection\n");
 
-	// Fix ids from:    Pendrive  -->  Protection  -->  OpTable
+	// Fix ids from:	Pendrive  -->  Protection  -->  OpTable
 	//PRINT1("Translating ids to pointers: Pendrive  -->  Protection  -->  OpTable\n");
 
 	//PRINT1("ID before changes: %s\n", (char*)ctx.pendrive->protection->op_table);
-	tmp_ptr = getOpTableById((char*)ctx.pendrive->protection->op_table);        // Get true pointer
-	free(ctx.pendrive->protection->op_table);                                   // Free the char* of the ID
-	ctx.pendrive->protection->op_table = tmp_ptr;                               // Assign the true pointer
+	tmp_ptr = getOpTableById((char*)ctx.pendrive->protection->op_table);		// Get true pointer
+	free(ctx.pendrive->protection->op_table);									// Free the char* of the ID
+	ctx.pendrive->protection->op_table = tmp_ptr;								// Assign the true pointer
 	//PRINT1("ID after changes: %s\n", ctx.pendrive->protection->op_table->id);
 
-	// Fix ids from:    Pendrive  -->  Protection  -->  ChallengeEqGroups
+	// Fix ids from:	Pendrive  -->  Protection  -->  ChallengeEqGroups
 	//PRINT1("Translating ids to pointers: Pendrive  -->  Protection  -->  ChallengeEqGroups: \n");
 	for (int j = 0; j < _msize(ctx.pendrive->protection->challenge_groups) / sizeof(char*); j++) {
 
 		//PRINT2("ID before changes: %s\n", (char*)ctx.pendrive->protection->challenge_groups[j]);
-		tmp_ptr = getChallengeGroupById((char*)ctx.pendrive->protection->challenge_groups[j]);          // Get true pointer
-		free(ctx.pendrive->protection->challenge_groups[j]);                                            // Free the char* of the ID
-		ctx.pendrive->protection->challenge_groups[j] = tmp_ptr;                                        // Assign the true pointer
+		tmp_ptr = getChallengeGroupById((char*)ctx.pendrive->protection->challenge_groups[j]);			// Get true pointer
+		free(ctx.pendrive->protection->challenge_groups[j]);											// Free the char* of the ID
+		ctx.pendrive->protection->challenge_groups[j] = tmp_ptr;										// Assign the true pointer
 		//PRINT2("ID after changes: %s\n", ctx.pendrive->protection->challenge_groups[j]->id);
 	}
 
-	// Fix ids from:    Pendrive  -->  Protection  -->  Cipher
+	// Fix ids from:	Pendrive  -->  Protection  -->  Cipher
 	//PRINT1("Translating ids to pointers: Pendrive  -->  Protection  -->  Cipher\n");
 
 	//PRINT1("ID before changes: %s\n", (char*)ctx.pendrive->protection->cipher);
-	tmp_ptr = getCipherById((char*)ctx.pendrive->protection->cipher);           // Get true pointer
-	free(ctx.pendrive->protection->cipher);                                     // Free the char* of the ID
-	ctx.pendrive->protection->cipher = tmp_ptr;                                 // Assign the true pointer
+	tmp_ptr = getCipherById((char*)ctx.pendrive->protection->cipher);			// Get true pointer
+	free(ctx.pendrive->protection->cipher);										// Free the char* of the ID
+	ctx.pendrive->protection->cipher = tmp_ptr;									// Assign the true pointer
 	//PRINT1("ID after changes: %s\n", ctx.pendrive->protection->cipher->id);
 
 
-	// Fix ids from:    Parental Control  -->  ChallengeEqGroups
+	// Fix ids from:	Parental Control  -->  ChallengeEqGroups
 	//PRINT("Translating ids to pointers: Parental Control  -->  ChallengeEqGroups: \n");
 	for (int i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
 		for (int j = 0; j < _msize(ctx.parentals[i]->challenge_groups) / sizeof(char*); j++) {
 
 			//PRINT1("ID before changes: %s\n", (char*)ctx.parentals[i]->challenge_groups[j]);
-			tmp_ptr = getChallengeGroupById((char*)ctx.parentals[i]->challenge_groups[j]);  // Get true pointer
-			free(ctx.parentals[i]->challenge_groups[j]);                                    // Free the char* of the ID
-			ctx.parentals[i]->challenge_groups[j] = tmp_ptr;                                // Assign the true pointer
+			tmp_ptr = getChallengeGroupById((char*)ctx.parentals[i]->challenge_groups[j]);	// Get true pointer
+			free(ctx.parentals[i]->challenge_groups[j]);									// Free the char* of the ID
+			ctx.parentals[i]->challenge_groups[j] = tmp_ptr;								// Assign the true pointer
 			//PRINT1("ID after changes: %s\n", ctx.parentals[i]->challenge_groups[j]->id);
 		}
 	}
 
 
-	// Fix ids from:    Third Parties  -->  Cipher
+	// Fix ids from:	Third Parties  -->  Cipher
 	//PRINT("Translating ids to pointers: Parental Control  -->  ChallengeEqGroups: \n");
 	for (int i = 0; i < _msize(ctx.third_parties) / sizeof(struct ThirdParty*); i++) {
 		//PRINT1("ID before changes: %s\n", (char*)ctx.third_parties[i]->cipher);
-		tmp_ptr = getCipherById((char*)ctx.third_parties[i]->cipher);           // Get true pointer
-		free(ctx.third_parties[i]->cipher);                                     // Free the char* of the ID
-		ctx.third_parties[i]->cipher = tmp_ptr;                                 // Assign the true pointer
+		tmp_ptr = getCipherById((char*)ctx.third_parties[i]->cipher);			// Get true pointer
+		free(ctx.third_parties[i]->cipher);										// Free the char* of the ID
+		ctx.third_parties[i]->cipher = tmp_ptr;									// Assign the true pointer
 		//PRINT1("ID after changes: %s\n", ctx.third_parties[i]->cipher->id);
 	}
 
@@ -1001,30 +993,30 @@ void convertSyncFolderPaths() {
 	// Let S be the number of sync folders and M the number of mirrored folders, the final number of converted sync folders is in the range [0, S*M].
 
 	// CASE 1:
-	// Example syncfolder:      "C:\Users\Sergio\OneDrive\"
-	// Example mirror path:     "C:\Users\Sergio\",  letter: 'H'
-	// Result: syncfolder has to be changed to      "H:\OneDrive\"
+	// Example syncfolder:		"C:\Users\Sergio\OneDrive\"
+	// Example mirror path:		"C:\Users\Sergio\",  letter: 'H'
+	// Result: syncfolder has to be changed to		"H:\OneDrive\"
 
 	// CASE 2:
-	// Example syncfolder:      "C:\Users\Sergio\OneDrive\"
-	// Example mirror path:     "C:\Users\Sergio\Onedrive\",  letter: 'H'
-	// Result: syncfolder has to be changed to      "H:\"
+	// Example syncfolder:		"C:\Users\Sergio\OneDrive\"
+	// Example mirror path:		"C:\Users\Sergio\Onedrive\",  letter: 'H'
+	// Result: syncfolder has to be changed to		"H:\"
 
 	// CASE 3:
-	// Example syncfolder:      "C:\Users\Sergio\OneDrive\"
-	// Example mirror path:     "C:\Users\Sergio\Onedrive\cosas\",  letter: 'H'
-	// Result: syncfolder has to be change to       "H:\"
+	// Example syncfolder:		"C:\Users\Sergio\OneDrive\"
+	// Example mirror path:		"C:\Users\Sergio\Onedrive\cosas\",  letter: 'H'
+	// Result: syncfolder has to be change to		"H:\"
 
 	// Any other case is a combination of the previous cases. Take next case as example
-	// Example syncfolder:      "C:\Users\Sergio\OneDrive\"
-	// Example mirror path:     "C:\Users\Sergio\",  letter: 'H'
-	// Example mirror path:     "C:\Users\Sergio\Onedrive\cosas\",  letter: 'I'
+	// Example syncfolder:		"C:\Users\Sergio\OneDrive\"
+	// Example mirror path:		"C:\Users\Sergio\",  letter: 'H'
+	// Example mirror path:		"C:\Users\Sergio\Onedrive\cosas\",  letter: 'I'
 	// Result: combination of case 1 and case 3. New sync folders: "H:\OneDrive\", "I:\"
 
 	// Another example:
-	// Example syncfolder:      "C:\Users\Sergio\Cosas\OneDrive\"
-	// Example mirror path:     "C:\Users\Sergio\",  letter: 'H'
-	// Example mirror path:     "C:\Users\Sergio\Cosas\",  letter: 'I'
+	// Example syncfolder:		"C:\Users\Sergio\Cosas\OneDrive\"
+	// Example mirror path:		"C:\Users\Sergio\",  letter: 'H'
+	// Example mirror path:		"C:\Users\Sergio\Cosas\",  letter: 'I'
 	// Result: combination of case 1 and case 1 again. New sync folders: "H:\Cosas\OneDrive\", "I:\OneDrive\"
 
 	WCHAR* tmp_str = NULL;
@@ -1058,19 +1050,19 @@ void convertSyncFolderPaths() {
 
 			mirr_len = wcslen(ctx.folders[j]->path);
 			sync_len = wcslen(ctx.sync_folders[i]);
-			if (mirr_len <= sync_len) {     // Only if mirror folder path is smaller or equal to sync folder path in length
+			if (mirr_len <= sync_len) {		// Only if mirror folder path is smaller or equal to sync folder path in length
 				// CASE 1 or CASE 2
 				tmp_str = wcsstr(ctx.sync_folders[i], ctx.folders[j]->path);
 				if (tmp_str != NULL && tmp_str == ctx.sync_folders[i]) {
 					// It matches a syncfolder (folder path is prefix of sync folder)
 					PRINT3("Match found, case 1 or case 2. Processing...\n");
 
-					tmp_str = (WCHAR*)malloc(sizeof(WCHAR) * (sync_len - mirr_len + 3 + 1));  // +3 to add letter ("X:\") and +1 is to add '\0'
+					tmp_str = (WCHAR*)malloc(sizeof(WCHAR) * (sync_len - mirr_len + 3 + 1));	// +3 to add letter ("X:\") and +1 is to add '\0'
 					if (tmp_str != NULL) {
 						tmp_str[0] = ctx.folders[j]->mount_point;
 						tmp_str[1] = L':';
 						tmp_str[2] = L'\\';
-						wcscpy(&(tmp_str[3]), &((ctx.sync_folders[i])[mirr_len + 1]));  // Append the rest of sync folder and '\0' (+1 to skip slash)
+						wcscpy(&(tmp_str[3]), &((ctx.sync_folders[i])[mirr_len + 1]));	// Append the rest of sync folder and '\0' (+1 to skip slash)
 
 						// Check if this match fits inside allocated space of new_sync_folders (if not, realloc so it fits)
 						if (new_sync_folder_index >= size_new_sync_folders) {
@@ -1096,7 +1088,7 @@ void convertSyncFolderPaths() {
 					// It matches a syncfolder (folder path is prefix of sync folder)
 					PRINT3("Match found, case 3. Processing...\n");
 
-					tmp_str = (WCHAR*)malloc(sizeof(WCHAR) * (3 + 1));  // 3 to add letter ("X:\") and +1 is to add '\0'
+					tmp_str = (WCHAR*)malloc(sizeof(WCHAR) * (3 + 1));		// 3 to add letter ("X:\") and +1 is to add '\0'
 					if (tmp_str != NULL) {
 						tmp_str[0] = ctx.folders[j]->mount_point;
 						tmp_str[1] = L':';
@@ -1126,7 +1118,7 @@ void convertSyncFolderPaths() {
 	// At this point:
 	// - ctx.sync_folders: has all old (non-translated) paths
 	// - new_sync_folders: has all new (translated) paths up to new_sync_folder_index (after that is not initializd memory),
-	//      but its size is size_new_sync_folders (>= new_sync_folder_index)
+	//		but its size is size_new_sync_folders (>= new_sync_folder_index)
 
 	PRINT1("Cleaning and reasigning internal pointers...\n");
 
@@ -1138,8 +1130,8 @@ void convertSyncFolderPaths() {
 
 
 	// Try to allocate memory for the correct size in ctx.sync_folders:
-	//      If it works: put the pointers to the translated paths in this new buffer and free the other (new_sync_folders)
-	//      If it does not work: assign the pointer to new_sync_folders to ctx.sync_folders and fill with NULLs the non used space for pointers.
+	//		If it works: put the pointers to the translated paths in this new buffer and free the other (new_sync_folders)
+	//		If it does not work: assign the pointer to new_sync_folders to ctx.sync_folders and fill with NULLs the non used space for pointers.
 	ctx.sync_folders = malloc(sizeof(WCHAR*) * new_sync_folder_index);
 	if (ctx.sync_folders) {
 		for (int i = 0; i < new_sync_folder_index; i++) {

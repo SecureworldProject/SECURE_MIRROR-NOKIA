@@ -69,7 +69,7 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info);
 struct FileMarkInfo* createFMI(WCHAR* file_path, WCHAR* app_path, int8_t buffer_mark_lvl, uint32_t buffer_frn, int8_t file_mark_lvl, uint32_t file_frn, time_t last_closed);
 void destroyFMI(struct FileMarkInfo* fmi);
 void printFMI(struct FileMarkInfo* fmi);
-uint32_t createFRN();
+struct KeyData* createFileBufferKey(struct KeyData* composed_key, uint32_t frn);
 
 
 
@@ -77,7 +77,7 @@ uint32_t createFRN();
 /////  FUNCTION IMPLEMENTATIONS  /////
 
 enum Operation getOpSyncFolder(enum IrpOperation irp_op, WCHAR file_path[]) {
-	enum operation op = NOTHING;
+	enum Operation op = NOTHING;
 	WCHAR* tmp_str = NULL;
 	PRINT("Checking if path (%ws) is in a syncfolder or not\n", file_path);
 
@@ -86,10 +86,10 @@ enum Operation getOpSyncFolder(enum IrpOperation irp_op, WCHAR file_path[]) {
 		tmp_str = wcsstr(file_path, ctx.sync_folders[i]);
 		if (tmp_str != NULL && tmp_str == file_path) {
 			// Match found
-			PRINT("Match found - Irp op (%s) in syncfolder (%ws)\n", (irp_op == 0) ? "READ":"WRITE", file_path);
-			if (irp_op == ON_READ) {
+			PRINT("Match found - Irp op (%s) in syncfolder (%ws)\n", (irp_op == IRP_OP_READ) ? "READ":"WRITE", file_path);
+			if (irp_op == IRP_OP_READ) {
 				op = DECIPHER;
-			} else if (irp_op == ON_WRITE) {
+			} else if (irp_op == IRP_OP_WRITE) {
 				op = CIPHER;
 			}
 		}
@@ -282,6 +282,9 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info) {
 *		The number of removed entries from the table. If an error occurs -1 is returned.
 **/
 int purgeFMITable() {
+	if (testing_mode_on) {
+		return;
+	}
 	int removed_entries = 0;
 	time_t current_time = 0;
 
@@ -343,6 +346,11 @@ void printFMI(struct FileMarkInfo* fmi) {
 
 // TODO: improve implementation with better randomness
 uint32_t createFRN() {
+	return 25161;
+	if (testing_mode_on) {
+		return 25161;
+	}
+	
 	int frn = INVALID_FRN;
 	static is_initialized = FALSE;
 
@@ -356,6 +364,36 @@ uint32_t createFRN() {
 	}
 
 	return frn;
+}
+
+
+/**
+* Creates the key that is really used for ciphering/deciphering using the FRN (specific to the file) and the composed key (mix of subkeys from the challenges).
+* The returned pointer must be freed after use (note ptr->data must also be freed).
+*
+* @param struct KeyData* comp_key
+*		The composed key to be mixed with the FRN. It is not modified.
+* @param uint32_t frn
+*		The FRN to be mixed with the composed key.
+*
+* @return struct KeyData*
+*		A newly allocated key that has information of both the FRN and the composed key. It must be free after use (note ptr->data must also be freed).
+**/
+struct KeyData* createFileBufferKey(struct KeyData* comp_key, uint32_t frn) {
+	struct KeyData *result = NULL;
+	uint32_t* ptr_32 = NULL;
+
+	result = malloc(1 * sizeof(struct KeyData));
+	if (result != NULL) {
+		result->expires = 0;												// Irrelevant, not used in the cipher dll
+		result->size = comp_key->size + sizeof(frn);						// Size is addition of both comp_key size and FRN size
+		result->data = malloc(result->size * sizeof(byte));					// Allocate memory for new key data
+		memcpy_s(result->data, result->size, comp_key->data, comp_key->size);		// Copy the composed key data
+		ptr_32 = (uint32_t*)&((result->data)[comp_key->size]);						// Get data ptr. Point to next available byte. Get mem addr. Convert into uint32_t*
+		memcpy_s(ptr_32, (result->size) - comp_key->size, &frn, sizeof(frn));		// Append the FRN after the composed key data
+	}
+
+	return result;
 }
 
 
@@ -498,7 +536,7 @@ void testFMItable() {
 }
 
 
-void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn) {
+void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn) {
 	PRINT("Calling cipher dll......\n");
 
 	PRINT("dst_buf = %p, src_buf = %p, buf_size = %d, frn = %lu\n", dst_buf, src_buf, buf_size, frn);
@@ -508,25 +546,31 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD
 	}
 
 	// FOR TESTING
-	uint8_t last_frn_byte = (frn % 256);
+	/*uint8_t last_frn_byte = (frn % 256);
 	uint16_t current_value = 0;
 	for (size_t i = 0; i < buf_size; i++) {
 		current_value = (uint16_t)(((uint8_t*)src_buf)[i]);
 		((byte*)dst_buf)[i] = (uint8_t)((current_value + last_frn_byte) % 256);
+	}*/
+
+	struct KeyData* final_key = createFileBufferKey(composed_key, frn);
+	if (final_key == NULL) {
+		PRINT("ERROR: could not allocate memory for the Key\n");
+		return;
 	}
 
-	/*LPVOID src_buf_copy = NULL;
+	LPVOID src_buf_copy = NULL;
 	if (dst_buf == src_buf) {
 		src_buf_copy = malloc(buf_size);
 		if (src_buf_copy == NULL) {
+			PRINT("ERROR: could not allocate memory for the buffer\n");
 			return;		// If copy of the buffer cannot be allocated, skip ciphering
-			NOOP;		// If copy of the buffer cannot be allocated, pray for it to work
 		} else {
 			memcpy(src_buf_copy, src_buf, buf_size);
 		}
 	}
 
-	typedef int(__stdcall* cipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*);
+	typedef int(__stdcall* cipher_func_type)(LPVOID, LPCVOID, DWORD, size_t, struct KeyData*);
 
 	cipher_func_type cipher_func;
 	int result;
@@ -534,9 +578,9 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD
 	cipher_func = (cipher_func_type)GetProcAddress(p_cipher->lib_handle, "cipher");
 	if (cipher_func != NULL) {
 		if (src_buf_copy==NULL) {
-			result = cipher_func(dst_buf, src_buf, buf_size, offset, composed_key);
+			result = cipher_func(dst_buf, src_buf, buf_size, offset, final_key);	// this can be removed
 		} else {
-			result = cipher_func(dst_buf, src_buf_copy, buf_size, offset, composed_key);
+			result = cipher_func(dst_buf, src_buf_copy, buf_size, offset, final_key);
 			free(src_buf_copy);
 		}
 		if (result != 0) {
@@ -544,12 +588,12 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD
 		}
 	} else {
 		PRINT("WARNING: error accessing the address to the cipher() function of the cipher '%ws' (error: %d)\n", p_cipher->file_name, GetLastError());
-	}*/
+	}
 
 	PRINT("Done cipher dll......\n");
 }
 
-void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn) {
+void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn) {
 	PRINT("Calling decipher dll......\n");
 
 	PRINT("dst_buf = %p, src_buf = %p, buf_size = %d, frn = %lu\n", dst_buf, src_buf, buf_size, frn);
@@ -559,26 +603,31 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWO
 	}
 
 	// FOR TESTING
-	uint8_t last_frn_byte = (frn % 256);
+	/*uint8_t last_frn_byte = (frn % 256);
 	uint16_t current_value = 0;
 	PRINT("\tbuf_size = %lu \n", buf_size);
 	for (size_t i = 0; i < buf_size; i++) {
 		current_value = (uint16_t)(((uint8_t*)src_buf)[i]);
 		((byte*)dst_buf)[i] = (uint8_t)((current_value - last_frn_byte) % 256);
+	}*/
+
+	struct KeyData* final_key = createFileBufferKey(composed_key, frn);
+	if (final_key == NULL) {
+		PRINT("ERROR: could not allocate memory for the Key\n");
+		return;
 	}
 
-	/*LPVOID src_buf_copy = NULL;
+	LPVOID src_buf_copy = NULL;
 	if (dst_buf == src_buf) {
 		src_buf_copy = malloc(buf_size);
 		if (src_buf_copy == NULL) {
 			return;		// If copy of the buffer cannot be allocated, skip deciphering
-			NOOP;		// If copy of the buffer cannot be allocated, pray for it to work
 		} else {
 			memcpy(src_buf_copy, src_buf, buf_size);
 		}
 	}
 
-	typedef int(__stdcall* decipher_func_type)(LPVOID, LPVOID, DWORD, size_t, struct KeyData*);
+	typedef int(__stdcall* decipher_func_type)(LPVOID, LPCVOID, DWORD, size_t, struct KeyData*);
 
 	decipher_func_type decipher_func;
 	int result;
@@ -586,9 +635,9 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWO
 	decipher_func = (decipher_func_type)GetProcAddress(p_cipher->lib_handle, "decipher");
 	if (decipher_func != NULL) {
 		if (src_buf_copy==NULL) {
-			result = decipher_func(dst_buf, src_buf, buf_size, offset, composed_key);
+			result = decipher_func(dst_buf, src_buf, buf_size, offset, final_key);	// this can be removed
 		} else {
-			result = decipher_func(dst_buf, src_buf_copy, buf_size, offset, composed_key);
+			result = decipher_func(dst_buf, src_buf_copy, buf_size, offset, final_key);
 			free(src_buf_copy);
 		}
 
@@ -597,7 +646,7 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPVOID src_buf, DWO
 		}
 	} else {
 		PRINT("WARNING: error accessing the address to the cipher() function of the cipher '%ws' (error: %d)\n", p_cipher->file_name, GetLastError());
-	}*/
+	}
 
 	PRINT("Done decipher dll......\n");
 }
@@ -1453,10 +1502,11 @@ int preWriteLogic(
 					}
 
 					// Cipher the whole buffer
-					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), &(((byte*)*aux_buffer)[*orig_offset]), *orig_bytes_to_write, *orig_offset, composed_key, fmi->file_frn);
+					if (*orig_offset >= MARK_LENGTH) {
+						invokeCipher(protection->cipher, *aux_buffer, *aux_buffer, *orig_bytes_to_write, *orig_offset, composed_key, fmi->file_frn);
+					} else { // Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+						invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), &(((byte*)*aux_buffer)[*orig_offset]), *orig_bytes_to_write, *orig_offset, composed_key, fmi->file_frn);
 
-					// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
-					if (*orig_offset < MARK_LENGTH) {
 						// Set the mark to level 1
 						mark(*aux_buffer, 1, fmi->file_frn);
 					}
@@ -1471,10 +1521,11 @@ int preWriteLogic(
 					}
 
 					// Cipher the whole buffer
-					invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), &(((byte*)*aux_buffer)[*orig_offset]), *orig_bytes_to_write, *orig_offset, composed_key, fmi->buffer_frn);
+					if (*orig_offset >= MARK_LENGTH) {
+						invokeCipher(protection->cipher, *aux_buffer, *aux_buffer, *orig_bytes_to_write, *orig_offset, composed_key, fmi->buffer_frn);
+					} else { // Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+						invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), &(((byte*)*aux_buffer)[*orig_offset]), *orig_bytes_to_write, *orig_offset, composed_key, fmi->buffer_frn);
 
-					// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
-					if (*orig_offset < MARK_LENGTH) {
 						NOOP;	// Set the mark to 0 (which is, don't mark)
 					}
 
@@ -1492,10 +1543,11 @@ int preWriteLogic(
 					}
 
 					// Decipher the whole buffer
-					invokeDecipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), &(((byte*)*aux_buffer)[*orig_offset]), *orig_bytes_to_write, *orig_offset, composed_key, fmi->buffer_frn);
+					if (*orig_offset >= MARK_LENGTH) {
+						invokeDecipher(protection->cipher, *aux_buffer, *aux_buffer, *orig_bytes_to_write, *orig_offset, composed_key, fmi->buffer_frn);
+					} else { // Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
+						invokeDecipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), &(((byte*)*aux_buffer)[*orig_offset]), *orig_bytes_to_write, *orig_offset, composed_key, fmi->buffer_frn);
 
-					// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
-					if (*orig_offset < MARK_LENGTH) {
 						NOOP;	// Set the mark to 0 (which is, don't mark)
 					}
 
@@ -1835,7 +1887,7 @@ int postWriteLogic(
 			return error_code;
 		}
 	} else {
-		PRINT("File as already big or it is still small (prev file_size = %llu, new file_size = %llu)\n", *file_size, new_file_size);
+		PRINT("File is already big or it is still small (prev file_size = %llu, new file_size = %llu)\n", *file_size, new_file_size);
 	}
 
 	// Make handle point to where it should based on the read the application asked to do

@@ -1,6 +1,17 @@
 {
 	"Folders": [
 		{
+			"Path": "C:/Users/Pepito/TEST/",
+			"MountPoint": "E",
+			"Name": "TEST (dokan)",
+			"Driver": "Dokan",
+			"Protection": {
+				"OpTable": "TableTEST",
+				"ChallengeEqGroups": ["Group1"],
+				"Cipher": "simple"
+			}
+		},
+		{
 			"Path": "C:/Users/Pepito/Documents/",
 			"MountPoint": "F",
 			"Name": "PepitoDocuments (dokan)",
@@ -19,7 +30,7 @@
 			"Protection": {
 				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1","Group2"],
-				"Cipher": "AES-128bit"
+				"Cipher": "simple"
 			}
 		},
 		{
@@ -41,18 +52,18 @@
 			"Protection": {
 				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1","Group2"],
-				"Cipher": "AES-128bit"
+				"Cipher": "simple"
 			}
 		}
 	],
 
 	"Pendrive": {
 		"MountPoints": "LMNOPQRSTUVWXY",
-		"Driver": "WinFSP",
+		"Driver": "Dokan",
 		"Protection": {
 			"OpTable": "Table2",
-			"ChallengeEqGroups": ["Group1","Group2"],
-			"Cipher": "AES-128bit"
+			"ChallengeEqGroups": ["Group1"],
+			"Cipher": "simple"
 		}
 	},
 
@@ -98,6 +109,13 @@
 				"READ": "DECIPHER",
 				"WRITE": "CIPHER"
 			}
+		],
+		"TableTEST": [
+			{
+				"AppType": "ANY",
+				"READ": "NOTHING",
+				"WRITE": "NOTHING"
+			}
 		]
 	},
 
@@ -121,6 +139,11 @@
 			"AppPath": "C:/Program Files/Sublime Text 3",
 			"AppName": "sublime_text.exe",
 			"AppType": "ANY"
+		},
+		{
+			"AppPath": "C:/Users/Sergio/Documents",
+			"AppName": "rw_test.exe",
+			"AppType": "MAILER"
 		}
 	],
 
