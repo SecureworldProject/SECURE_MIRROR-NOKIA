@@ -141,16 +141,16 @@ int winfspMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name,
     protections[0] = protection;
     volume_names[0] = volume_name;
 
-    /*FSP_FILE_SYSTEM FileSystem;     // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
+    /*FSP_FILE_SYSTEM FileSystem;     // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, asÃ­ que fallaba al compilar.
 
     // Fill
-    FileSystem.thread_index = index;    // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
+    FileSystem.thread_index = index;    // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, asÃ­ que fallaba al compilar.
     wcscpy_s(RootDirectory[index], sizeof(RootDirectory[index]) / sizeof(WCHAR), path);
 
     WCHAR letter_and_null[2] = { L'\0', L'\0' };
     letter_and_null[0] = letter;
     wcscpy_s(MountPoint[index], 2, letter_and_null);
-    FileSystem.MountPoint = MountPoint[index];  // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
+    FileSystem.MountPoint = MountPoint[index];  // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, asÃ­ que fallaba al compilar.
 
     protections[index] = protection;
     volume_names[index] = volume_name;
@@ -542,8 +542,8 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     full_app_path = getAppPathWinfsp(FileSystem);
     PRINT("Op: Pasthrough READ FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-    op1 = getTableOperation(ON_READ, &full_app_path, MountPoint[THREAD_INDEX][0]);
-    op2 = getOpSyncFolder(ON_READ, file_path);
+    op1 = getTableOperation(IRP_OP_READ, &full_app_path, MountPoint[THREAD_INDEX][0]);
+    op2 = getOpSyncFolder(IRP_OP_READ, file_path);
 
     op_final = operationAddition(op1, op2);
     PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);
@@ -632,7 +632,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 
     if (ConstrainedIo)
     {
-        if (!GetFileSizeEx(Handle, &FileSize))//MIRAR AQUÍ
+        if (!GetFileSizeEx(Handle, &FileSize))//MIRAR AQUÃ
             return FspNtStatusFromWin32(GetLastError());
 
         if (Offset >= (UINT64)FileSize.QuadPart)
@@ -662,8 +662,8 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     full_app_path = getAppPathWinfsp (FileSystem);
     printf("Op: MIRROR WRITE FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-    op1 = getTableOperation(ON_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
-    op2 = getOpSyncFolder(ON_WRITE, file_path);
+    op1 = getTableOperation(IRP_OP_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
+    op2 = getOpSyncFolder(IRP_OP_WRITE, file_path);
 
     op_final = operationAddition(op1, op2);
     PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);
