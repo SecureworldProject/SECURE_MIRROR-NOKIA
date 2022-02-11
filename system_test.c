@@ -7,6 +7,7 @@
 
 
 
+
 /////  DEFINITIONS AND GLOBAL VARIABLES  /////
 
 struct Test {

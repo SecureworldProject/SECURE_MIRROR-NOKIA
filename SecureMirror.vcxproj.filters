@@ -51,6 +51,9 @@
     <ClCompile Include="system_test.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="qrcodegen.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
@@ -87,6 +90,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="system_test.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="qrcodegen.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
