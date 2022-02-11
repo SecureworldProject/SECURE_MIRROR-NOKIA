@@ -93,8 +93,9 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>dokan1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dokan1.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>DokanFiles\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <DelayLoadDLLs>winfsp-$(PlatformTarget).dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -112,8 +113,9 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>dokan1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dokan1.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>DokanFiles\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <DelayLoadDLLs>winfsp-$(PlatformTarget).dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -128,7 +130,8 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>DokanFiles\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>dokan1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dokan1.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>winfsp-$(PlatformTarget).dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -147,7 +150,8 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ProjectDir)\winfsp\winfspFiles\;$(ProjectDir)\dokan\DokanFiles\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>dokan1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dokan1.lib;winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>winfsp-$(PlatformTarget).dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
