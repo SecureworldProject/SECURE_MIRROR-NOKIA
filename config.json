@@ -29,7 +29,7 @@
 			"Driver": "WinFSP",
 			"Protection": {
 				"OpTable": "Table1",
-				"ChallengeEqGroups": ["Group1","Group2"],
+				"ChallengeEqGroups": ["Group1"],
 				"Cipher": "simple"
 			}
 		},
@@ -40,7 +40,7 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
-				"ChallengeEqGroups": ["Group1","Group2"],
+				"ChallengeEqGroups": ["Group1"],
 				"Cipher": "simple"
 			}
 		},
@@ -170,6 +170,12 @@
 					"FileName": "wall_pattern.dll",
 					"Description": "This challenge looks for a certain pattern in the wall.",
 					"Props": "pattern_type=4",
+					"Requirements": "camera"
+				},
+				{
+					"FileName": "pythonloader.dll",
+					"Description": "This challenge looks for a certain pattern in the wall using a python code.",
+					"Props": "pyfile=wall_pattern.py, validity_time=3600, refresh_time=3000, pattern_type=4",
 					"Requirements": "camera"
 				},
 				{

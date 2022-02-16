@@ -53,6 +53,7 @@ int main(int argc, char* argv[]) {
 
 	struct ThreadData th_data[NUM_LETTERS] = { 0 };
 	HANDLE threads[NUM_LETTERS] = { 0 };
+	for (size_t i = 0; i < NUM_LETTERS; i++) threads[i] = INVALID_HANDLE_VALUE;
 	HANDLE volume_mounter_thread = INVALID_HANDLE_VALUE;
 	size_t number_of_folders = 0;
 
@@ -101,20 +102,21 @@ int main(int argc, char* argv[]) {
 
 	// For each folder create and launch a thread and make it call threadDokan() or threadWinFSP()
 	number_of_folders = _msize(ctx.folders) / sizeof(struct Folder*);
-	for (int i = 0; i < number_of_folders; i++) {
-	//for (int i = 0; i < 1; i++) {
-		th_data[i].index = i;
-		th_data[i].path = ctx.folders[i]->path;
-		th_data[i].letter = ctx.folders[i]->mount_point;
-		th_data[i].name = ctx.folders[i]->name;
-		th_data[i].protection = ctx.folders[i]->protection;
+	for (int i = 0, th_idx = 0; i < number_of_folders; i++) {
+		th_idx = DEVICE_LETTER_TO_INDEX(ctx.folders[i]->mount_point);
+		PRINT("indice es %d\n", th_idx);
+		th_data[th_idx].index = th_idx;
+		th_data[th_idx].path = ctx.folders[i]->path;
+		th_data[th_idx].letter = ctx.folders[i]->mount_point;
+		th_data[th_idx].name = ctx.folders[i]->name;
+		th_data[th_idx].protection = ctx.folders[i]->protection;
 
 		switch (ctx.folders[i]->driver) {
 			case DOKAN:
-				threads[i] = CreateThread(NULL, 0, threadDokan, &th_data[i], 0, NULL);
+				threads[th_idx] = CreateThread(NULL, 0, threadDokan, &th_data[th_idx], 0, NULL);
 				break;
 			case WINFSP:
-				threads[i] = CreateThread(NULL, 0, threadWinFSP, &th_data[i], 0, NULL);
+				threads[th_idx] = CreateThread(NULL, 0, threadWinFSP, &th_data[th_idx], 0, NULL);
 				break;
 			default:
 				break;
@@ -125,11 +127,11 @@ int main(int argc, char* argv[]) {
 	// Launch volume mounter thread
 	#ifdef RUN_VOLUME_MOUNTER
 		struct VolumeMounterThreadData vol_mount_th_data = { 0 };
-		vol_mount_th_data.index = number_of_folders;
+		vol_mount_th_data.index = number_of_folders;		// 1st idx for pendrives is number_of_folders+1-1
 		vol_mount_th_data.threads_p = &threads;
 		vol_mount_th_data.th_data_p = &th_data;
 
-		volume_mounter_thread = CreateThread(NULL, 0, volumeMounterThread, &vol_mount_th_data, 0, NULL);		// 1st idx for pendrives is number_of_folders+1-1
+		volume_mounter_thread = CreateThread(NULL, 0, volumeMounterThread, &vol_mount_th_data, 0, NULL);
 	#endif //RUN_VOLUME_MOUNTER
 
 	// Initialize the parameters for the challenges

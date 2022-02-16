@@ -175,11 +175,96 @@ DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_
 }
 
 
+
 DWORD securelyMountVolumes(
 	WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_t num_volumes_to_mount,
 	size_t thread_data_first_index, HANDLE threads[NUM_LETTERS], struct ThreadData th_data[NUM_LETTERS]
+) {
+	// Starts in 0 and increments every time a volume is mounted. It is static so keeps its value across several calls.
+	//static size_t adding_thread_data_index = 0;
+
+	// Base path in which the folders for the volumes will be created
+	const WCHAR base_path[] = L"C:\\drives\\";
+
+	// Path to the folder where a volume will be mounted
+	WCHAR new_folder_path[MAX_PATH] = { 0 };
+
+	// List of letters available as mount points (A:\, B:\, D:\, E:\, etc.)
+	WCHAR available_letters[NUM_LETTERS] = { 0 };
+
+	// Will contain the first available letter in the list
+	WCHAR first_available_letter = '\0';
+
+
+
+	// Get the letters available (letters not used)
+	getFreeLetters(GetLogicalDrives(), available_letters);
+
+
+	// Iterate over the volumes to mount
+	PRINT("\nIterating over the volumes to mount...\n");
+	for (size_t i = 0; i < NUM_LETTERS; i++) {
+		///  For every volume in "volumes_to_mount": create a folder, mount the volume on the new folder and securely mirror it on a letter  ///
+
+		// Check name of volume (if there is no volume, continue with next one)
+		PRINT1("VOL: '%ws'\n", volumes_to_mount[i]);
+		PRINT2("len: %llu\n", wcslen(volumes_to_mount[i]));
+		if (wcslen(volumes_to_mount[i]) == 0) {
+			PRINT2("Skipping...\n");		// This should never happen (I guess)...
+			continue;
+		}
+
+		// Check if the base_path exists. Create it if it does not
+		if (!PathIsDirectoryW(base_path)) {
+			PRINT2("Base path is NOT ok. Creating it...\n");
+			CreateDirectoryW(base_path, NULL);
+			PRINT2("Base path created.\n");
+		} else {
+			PRINT2("Base path is OK.\n");
+		}
+
+		// Create new folder inside base_path with the name of the volume GUID
+		wcscpy_s(new_folder_path, MAX_PATH, base_path);
+		wcscat_s(new_folder_path, MAX_PATH - 10, &(volumes_to_mount[i][10]));	// 10 is the length of the string "\\?\Volume" that precedes the GUID
+		//PRINT("NewFolderPath: %ws\n", new_folder_path);
+
+		#pragma warning(disable:6054)   // new_folder_path will be always '\0' terminated
+		CreateDirectoryW(new_folder_path, NULL);
+		#pragma warning(default:6054)
+
+
+		// Mount the volume in the new folder
+		// eg.: SetVolumeMountPointW("C:\\drives\\{090dccd9-a5f5-4983-b685-ddd6331ef319}\\", "\\\\?\\Volume{090dccd9-a5f5-4983-b685-ddd6331ef319}\\");
+		if (!SetVolumeMountPointW(new_folder_path, volumes_to_mount[i])) {
+			PRINT1("%ws could NOT be mounted in %ws\n", volumes_to_mount[i], new_folder_path);
+			printLastError(GetLastError());
+			break;
+		}
+		PRINT1("MOUNTED %ws in %ws\n", volumes_to_mount[i], new_folder_path);
+
+
+		// Get the first available letter that is allowed by configuration (ctx.pendrive->mount_points)
+		for (size_t j = 0; j < NUM_LETTERS; j++) {
+			if (available_letters[j] != L'\0' && wcschr(ctx.pendrive->mount_points, available_letters[j]) != NULL) {
+				first_available_letter = available_letters[j];
+				available_letters[j] = L'\0';
+				PRINT2("LETTER: %wc \n", first_available_letter);
+				break;
+			}
+		}
+
+		// Mount the created folder in the selected letter
+		mountVolume(DEVICE_LETTER_TO_INDEX(first_available_letter)/*thread_data_first_index + adding_thread_data_index*/, new_folder_path, first_available_letter, L"SecureWorld Automounted", ctx.pendrive->protection, threads, th_data);
+		//adding_thread_data_index++;
+	}
+
+	return 0;
+}
+DWORD securelyMountVolumesOLD(
+	WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_t num_volumes_to_mount,
+	size_t thread_data_first_index, HANDLE threads[NUM_LETTERS], struct ThreadData th_data[NUM_LETTERS]
 ){
-	// Starts in 0 and increments every time a volume is mounted. It is static so keeps its value across severall calls.
+	// Starts in 0 and increments every time a volume is mounted. It is static so keeps its value across several calls.
 	static size_t adding_thread_data_index = 0;
 
 	// Base path in which the folders for the volumes will be created
@@ -375,7 +460,7 @@ BOOL hasVolumePaths(__in PWCHAR volume_name) {
 */
 void getFreeLetters(DWORD logical_drives_mask, WCHAR available_letters[NUM_LETTERS]) {
 	for (size_t i = 0; i < NUM_LETTERS; i++) {
-		available_letters[i] = (WCHAR)((logical_drives_mask ^ 1 << i) ? 'A' + i : '\0');
+		available_letters[i] = (WCHAR)((logical_drives_mask ^ 1 << i) ? L'A' + i : L'\0');
 	}
 }
 

@@ -17,6 +17,16 @@
 
 #define NUM_LETTERS 26
 
+// Returns the index (position in the alphabet starting at 0) associated to the letter (allows lower/upper case and char/WCHAR types)
+#define DEVICE_LETTER_TO_INDEX(LET)	(('a' <= (LET) && (LET) <= 'z') ? ((LET)-'a') :		\
+									('A' <= (LET) && (LET) <= 'Z') ? ((LET)-'A') :		\
+									(L'a' <= (LET) && (LET) <= L'z') ? ((LET)-L'z') :	\
+									(L'A' <= (LET) && (LET) <= L'Z') ? ((LET)-L'Z') :	\
+									-1)
+// Returns the upper case (char type) letter associated to the index (position in the alphabet starting at 0)
+#define INDEX_TO_DEVICE_LETTER(IND) (IND)+'A'
+
+
 
 
 /////  FILE INCLUDES  /////
