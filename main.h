@@ -54,6 +54,7 @@ struct ThreadData {
 	WCHAR letter;
 	WCHAR* name;
 	struct Protection* protection;
+	WCHAR volume_name[MAX_PATH];		// Volume names are like "\\?\Volume{090dccd9-a5f5-4983-b685-ddd6331ef319}\")
 };
 
 struct VolumeMounterThreadData {

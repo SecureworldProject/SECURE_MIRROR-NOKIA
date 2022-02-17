@@ -111,6 +111,10 @@ int main(int argc, char* argv[]) {
 		th_data[th_idx].name = ctx.folders[i]->name;
 		th_data[th_idx].protection = ctx.folders[i]->protection;
 
+		// Not necessary because manual drives are subsets of "C:\"
+		//GetVolumePathNameW(L"C:\\", th_data[th_idx].volume_name, MAX_PATH);
+		//PRINT("thread for volume: %ws \n", th_data[th_idx].volume_name);
+
 		switch (ctx.folders[i]->driver) {
 			case DOKAN:
 				threads[th_idx] = CreateThread(NULL, 0, threadDokan, &th_data[th_idx], 0, NULL);

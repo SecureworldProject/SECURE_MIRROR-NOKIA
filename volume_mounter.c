@@ -8,9 +8,10 @@
 
 /////  FUNCTION PROTOTYPES  /////
 
-DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_t* num_volumes_to_mount);
+DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_t* num_volumes_to_mount, struct ThreadData th_data [NUM_LETTERS]);
 DWORD securelyMountVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_t num_volumes_to_mount, size_t thread_data_first_index, HANDLE threads[NUM_LETTERS], struct ThreadData th_data[NUM_LETTERS]);
-void mountVolume(int index, WCHAR* path, WCHAR letter, WCHAR* name, struct Protection* protection, HANDLE threads[NUM_LETTERS], struct ThreadData* th_data);
+void mountVolume(int index, WCHAR* path, WCHAR letter, WCHAR* name, struct Protection* protection, HANDLE threads[NUM_LETTERS], WCHAR volume_name[NUM_LETTERS], struct ThreadData* th_data);
+DWORD unmountVolume(WCHAR volume_name[NUM_LETTERS]);
 
 BOOL hasVolumePaths(__in PWCHAR volume_name);
 PWCHAR getVolumePaths(__in PWCHAR volume_name);
@@ -52,7 +53,7 @@ void volumeMounterThread(struct VolumeMounterThreadData *vol_mount_th_data) {
 		num_volumes_to_mount = 0;
 
 		// Find the volumes that have not been mounted yet and put them in the list
-		error = findNotMountedVolumes(volumes_to_mount, &num_volumes_to_mount);
+		error = findNotMountedVolumes(volumes_to_mount, &num_volumes_to_mount, th_data);
 
 		if (error == ERROR_SUCCESS){
 			if (num_volumes_to_mount > 0) {
@@ -73,7 +74,7 @@ void volumeMounterThread(struct VolumeMounterThreadData *vol_mount_th_data) {
 }
 
 
-DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_t* num_volumes_to_mount) {
+DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_t* num_volumes_to_mount, struct ThreadData th_data[NUM_LETTERS]) {
 	// VARIABLES //
 	// List of letters available as mount points (A:\, B:\, D:\, E:\, etc.)
 	WCHAR available_letters[NUM_LETTERS] = { 0 };
@@ -99,6 +100,9 @@ DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_
 	// Boolean that indicates when to stop the volume search
 	BOOL success = TRUE;
 
+	// Boolean that indicates if the volume has been already mounted by ourselves (and therefore should be associated to dokan or winfsp)
+	BOOL already_monitored = FALSE;
+
 
 	// CODE //
 	// Set the number of volumes to mount initially to zero
@@ -107,10 +111,10 @@ DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_
 	// Start volume search
 	search_handle = FindFirstVolumeW(volume_name, ARRAYSIZE(volume_name));
 
-	// Check the search handleis valid
+	// Check the search handle is valid
 	if (search_handle == INVALID_HANDLE_VALUE) {
 		error = GetLastError();
-		PRINT("FindFirstVolumeW failed with error code %d\n", error);
+		fprintf(stderr, "ERROR: FindFirstVolumeW failed with error code %d\n", error);
 		return error;
 	}
 
@@ -119,6 +123,7 @@ DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_
 		PRINT("\nThe volume name is: %ws\n", volume_name);
 
 		add_to_list = TRUE;
+		already_monitored = FALSE;
 
 		// Check bus type is USB
 		len = wcslen(volume_name);
@@ -133,7 +138,24 @@ DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_
 		// Check if the volume already has a mount path
 		if (add_to_list) {
 			if (hasVolumePaths(volume_name)) {
-				add_to_list = FALSE;
+
+				// Check if mounted by ourselves
+				for (size_t i = 0; i < NUM_LETTERS; i++) {
+					already_monitored = (wcscmp(volume_name, th_data[i].volume_name))==0;
+					if (already_monitored) {
+						//PRINT("already_monitored, stop mathching against saved volume_names\n");
+						break;	// stop mathching against saved volume_names
+					}
+				}
+
+				if (already_monitored) {
+					add_to_list = FALSE;
+				} else {
+					//PRINT("NOT MONITORED\n");
+					if (unmountVolume(volume_name) != ERROR_SUCCESS) {
+						continue;	// next of the while
+					}
+				}
 			}
 		}
 
@@ -174,6 +196,66 @@ DWORD findNotMountedVolumes(WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_
 	return error;
 }
 
+DWORD unmountVolume(WCHAR volume_name[NUM_LETTERS]) {
+	PWCHAR paths = NULL;		// Has the format: "balbla\0blebla2\0bla3\0\0"
+	PWCHAR p = NULL;
+	int p_len = 0;
+	BOOL unmounted = FALSE;
+	HANDLE device_handle = INVALID_HANDLE_VALUE;
+	DWORD bytes_returned = 0;
+	LPDWORD lp_bytes_returned = &bytes_returned;
+
+	paths = getVolumePaths(volume_name);
+
+	if (paths) {
+		p = paths;
+
+		// This may not be really necessary except if a live pendrive uses C: as main disk
+		// Tipically, C: will not be a USB drive and therefore this function will not be even called in the case of C: volume
+		do {
+			p_len = wcslen(p);
+			if (wcsstr(p, L"C:") != NULL && p_len < 10) {		// May be "C:", "C:\", "\\?\C:", "\\?\C:\"
+				return -1;
+			}
+			p += p_len;
+		} while (*p != L'\0');
+
+		p = paths;
+		do {
+			p_len = wcslen(p);
+			PRINT("Removing mount point: %ws\n", p);
+			unmounted = DeleteVolumeMountPointW(p);
+			if (!unmounted) {
+				// Handle this case
+				device_handle = CreateFileW(p, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+				// Check if the handle is valid
+				if (device_handle == INVALID_HANDLE_VALUE) {
+					fprintf(stderr, "ERROR: CreateFileW handle is invalid. Skipping for the next iteration...\n");
+					return -1;
+				}
+
+				unmounted = DeviceIoControl(device_handle, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, lp_bytes_returned, NULL);
+				if (unmounted) {
+					PRINT("Volume (%ws) has been dismounted. Skipping for the next iteration\n", volume_name);
+					return -1;	// Do not mount in this iteration (because it should no be accessible)
+				} else {
+					// This should never happen
+					fprintf(stderr, "ERROR: could not unmount volume (%ws) nor eject associated drive\n", volume_name);
+				}
+
+				// Close handle
+				CloseHandle(device_handle);
+
+			}
+			p += p_len;
+		} while (*p != L'\0');
+	}
+	PRINT("Volume mount points deleted: %ws\n", volume_name);
+
+
+	return STATUS_SUCCESS;
+}
 
 
 DWORD securelyMountVolumes(
@@ -254,107 +336,26 @@ DWORD securelyMountVolumes(
 		}
 
 		// Mount the created folder in the selected letter
-		mountVolume(DEVICE_LETTER_TO_INDEX(first_available_letter)/*thread_data_first_index + adding_thread_data_index*/, new_folder_path, first_available_letter, L"SecureWorld Automounted", ctx.pendrive->protection, threads, th_data);
+		mountVolume(DEVICE_LETTER_TO_INDEX(first_available_letter)/*thread_data_first_index + adding_thread_data_index*/, new_folder_path, first_available_letter, L"SecureWorld Automounted", ctx.pendrive->protection, threads, volumes_to_mount[i], th_data);
 		//adding_thread_data_index++;
 	}
 
 	return 0;
 }
-DWORD securelyMountVolumesOLD(
-	WCHAR volumes_to_mount[NUM_LETTERS][MAX_PATH], size_t num_volumes_to_mount,
-	size_t thread_data_first_index, HANDLE threads[NUM_LETTERS], struct ThreadData th_data[NUM_LETTERS]
-){
-	// Starts in 0 and increments every time a volume is mounted. It is static so keeps its value across several calls.
-	static size_t adding_thread_data_index = 0;
-
-	// Base path in which the folders for the volumes will be created
-	const WCHAR base_path[] = L"C:\\drives\\";
-
-	// Path to the folder where a volume will be mounted
-	WCHAR new_folder_path[MAX_PATH] = { 0 };
-
-	// List of letters available as mount points (A:\, B:\, D:\, E:\, etc.)
-	WCHAR available_letters[NUM_LETTERS] = { 0 };
-
-	// Will contain the first available letter in the list
-	WCHAR first_available_letter = '\0';
 
 
-
-	// Get the letters available (letters not used)
-	getFreeLetters(GetLogicalDrives(), available_letters);
-
-
-	// Iterate over the volumes to mount
-	PRINT("\nIterating over the volumes to mount...\n");
-	for (size_t i = 0; i < NUM_LETTERS; i++) {
-		///  For every volume in "volumes_to_mount": create a folder, mount the volume on the new folder and securely mirror it on a letter  ///
-
-		// Check name of volume (if there is no volume, continue with next one)
-		PRINT1("VOL: '%ws'\n", volumes_to_mount[i]);
-		PRINT2("len: %llu\n", wcslen(volumes_to_mount[i]));
-		if (wcslen(volumes_to_mount[i]) == 0) {
-			PRINT2("Skipping...\n");		// This should never happen (I guess)...
-			continue;
-		}
-
-		// Check if the base_path exists. Create it if it does not
-		if (!PathIsDirectoryW(base_path)) {
-			PRINT2("Base path is NOT ok. Creating it...\n");
-			CreateDirectoryW(base_path, NULL);
-			PRINT2("Base path created.\n");
-		} else {
-			PRINT2("Base path is OK.\n");
-		}
-
-		// Create new folder inside base_path with the name of the volume GUID
-		wcscpy_s(new_folder_path, MAX_PATH, base_path);
-		wcscat_s(new_folder_path, MAX_PATH - 10, &(volumes_to_mount[i][10]));	// 10 is the length of the string "\\?\Volume" that precedes the GUID
-		//PRINT("FP: %ws\n", new_folder_path);
-
-		#pragma warning(disable:6054)   // new_folder_path will be always '\0' terminated
-		CreateDirectoryW(new_folder_path, NULL);
-		#pragma warning(default:6054)
-
-
-		// Mount the volume in the new folder
-		// eg.: SetVolumeMountPointW("C:\\drives\\{090dccd9-a5f5-4983-b685-ddd6331ef319}\\", "\\\\?\\Volume{090dccd9-a5f5-4983-b685-ddd6331ef319}\\");
-		if (!SetVolumeMountPointW(new_folder_path, volumes_to_mount[i])) {
-			PRINT1("%ws could NOT be mounted in %ws\n", volumes_to_mount[i], new_folder_path);
-			printLastError(GetLastError());
-			break;
-		}
-		PRINT1("MOUNTED %ws in %ws\n", volumes_to_mount[i], new_folder_path);
-
-
-		// Get the first available letter that is allowed by configuration (ctx.pendrive->mount_points)
-		for (size_t j = 0; j < NUM_LETTERS; j++) {
-			if (available_letters[j] != L'\0' && wcschr(ctx.pendrive->mount_points, available_letters[j]) != NULL) {
-				first_available_letter = available_letters[j];
-				available_letters[j] = L'\0';
-				PRINT2("LETTER: %wc \n", first_available_letter);
-				break;
-			}
-		}
-
-		// Mount the created folder in the selected letter
-		mountVolume(thread_data_first_index + adding_thread_data_index, new_folder_path, first_available_letter, L"SecureWorld Automounted", ctx.pendrive->protection, threads, th_data);
-		adding_thread_data_index++;
-	}
-
-	return 0;
-}
-
-
-void mountVolume(int index, WCHAR* path, WCHAR letter, WCHAR* name, struct Protection* protection, HANDLE threads[NUM_LETTERS], struct ThreadData* th_data) {
+void mountVolume(int index, WCHAR* path, WCHAR letter, WCHAR* name, struct Protection* protection, HANDLE threads[NUM_LETTERS], WCHAR volume_name[NUM_LETTERS], struct ThreadData* th_data) {
 	struct ThreadData data;
 	data.index = index;
 	data.path = path;
 	data.letter = letter;
 	data.name = name;
 	data.protection = protection;
+	wcscpy(data.volume_name, volume_name);
+
 
 	th_data[index] = data;
+	PRINT("thread for volume: %ws \n", th_data[index].volume_name);
 
 	switch (ctx.pendrive->driver) {
 		case DOKAN:
