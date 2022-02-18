@@ -153,14 +153,14 @@ int main(int argc, char* argv[]) {
 
 
 int threadDokan(struct ThreadData *th_data) {
-	dokanMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->name, th_data->protection);
+	dokanMapAndLaunch(th_data->path, th_data->letter, th_data->name, th_data->protection);
 
 	return 0;
 }
 
 int threadWinFSP(struct ThreadData *th_data) {
 	#ifdef ENABLE_WINFSP
-		winfspMapAndLaunch(th_data->index, th_data->path, th_data->letter, th_data->name, th_data->protection);
+		winfspMapAndLaunch(th_data->path, th_data->letter, th_data->name, th_data->protection);
 	#else
 		PRINT("WinFSPMapAndLaunch parameters:   index=%2d     letter=%wc     path='%ws' \t\t\t (not implemented yet)\n", th_data->index, th_data->letter, th_data->path);
 	#endif // ENABLE_WINFSP

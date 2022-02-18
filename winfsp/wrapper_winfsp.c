@@ -127,7 +127,8 @@ PPEB getPeb() {
     return tebPtr->ProcessEnvironmentBlock;
 }
 
-int winfspMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
+int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
+    int index = DEVICE_LETTER_TO_INDEX(letter);
     PRINT("winfspMapAndLaunch parameters:   index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
     PRINT("CMDLINE: %ws \n", GetCommandLineW());
 

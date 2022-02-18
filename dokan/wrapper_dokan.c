@@ -31,7 +31,8 @@
 #define MirrorCheckFlag(val, flag) if (val & flag) { DbgPrint(L"\t" L#flag L"\n"); };
 
 // This macro uses a parameter name from mirror functions (only works inside them)
-#define THREAD_INDEX DokanFileInfo->DokanOptions->thread_index
+//#define THREAD_INDEX DokanFileInfo->DokanOptions->thread_index
+#define THREAD_INDEX DEVICE_LETTER_TO_INDEX((DokanFileInfo->DokanOptions->MountPoint)[0])
 
 
 
@@ -108,9 +109,10 @@ static NTSTATUS DOKAN_CALLBACK MirrorUnmounted(PDOKAN_FILE_INFO DokanFileInfo);
 
 /////  FUNCTION DEFINITIONS  /////
 
-int dokanMapAndLaunch(int index, WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
+int dokanMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
 	DOKAN_OPTIONS dokan_options;
 	DOKAN_OPERATIONS dokan_operations;
+	int index = DEVICE_LETTER_TO_INDEX(letter);
 
 	PRINT("DokanMapAndLaunch parameters:    index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
 
