@@ -48,13 +48,12 @@ typedef struct
 } PTFS_FILE_CONTEXT;
 
 // This macro uses a parameter name from passthrough functions (only works inside them)
-#define THREAD_INDEX FileSystem ->thread_index
+#define THREAD_INDEX DEVICE_LETTER_TO_INDEX((FileSystem->MountPoint)[0])
 //===================================================================================================
 
 BOOL g_SecureLogs;	//Variable para logs de SecureWorld
-static WCHAR RootDirectory[NUM_LETTERS][FULLPATH_SIZE] = { L"C:" };
-static WCHAR MountPoint[NUM_LETTERS][FULLPATH_SIZE] = { L"M:\\" };
-static WCHAR UNCName[NUM_LETTERS][FULLPATH_SIZE] = { L"" };
+static WCHAR RootDirectoryA[FULLPATH_SIZE] = L"C:";
+static WCHAR MountPointA[FULLPATH_SIZE] = L"M:\\";
 static WCHAR* volume_names[NUM_LETTERS] = { NULL };
 //static struct VolumeInfo* volume_info[NUM_LETTERS] = { NULL };
 // TO DO protections here instead of Cipher or others
@@ -87,7 +86,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext0, P
 static NTSTATUS SetDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, BOOLEAN DeleteFile);
 static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
 {
-    .GetVolumeInfo = GetVolumeInfo,            // modified
+    .GetVolumeInfo = GetVolumeInfo,            
     .SetVolumeLabel = SetVolumeLabel_,        // modified
     .GetSecurityByName = GetSecurityByName,
     .Create = Create,                        // modified
@@ -128,74 +127,28 @@ PPEB getPeb() {
 }
 
 int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
+    static BOOLEAN winfsplauncher = FALSE;
+    if (winfsplauncher == TRUE)
+        return -1;
+        
+
     int index = DEVICE_LETTER_TO_INDEX(letter);
     PRINT("winfspMapAndLaunch parameters:   index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
     PRINT("CMDLINE: %ws \n", GetCommandLineW());
+   
 
-
-    wcscpy_s(RootDirectory[0], sizeof(RootDirectory[index]) / sizeof(WCHAR), path);
+    wcscpy_s(RootDirectoryA, sizeof(RootDirectoryA) / sizeof(WCHAR), path);
 
     WCHAR letter_colon_and_null[3] = { L'\0', L':', L'\0' };
     letter_colon_and_null[0] = letter;
-    wcscpy_s(MountPoint[0], 3, letter_colon_and_null);
-
-    protections[0] = protection;
-    volume_names[0] = volume_name;
-
-    /*FSP_FILE_SYSTEM FileSystem;     // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
-
-    // Fill
-    FileSystem.thread_index = index;    // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
-    wcscpy_s(RootDirectory[index], sizeof(RootDirectory[index]) / sizeof(WCHAR), path);
-
-    WCHAR letter_and_null[2] = { L'\0', L'\0' };
-    letter_and_null[0] = letter;
-    wcscpy_s(MountPoint[index], 2, letter_and_null);
-    FileSystem.MountPoint = MountPoint[index];  // NOKIA: lo he cambiado. Era un puntero, pero no estaba inicializado, así que fallaba al compilar.
+    wcscpy_s(MountPointA, 3, letter_colon_and_null);
 
     protections[index] = protection;
     volume_names[index] = volume_name;
-
-    SvcStart();
-
-    PTFS* ptfs = NULL;
-    NTSTATUS result = ERROR_SUCCESS;
-    result = PtfsCreate(path, L"", letter_and_null, 0, &ptfs);
-    if (!NT_SUCCESS(result)) {    // volume prefix = &L'\0' = L""
-        PRINT("ERROR in PtfsCreate(): %lu\n", result);
-        printLastError(result);
-        return -1;  // Error
-    }*/
-    //static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UINT32 DebugFlags, PTFS **PPtfs);
-
-
-    /*PPEB peb = getPeb();
-    if (peb == NULL) {
-        PRINT("ERROR geting PEB\n");
-        return -1;
-    }
-    UNICODE_STRING cmd_line = peb->ProcessParameters->CommandLine;
-
-    PRINT("PEB CMDLINE: %ws, currlen=%us, maxlen = %us\n", cmd_line.Buffer, cmd_line.Length, cmd_line.MaximumLength);
-
-    //peb->ProcessParameters->CommandLine.Buffer = malloc(peb->ProcessParameters->CommandLine.MaximumLength *sizeof(WCHAR));
-    wcscpy(cmd_line.Buffer, L"passthrough -p C:/Users/Juanito/ -m G:");
-    cmd_line.Length = wcslen(cmd_line.Buffer);
-
-    PRINT("PEB CMDLINE2: %ws \n", cmd_line.Buffer);
-    PRINT("NEW CMDLINE: %ws \n", GetCommandLineW());*/
-
-
-    // Basically only calls FspServiceRun() which is a macro from FspServiceRunEx().
-    // At some point this function calls FspServiceLoop().
-    // This function (among other things) calls StartServiceCtrlDispatcherW() with a ServiceTable in which the SvcStart pointer is set.
-    // If it fails, does the following:
-        // Gets the arguments from cmd with the call:
-        // Argv = CommandLineToArgvW(GetCommandLineW(), &Argc);
-        // Then, uses the obtained parameters to create a thread with this call:
-        // Thread = CreateThread(0, 0, FspServiceConsoleModeThread, Argv, 0, 0);
+        
     int argc = 0;
     WCHAR* argv = NULL;
+    winfsplauncher = TRUE;
     WinfspMain(argc, argv);     // Parameters are not used
 }
 
@@ -269,7 +222,7 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem,
 {
     // Set the name of the volume shown in file explorer
     if (volume_names[THREAD_INDEX]) {
-        wcscpy_s(VolumeLabel, VolumeInfo->VolumeLabelLength , volume_names[THREAD_INDEX]);
+        wcscpy_s(VolumeInfo->VolumeLabel, VolumeInfo->VolumeLabelLength , volume_names[THREAD_INDEX]);
         return STATUS_SUCCESS;
     }
     else {
@@ -357,9 +310,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     }
     //--------------------------------------------------------------------------------------------------------------------*/
     // Add read access when write access is required
-    //if (DesiredAccess & GENERIC_WRITE) {
     GrantedAccess |= GENERIC_READ;
-    //}
+   
 
     if (!ConcatPath(Ptfs, FileName, FullPath))
         return STATUS_OBJECT_NAME_INVALID;
@@ -519,12 +471,11 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     PULONG PBytesTransferred)
 {
     HANDLE Handle = HandleFromContext(FileContext);
-    OVERLAPPED Overlapped = { 0 }; ///REVISAR TIPO DE DATO DISTINTO DE DOKAN////////////////////////////
+    OVERLAPPED Overlapped = { 0 }; 
 
-    Overlapped.Offset = (DWORD)Offset; ///REVISAR EN DOKAN COMENTADO////////////////////////////
-    Overlapped.OffsetHigh = (DWORD)(Offset >> 32); ///REVISAR EN DOkAN COMENTADO////////////////////////////
-
-   
+    Overlapped.Offset = (DWORD)Offset; 
+    Overlapped.OffsetHigh = (DWORD)(Offset >> 32); 
+      
     //--------------------------------------------------------------------------------------
     WCHAR file_path[MAX_PATH];//add 
     // Create auxiliar parameters for internal modification of the operation (mark and possible block cipher)
@@ -543,7 +494,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     full_app_path = getAppPathWinfsp(FileSystem);
     PRINT("Op: Pasthrough READ FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-    op1 = getTableOperation(IRP_OP_READ, &full_app_path, MountPoint[THREAD_INDEX][0]);
+    op1 = getTableOperation(IRP_OP_READ, &full_app_path, FileSystem->MountPoint[0]);
     op2 = getOpSyncFolder(IRP_OP_READ, file_path);
 
     op_final = operationAddition(op1, op2);
@@ -612,8 +563,6 @@ READ_CLEANUP:
         return DokanNtStatusFromWin32(error_code);
     }
 
-    //PRINT("Hemos leido 3: %.520s END\n", (char*)Buffer);
-    //PRINT("Hemos leido 4: %.50s END\n", &(((char*)Buffer)[513]));
     PRINT("Final\n");
     
    
@@ -633,7 +582,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 
     if (ConstrainedIo)
     {
-        if (!GetFileSizeEx(Handle, &FileSize))//MIRAR AQUÍ
+        if (!GetFileSizeEx(Handle, &FileSize))
             return FspNtStatusFromWin32(GetLastError());
 
         if (Offset >= (UINT64)FileSize.QuadPart)
@@ -663,7 +612,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     full_app_path = getAppPathWinfsp (FileSystem);
     printf("Op: MIRROR WRITE FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-    op1 = getTableOperation(IRP_OP_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
+    op1 = getTableOperation(IRP_OP_WRITE, &full_app_path, FileSystem->MountPoint[0]); // Better directly create global variable with pointer to table in this mounted disk
     op2 = getOpSyncFolder(IRP_OP_WRITE, file_path);
 
     op_final = operationAddition(op1, op2);
@@ -693,9 +642,6 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     if (!WriteFile(Handle, aux_buffer, aux_bytes_to_write, aux_bytes_written, &Overlapped)){
         return FspNtStatusFromWin32(GetLastError());
         DbgPrint(L"\twrite error = %u, buffer length = %d, write length = %d\n", error_code, Length, *PBytesTransferred);
-        /*if (opened)
-        CloseHandle(handle);
-        return DokanNtStatusFromWin32(error);*/
         goto WRITE_CLEANUP; 
     }  else { 
         DbgPrint(L"\twrite %d, offset %I64d\n\n", *PBytesTransferred, Offset);
@@ -732,9 +678,7 @@ WRITE_CLEANUP:
     if (aux_buffer != Buffer && aux_buffer != NULL) {
         free(aux_buffer);
     }
-    /*if (aux_bytes_written != NumberOfBytesWritten && aux_bytes_written != NULL) {
-        free(aux_bytes_written);
-    }*/
+    
     if (full_app_path != NULL) {
         free(full_app_path);
     }
@@ -1165,43 +1109,11 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     PTFS *Ptfs = 0;
     NTSTATUS Result;
 
-    /*for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
-    {
-        PRINT("argp: %ws\n", argp[0]);
-        if (L'-' != argp[0][0])
-            break;
-        switch (argp[0][1])
-        {
-        case L'?':
-            goto usage;
-        case L'd':
-            argtol(DebugFlags);
-            break;
-        case L'D':
-            argtos(DebugLogFile);
-            break;
-        case L'm':
-            argtos(MountPoint);
-            break;
-        case L'p':
-            argtos(PassThrough);
-            break;
-        case L'u':
-            argtos(VolumePrefix);
-            break;
-        default:
-            goto usage;
-        }
-    }
-
-    if (arge > argp)
-        goto usage;
-    */
-
     // Use global variables as input parameters, instead of CMD line arguments
-    PassThrough = RootDirectory[0];
-    MountPointLocal = MountPoint[0];
-    PRINT("SvcStart: RootDirectory[0] = %ws , MountPoint[0] = %ws \n", RootDirectory[0], MountPoint[0]);
+    PassThrough = RootDirectoryA;
+    MountPointLocal = MountPointA;
+    
+    PRINT("SvcStart: RootDirectory[0] = %ws , MountPoint[0] = %ws \n", RootDirectoryA, MountPointA);
 
     if (0 == PassThrough && 0 != VolumePrefix)
     {

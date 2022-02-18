@@ -1065,7 +1065,7 @@ typedef struct _FSP_FILE_SYSTEM
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     SRWLOCK OpGuardLock;
     BOOLEAN UmFileContextIsUserContext2, UmFileContextIsFullContext;
-    int thread_index;
+    
 } FSP_FILE_SYSTEM;
 typedef struct _FSP_FILE_SYSTEM_OPERATION_CONTEXT
 {
