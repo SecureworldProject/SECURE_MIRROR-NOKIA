@@ -145,7 +145,8 @@ int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Pro
 
     protections[index] = protection;
     volume_names[index] = volume_name;
-        
+    
+    PRINT("MAPALAUNCH:   volume_name='%ws'\n", volume_names[index]);
     int argc = 0;
     WCHAR* argv = NULL;
     winfsplauncher = TRUE;
@@ -220,16 +221,16 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem,
     PWSTR VolumeLabel,
     FSP_FSCTL_VOLUME_INFO* VolumeInfo)
 {
+    PRINT("Volume name SetVOLUMELAVEL = %ws \n", volume_names[THREAD_INDEX]);
     // Set the name of the volume shown in file explorer
     if (volume_names[THREAD_INDEX]) {
-        wcscpy_s(VolumeInfo->VolumeLabel, VolumeInfo->VolumeLabelLength , volume_names[THREAD_INDEX]);
+        wcscpy_s(VolumeLabel, VolumeInfo->VolumeLabelLength, volume_names[THREAD_INDEX]);
         return STATUS_SUCCESS;
     }
     else {
-        /* we do not support changing the volume label */
+        wcscpy_s(VolumeLabel, VolumeInfo->VolumeLabelLength, L"WinFsp");
         return STATUS_INVALID_DEVICE_REQUEST;
-    }
-        
+    }        
 }
 static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
@@ -1114,7 +1115,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     MountPointLocal = MountPointA;
     
     PRINT("SvcStart: RootDirectory[0] = %ws , MountPoint[0] = %ws \n", RootDirectoryA, MountPointA);
-
+    
     if (0 == PassThrough && 0 != VolumePrefix)
     {
         PWSTR P;
