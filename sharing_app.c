@@ -11,6 +11,7 @@
 #include "logic.h"
 #include "keymaker.h"
 #include "system_test.h"
+#include "qrcodegen.h"
 
 
 
@@ -23,13 +24,16 @@
 #define READ_BUF_SIZE (1024 * 1024)		// 1 MB
 #define DECIPHERED_SUFFIX_WCS L"_deciphered"
 #define DECIPHERED_SUFFIX_WCS_LEN wcslen(DECIPHERED_SUFFIX_WCS)
-
+#define MAX_LINK_LENGTH 500
 
 
 
 /////  FUNCTION PROTOTYPES  /////
+void printMenuHelp();
 void decipherFileMenu();
 void uvaFileMenu();
+void printQr(const uint8_t qrcode[]);
+void showQRDeepLink();
 int createDecipheredFileCopy(WCHAR* file_path);
 int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party);
 
@@ -38,32 +42,32 @@ int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begi
 
 /////  FUNCTION IMPLEMENTATIONS  /////
 
+/**
+* Shows a text-based interactive menu which allows sereral options like exitting, deciphering files, showing a QR code to link the challenge capturer app, etc.
+*
+* @return
+**/
 void sharingMainMenu() {
 	WCHAR line[MAX_INPUT_LENGTH] = { 0 };
 	int choice = 0;
 	BOOL quit_menu = FALSE;
 
-	printf("\n\n\n");
-	printf("  _______________________  \n");
-	printf(" |                       | \n");
-	printf(" |     SHARING  MENU     | \n");
-	printf(" |_______________________| \n");
-	printf("\n");
-	printf("This tool is intended to create shareable files for public organizations or third parties.\n");
-	printf("Selecting the decipher menu (1) allows you to decipher files so the next cipher is neutralized. These files can be shared with anyone without any other requisite.\n");
-	printf("Selecting the create .uva menu (2) allows you to create '.uva' files from '.pdf' files. These files can only be viewed with the use of the third party application.\n");
-	printf("Note: using this tool leaves traces in a blockchain server to avoid inappropriate behaviour. Use only when strictly needed.\n");
+	printMenuHelp();
 	do {
 		printf("\n");
 		printf("Select an option:\n");
 		printf("  0) Exit (also closes mirrored disks)\n");
 		printf("  1) Decipher mode (share with anyone)\n");
 		printf("  2) Create .uva file (share with third party)\n");
+		printf("  3) Show QR code (link android device)\n");
 		if (DEBUG_OPTIONS) {
-			printf("  3) (Debug only) Print the File Mark Info Table\n");
-			printf("  4) (Debug only) Test System\n");
-			printf("  5) (Debug only) Print Unit Test Information\n");
+			printf("  4) (Debug only) Print the File Mark Info Table\n");
+			printf("  5) (Debug only) Test System\n");
+			printf("  6) (Debug only) Print Unit Test Information\n");
 		}
+		printf("  9) Show help\n");
+		printf("\n");
+
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &choice)) {
 				switch (choice) {
@@ -78,25 +82,28 @@ void sharingMainMenu() {
 						uvaFileMenu();
 						break;
 					case 3:
+						showQRDeepLink();
+						break;
+					case 4:
 						if (DEBUG_OPTIONS) {
 							printFMITable();
 							break;
-						}
-						// else goes through case 4 and default
-					case 4:
+						}	// else goes through next options until default
+					case 5:
 						if (DEBUG_OPTIONS) {
 							printf("Not implemented yet.\n");
 							testEverything();
 							break;
-						}
-						// else goes through default
-					case 5:
+						}	// else goes through next options until default
+					case 6:
 						if (DEBUG_OPTIONS) {
 							printf("Not implemented yet.\n");
 							printUnitTestData();
 							break;
-						}
-						// else goes through default
+						}	// else goes through next options until default
+					case 9:
+						printMenuHelp();
+						break;
 					default:
 						printf("Invalid option, try again.\n");
 						break;
@@ -106,7 +113,30 @@ void sharingMainMenu() {
 	} while (!quit_menu);
 }
 
+/**
+* Shows the menu help for each of the options allowed like exitting, deciphering files, showing a QR code to link the challenge capturer app, etc.
+*
+* @return
+**/
+void printMenuHelp() {
+	printf("\n\n\n");
+	printf("  _______________________  \n");
+	printf(" |                       | \n");
+	printf(" |     SHARING  MENU     | \n");
+	printf(" |_______________________| \n");
+	printf("\n");
+	printf("This tool is intended to create shareable files for public organizations or third parties.\n");
+	printf("Selecting the decipher menu (1) allows you to decipher files so the next cipher is neutralized. These files can be shared with anyone without any other requisite.\n");
+	printf("Selecting the create .uva menu (2) allows you to create '.uva' files from '.pdf' files. These files can only be viewed with the use of the third party application.\n");
+	printf("Note: using this tool leaves traces in a blockchain server to avoid inappropriate behaviour. Use only when strictly needed.\n");
+}
 
+
+/**
+* Starts a text-based dialog with the user to gather all the necessary information to make a deciphered copy of a file.
+*
+* @return
+**/
 void decipherFileMenu() {
 	//WCHAR input_file_path[MAX_PATH] = { 0 };
 	WCHAR* input_file_path = NULL;
@@ -151,6 +181,11 @@ void decipherFileMenu() {
 	return;
 }
 
+/**
+* Starts a text-based dialog with the user to gather all the necessary information to make a .uva copy of a .pdf file.
+*
+* @return
+**/
 void uvaFileMenu() {
 	WCHAR line[500] = { 0 };
 	time_t current_time;
@@ -294,6 +329,56 @@ void uvaFileMenu() {
 	return;
 }
 
+
+/**
+* Prints the given QR Code to the console.
+*
+* @param const uint8_t qrcode[]
+*		The QR code (in uint8_t array format) to be printed.
+* @return
+**/
+void printQr(const uint8_t qrcode[]) {
+	int size = qrcodegen_getSize(qrcode);
+	int border = 4;
+	char str_filled_block[2] = { 219, 219 };
+	for (int y = -border; y < size + border; y++) {
+		for (int x = -border; x < size + border; x++) {
+			fputs((qrcodegen_getModule(qrcode, x, y) ? str_filled_block : "  "), stdout);
+		}
+		fputs("\n", stdout);
+	}
+	fputs("\n", stdout);
+}
+
+/**
+* Creates and shows in the console the QR code generated from the necessary data (API key, client ID, app ID, etc.)
+*
+* @return
+**/
+void showQRDeepLink() {
+	const char* text = "secureworld://test/esto_es_un_qr_de_la_cmd";	// TO DO: change this with the real code including all necessary data
+
+	printf("\n\tYou have entered the QR linking option.\n");
+
+	// Make and print the QR Code symbol
+	uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX] = { 0 };
+	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX] = { 0 };
+	BOOL ok = qrcodegen_encodeText(text, tempBuffer, qrcode, qrcodegen_Ecc_LOW,
+		qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+	if (ok)
+		printQr(qrcode);
+}
+
+
+/**
+* Creates a deciphered copy of the file given as parameter as saves it in the same path adding "_deciphered" at the end on the name (but before extension).
+*
+* @param WCHAR* input_file_name
+*		The full path of the original file (e.g.: "M:/secureworld_project/paper/Manuscript.pdf").
+*
+* @return int
+*		0 if everything is ok, other value if not.
+**/
 int createDecipheredFileCopy(WCHAR* input_file_path) {
 	// This function will:
 	// - Create a file in the same path adding "_deciphered" at the end (but before extension).
@@ -542,6 +627,21 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 	return error_code;
 }
 
+/**
+* If the input file is a .pdf, creates a .uva version of the file given as parameter as saves it in the same path but changing the extension to ".uva".
+*
+* @param WCHAR* file_path
+*		The full path of the original file (e.g.: "M:/OpticFiber/Datasheet.pdf").
+* @param time_t allowed_visualization_period_begin
+*		Date and time of the beginning of the allowed visualization period.
+* @param time_t allowed_visualization_period_end
+*		Date and time of the end of the allowed visualization period.
+* @param struct ThirdParty* third_party
+*		The struct containing information (including the public key) of the third party with which the file will be shared.
+*
+* @return int
+*		0 if everything is ok, other value if not.
+**/
 int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party) {
 	printf("\t TO DO\n");
 	// This function will:

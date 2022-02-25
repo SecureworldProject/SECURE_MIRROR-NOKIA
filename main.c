@@ -15,35 +15,6 @@
 	#include "winfsp/wrapper_winfsp.h"
 #endif ENABLE_WINFSP
 
-#include "qrcodegen.h"
-static void printQr(const uint8_t qrcode[]);
-// Prints the given QR Code to the console.
-static void printQr(const uint8_t qrcode[]) {
-	int size = qrcodegen_getSize(qrcode);
-	int border = 4;
-	char str_filled_block[2] = { 219, 219 };
-	for (int y = -border; y < size + border; y++) {
-		for (int x = -border; x < size + border; x++) {
-			fputs((qrcodegen_getModule(qrcode, x, y) ? str_filled_block : "  "), stdout);
-		}
-		fputs("\n", stdout);
-	}
-	fputs("\n", stdout);
-}
-static void doBasicDemo(void);
-// Creates a single QR Code, then prints it to the console.
-static void doBasicDemo(void) {
-	const char* text = "secureworld://test/esto_es_un_qr_de_la_cmd";                // User-supplied text
-	enum qrcodegen_Ecc errCorLvl = qrcodegen_Ecc_LOW;  // Error correction level
-
-	// Make and print the QR Code symbol
-	uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX];
-	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
-	BOOL ok = qrcodegen_encodeText(text, tempBuffer, qrcode, errCorLvl,
-		qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
-	if (ok)
-		printQr(qrcode);
-}
 
 
 
@@ -77,7 +48,6 @@ int main(int argc, char* argv[]) {
 	|_____/ \___|\___|\__,_|_|  \___| \/  \/ \___/|_|  |_|\__,_|
 
 	*/
-	//doBasicDemo(); return 0;
 
 	// Test the FMI table
 	#ifdef RUN_FMI_TABLE_TEST
