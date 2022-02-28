@@ -106,10 +106,10 @@ void freeTestStreams();
 void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum OperationPosition op_position, enum StreamLevel filesize_lvl);
 DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, int length);
 DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset, int length);
-void testMarkTable();
 
 void getCenteredString(char* str_out, int chars_to_write, const char* str_in);
 void printTestTableResults();
+void printTestTableLegend();
 
 
 
@@ -134,9 +134,7 @@ void testEverything() {
 			}
 		}
 		printTestTableResults();
-
-		// Do the extra mark table tests
-		//testMarkTable();
+		printTestTableLegend();
 	}
 
 	//freeTestStreams();		// Do not free to be able to use 5th option
@@ -627,53 +625,6 @@ DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset
 }
 
 
-void testMarkTable() {
-
-	// Before any test copies of the test files are made. And are those copies which are used for the test. The table is purged.
-
-	// READ a previously READ file
-	// Operative is on_read --> decipher
-	// Read 100 bytes with offset=1000		from C:\ -> TEST_BIG_CLEARTEXT_FILE_NAME
-	// Read 100 bytes with offset=0			from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Read 100 bytes with offset=1000		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Compare buffers from 1st and 3rd read
-
-
-
-	// READ a previously WRITTEN file
-	// Operative is on_write --> cipher
-	// Operative is on_read --> decipher
-	// Read full bytes with offset=0		from C:\ -> TEST_BIG_CLEARTEXT_FILE_NAME
-	// Write 1000 bytes with offset=0		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Read 100 bytes with offset=600		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Compare buffers from 1st and 3rd read (only check 100 starting at 600)
-
-
-
-	// WRITE a previously READ file
-	// Operative is on_read --> decipher
-	// Operative is on_write --> cipher
-	// Read 500 bytes with offset=500		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Write 100 bytes with offset=600		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME		(not modified bytes, from prev read)
-	// Read 100 bytes with offset=550		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Compare buffers from 1st and 3rd read
-
-
-
-	// WRITE a previously WRITTEN file
-	// Operative is on_write --> cipher
-	// Operative is on_read --> decipher
-	// Read full bytes with offset=0		from C:\ -> TEST_BIG_CLEARTEXT_FILE_NAME
-	// Write 600 bytes with offset=0		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Write 100 bytes with offset=600		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Read 100 bytes with offset=550		from M:\ -> TEST_BIG_CIPHERED_FILE_NAME
-	// Compare buffers from 1st and 4th read (only check 100 starting at 600)
-
-
-}
-
-
-
 void printTestTableResults() {
 	uint32_t max_len_irp_op_str = 0;
 	uint32_t max_len_op_str = 0;
@@ -883,7 +834,7 @@ void printTestTableResults() {
 	const char test_str[] = "holax";
 	int len = strlen(test_str);
 
-	printf("Test centrado en 10 con '_': '%*.*s%*.*s' \n", 5, len/2, test_str, -5, len-len/2, &(test_str[len/2]));
+	printf("Test centrado en 10 con ' ': '%*.*s%*.*s' \n", 5, len/2, test_str, -5, len-len/2, &(test_str[len/2]));
 	printf("Test -10.5  con '_': '%*.*s' \n", -10, 5, underscores);
 	printf("Test 10.5   con '_': '%*.*s' \n", 10, 5, underscores);
 	printf("Test 10.10  con '_': '%*.*s' \n", 10, 10, underscores);
@@ -893,7 +844,7 @@ void printTestTableResults() {
 	printf("Test 5.10   con ' ': '%*.*s' \n", 5, 10, "");
 	
 	Esto printa:
-	Test centrado en 10 con '_': '   holax  '
+	Test centrado en 10 con ' ': '   holax  '
 	Test -10.5  con '_': '_____     '
 	Test 10.5   con '_': '     _____'
 	Test 10.10  con '_': '__________'
@@ -906,6 +857,25 @@ void printTestTableResults() {
 	*/
 
 }
+
+
+void printTestTableLegend() {
+	printf("\n\n");
+	printf("These tests are low level and scenarios build up on them. Therefore they allow the validation of any type of scenario which means that the success on these tests ensures the correct functioning of the wrapper independently of the operative table defined by the securemirror user.\n");
+	printf("The tests are classified based on the following criteria:\n");
+	printf("  * Filesystem operation: IRP_OP_READ (read operation), IRP_OP_WRITE (write operation).\n");
+	printf("  * Logic operation: NOTHING (pass the buffer \"as is\"), CIPHER (cipher the buffer), DECIPHER (decipher the buffer).\n");
+	printf("  * Part of the buffer where the logical operation is applied: INSIDE_MARK (only affects to the first MARK_LENGTH), OUTSIDE_MARK (only affects to bytes different than the first MARK_LENGTH bytes), INSIDE_AND_OUTSIDE_MARK (affects both).\n");
+	printf("  * File size and ciphering level of the wrapper input stream: SMALL (small file, which is always cleartext), BIG_DECIPHERED (deciphered big file), BIG_CLEARTEXT (cleartext big file), BIG_CIPHERED (ciphered big file).\n");
+	printf("\n");
+	printf("The possible results are:\n");
+	printf("  * PASS: test successfully executed and passed.\n");
+	printf("  * FAIL: test executed and failed.\n");
+	printf("  * N/A: test not executed because it has no valid meaning. Can be counted as a success value.\n");
+	printf("  * NOT DONE: test not executed. This is the default value and should never appear in the tests. Indicates a bug in the testing code and not in the wrapper\n");
+	printf("\n\n");
+}
+
 
 // The caller of the function is responsible of ensuring there will be enough space in 'str_out' to hold 'chars_to_write' characters
 void getCenteredString(char *str_out, int chars_to_write, const char* str_in) {
