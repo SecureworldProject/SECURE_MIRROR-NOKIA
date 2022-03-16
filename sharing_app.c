@@ -6,6 +6,7 @@
 #include <Shlwapi.h>
 #pragma comment( lib, "shlwapi.lib")
 
+#include "main.h"
 #include "sharing_app.h"
 #include "context.h"
 #include "logic.h"
@@ -17,8 +18,6 @@
 
 
 /////  DEFINITIONS  /////
-
-#define DEBUG_OPTIONS 1		// When set to 1, includes debugging options in the sharing menu.
 
 #define MAX_INPUT_LENGTH 500
 #define READ_BUF_SIZE (1024 * 1024)		// 1 MB
@@ -60,11 +59,11 @@ void sharingMainMenu() {
 		printf("  1) Decipher mode (share with anyone)\n");
 		printf("  2) Create .uva file (share with third party)\n");
 		printf("  3) Show QR code (link android device)\n");
-		if (DEBUG_OPTIONS) {
-			printf("  4) (Debug only) Print the File Mark Info Table\n");
-			printf("  5) (Debug only) Test System\n");
-			printf("  6) (Debug only) Print Unit Test Information\n");
-		}
+		#ifdef SECUREMIRROR_DEBUG_MODE
+		printf("  4) (Debug only) Print the File Mark Info Table\n");
+		printf("  5) (Debug only) Test System\n");
+		printf("  6) (Debug only) Print Unit Test Information\n");
+		#endif
 		printf("  9) Show help\n");
 		printf("\n");
 
@@ -85,22 +84,22 @@ void sharingMainMenu() {
 						showQRDeepLink();
 						break;
 					case 4:
-						if (DEBUG_OPTIONS) {
-							printFMITable();
-							break;
-						}	// else goes through next options until default
+						#ifdef SECUREMIRROR_DEBUG_MODE
+						printFMITable();
+						break;
+						#endif		// else goes through next options until default
 					case 5:
-						if (DEBUG_OPTIONS) {
-							printf("Not implemented yet.\n");
-							testEverything();
-							break;
-						}	// else goes through next options until default
+						#ifdef SECUREMIRROR_DEBUG_MODE
+						printf("Not implemented yet.\n");
+						testEverything();
+						break;
+						#endif		// else goes through next options until default
 					case 6:
-						if (DEBUG_OPTIONS) {
-							printf("Not implemented yet.\n");
-							printUnitTestData();
-							break;
-						}	// else goes through next options until default
+						#ifdef SECUREMIRROR_DEBUG_MODE
+						printf("Not implemented yet.\n");
+						printUnitTestData();
+						break;
+						#endif		// else goes through next options until default
 					case 9:
 						printMenuHelp();
 						break;

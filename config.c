@@ -9,6 +9,7 @@ Nokia Febrero 2021
 
 /////  FILE INCLUDES  /////
 
+#include "main.h"
 #include "config.h"
 //#include "json.h"			// Already in config.h
 //#include "context.h"		// Already in config.h
@@ -542,6 +543,9 @@ static void processChallenge(int group_index, int challenge_index, json_value* v
 					ctx.groups[group_index]->challenges[challenge_index]->lib_handle = LoadLibraryW(ctx.groups[group_index]->challenges[challenge_index]->file_name);
 					if (ctx.groups[group_index]->challenges[challenge_index]->lib_handle == NULL) {
 						fprintf(stderr, "ERROR: could not load library '%ws' (code: %d)\n", ctx.groups[group_index]->challenges[challenge_index]->file_name, GetLastError());
+						#ifndef SECUREMIRROR_DEBUG_MODE
+						exit(1);
+						#endif
 					}
 				} // else --> The pointer is null because it was not possible to allocate memory
 			}
@@ -631,6 +635,9 @@ static void processCipher(int index, json_value* value, int depth) {
 				ctx.ciphers[index]->lib_handle = LoadLibraryW(ctx.ciphers[index]->file_name);
 				if (ctx.ciphers[index]->lib_handle == NULL) {
 					fprintf(stderr, "ERROR: could not load library '%ws'\n", ctx.ciphers[index]->file_name);
+					#ifndef SECUREMIRROR_DEBUG_MODE
+					exit(1);
+					#endif
 				}
 			} // else --> The pointer is null because it was not possible to allocate memory
 		}

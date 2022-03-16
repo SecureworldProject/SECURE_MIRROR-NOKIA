@@ -22,9 +22,10 @@ enum TestVerdict {
 	TEST_VERDICT_NOT_DONE,
 	TEST_VERDICT_FAIL,
 	TEST_VERDICT_PASS,
-	TEST_VERDICT_NOT_APPLICABLE
+	TEST_VERDICT_NOT_APPLICABLE_OK,
+	TEST_VERDICT_ABORT_OK
 };
-static const char* TEST_VERDICT_STRINGS[] = { "NOT DONE", "FAIL", "PASS", "N/A (ok)"};
+static const char* TEST_VERDICT_STRINGS[] = { "NOT DONE", "FAIL", "PASS", "N/A (OK)", "ABORT (OK)"};
 
 
 // Paths to the test files
@@ -137,9 +138,8 @@ void testEverything() {
 		printTestTableLegend();
 	}
 
-	//freeTestStreams();		// Do not free to be able to use 5th option
+	//freeTestStreams();		// Do not free to be able to use 6th option
 	testing_mode_on = FALSE;
-
 }
 
 
@@ -264,20 +264,21 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 		|| (IRP_OP_WRITE == irp_op && CIPHER == ciphering_op && OUTSIDE_MARK != op_position && BIG_DECIPHERED == stream_lvl)	// cases 1101 and 1111
 		|| (IRP_OP_WRITE == irp_op && DECIPHER == ciphering_op && OUTSIDE_MARK != op_position && BIG_CIPHERED == stream_lvl)	// cases 1203 and 1213
 		) {
-		current_test->verdict = TEST_VERDICT_NOT_APPLICABLE;
+		current_test->verdict = TEST_VERDICT_NOT_APPLICABLE_OK;
 		return;
 	}
 
 	// This is to do the first TEST only!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	/*
 	if (//(1 == irp_op && 2 == ciphering_op && 0 == op_position && 1 == stream_lvl) ||
 		(1 == ciphering_op && 3 == stream_lvl) ||
 		(2 == ciphering_op && 1 == stream_lvl)) {
 		//(1 == irp_op && 2 == ciphering_op)) {			// - write descifrar
 		//(1 == irp_op)// && 2 == ciphering_op)) {
 		PRINT("Skipping test...\n");
-		current_test->verdict = TEST_VERDICT_NOT_DONE;
-		return;
-	}
+		//current_test->verdict = TEST_VERDICT_NOT_DONE;
+		//return;
+	}*/
 
 
 	// Select the input stream
@@ -403,41 +404,45 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 
 	// Execute test using monitored drive and compute output
 	if (irp_op == IRP_OP_READ) {
-		readTestFile(&(current_test->output_stream), test_file_path_m, offset, length);
+		aborted |= (ERROR_SUCCESS != readTestFile(&(current_test->output_stream), test_file_path_m, offset, length));
 	}
 	else if (irp_op == IRP_OP_WRITE) {
-		writeTestFile(current_test->input_stream, test_file_path_m, offset, length);
-		readTestFile(&(current_test->output_stream), test_file_path_c, offset, length);
+		aborted |= (ERROR_SUCCESS != writeTestFile(current_test->input_stream, test_file_path_m, offset, length));
+		aborted |= (ERROR_SUCCESS != readTestFile(&(current_test->output_stream), test_file_path_c, offset, length));
 	}
 	PRINT("Hasta aqui bien 4\n");
 
 
-
-	// Check output == desired_output
-	if (current_test->desired_output_stream != NULL && current_test->output_stream != NULL) {
-		if (memcmp(&((current_test->desired_output_stream)[offset]), &((current_test->output_stream)[offset]), length) == 0) {
-			current_test->verdict = TEST_VERDICT_PASS;
-		} else {
+	// Check the result of the test
+	if (current_test->desired_output_stream != NULL) {		// Check the expected result is a correct buffer
+		if (current_test->output_stream != NULL) {		// Check the real output is a correct buffer
+			// Check output == desired_output
+			if (memcmp(&((current_test->desired_output_stream)[offset]), &((current_test->output_stream)[offset]), length) == 0) {
+				current_test->verdict = TEST_VERDICT_PASS;
+			} else {
+				current_test->verdict = TEST_VERDICT_FAIL;
+			}
+			if (ciphering_op == NOTHING) {
+				PRINT("\n\n\n\n\n\n\n\n");
+				PRINT("memcmp(current_test->desired_output_stream + offset, current_test->output_stream + offset, length): %d\n", memcmp(current_test->desired_output_stream + offset, current_test->output_stream + offset, length));
+				PRINT("DESIRED: %*s \n", length, &((current_test->desired_output_stream)[offset]));
+				PRINT("OUTPUT : %*s \n", length, &((current_test->output_stream)[offset]));
+				PRINT("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV\n");
+				PRINT_HEX(current_test->desired_output_stream + offset, length);
+				PRINT_HEX(current_test->output_stream + offset, length);
+				PRINT("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+				PRINT("\n\n\n\n\n\n\n\n");
+			}
+		} else {		// The real output is NULL, there was an error
 			current_test->verdict = TEST_VERDICT_FAIL;
 		}
-		if (ciphering_op == NOTHING) {
-			PRINT("\n\n\n\n\n\n\n\n");
-			PRINT("memcmp(current_test->desired_output_stream + offset, current_test->output_stream + offset, length): %d\n", memcmp(current_test->desired_output_stream + offset, current_test->output_stream + offset, length));
-			PRINT("DESIRED: %*s \n", length, &((current_test->desired_output_stream)[offset]));
-			PRINT("OUTPUT : %*s \n", length, &((current_test->output_stream)[offset]));
-			PRINT("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV\n");
-			PRINT_HEX(current_test->desired_output_stream + offset, length);
-			PRINT_HEX(current_test->output_stream + offset, length);
-			PRINT("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
-			PRINT("\n\n\n\n\n\n\n\n");
-		}
-
-	} else {
-		//aborted = ; // TO DO check that the operation was forbidden
-		PRINT("else-->aborted??\n");
+	} else {		// The expected result is to have aborted
+		PRINT("Expecting to have aborted\n");
 		if (aborted) {
-			current_test->verdict = TEST_VERDICT_PASS;
+			PRINT("Aborted as expected: TEST PASSED\n");
+			current_test->verdict = TEST_VERDICT_ABORT_OK;
 		} else {
+			PRINT("Did not abort: TEST FAILED\n");
 			current_test->verdict = TEST_VERDICT_FAIL;
 		}
 	}
@@ -456,7 +461,7 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 	result = _wfopen_s(&file_ptr, file_path, L"rb");
 	if (result != 0 || file_ptr == NULL) {
 		printf("ERROR: could not read file (%ws) for the test.\n", file_path);
-		error = ERROR_READ_FAULT;
+		error = ERROR_OPEN_FAILED;
 		goto READ_TEST_FILE_CLEANUP;
 	}
 
@@ -499,7 +504,7 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 	if (file_ptr != NULL) {
 		fclose(file_ptr);
 	}
-	/*if (read_buffer != NULL) {					// TO DO uncomment
+	/*if (read_buffer != NULL) {					// TO DO uncomment?
 		free(read_buffer);
 		read_buffer = NULL;
 	}*/
@@ -631,14 +636,14 @@ void printTestTableResults() {
 	uint32_t max_len_op_pos_str = 0;
 	uint32_t max_len_verdict_or_stream_lvl = 0;
 
-	// Reserve space for up to 32 printable characters per column
-	char c1[33] = "";
-	char c2[33] = "";
-	char c3[33] = "";
-	char c4[33] = "";
-	char c5[33] = "";
-	char c6[33] = "";
-	char c7[33] = "";
+	// Reserve space for up to 64 printable characters per column
+	char c1[65] = "";
+	char c2[65] = "";
+	char c3[65] = "";
+	char c4[65] = "";
+	char c5[65] = "";
+	char c6[65] = "";
+	char c7[65] = "";
 
 	// A string with 128 underscores (should be more than enough)
 	const char underscores[] = "________________________________________________________________________________________________________________________________";
@@ -662,33 +667,45 @@ void printTestTableResults() {
 		max_len_verdict_or_stream_lvl = MAX(max_len_verdict_or_stream_lvl, (uint32_t)strlen(FILE_SIZE_AND_LEVEL_STRINGS[i]));
 	}
 
+
+	// The left part (columns c1, c2, c3) of the (6) upper rows is blank (so they are only calculated once)
 	getCenteredString(c1, max_len_irp_op_str, "");
 	getCenteredString(c2, max_len_op_str, "");
 	getCenteredString(c3, max_len_op_pos_str, "");
+
+
 	getCenteredString(c4, max_len_verdict_or_stream_lvl, underscores);
 	getCenteredString(c5, max_len_verdict_or_stream_lvl, underscores);
 	getCenteredString(c6, max_len_verdict_or_stream_lvl, underscores);
 	getCenteredString(c7, max_len_verdict_or_stream_lvl, underscores);
 	printf("  %s   %s   %s  _%s___%s___%s___%s_  \n", c1, c2, c3, c4, c5, c6, c7);
 
-	getCenteredString(c1, max_len_irp_op_str, "");
-	getCenteredString(c2, max_len_op_str, "");
-	getCenteredString(c3, max_len_op_pos_str, "");
+	getCenteredString(c4, max_len_verdict_or_stream_lvl * 4 + 8 + 3 -2, "");
+	printf("  %s   %s   %s | %s | \n", c1, c2, c3, c4);
+
+	getCenteredString(c4, max_len_verdict_or_stream_lvl * 4 + 8 + 3 -2, "INPUT STREAM FOR THE WRAPPER");
+	printf("  %s   %s   %s | %s | \n", c1, c2, c3, c4);
+
+	getCenteredString(c4, max_len_verdict_or_stream_lvl, underscores);
+	getCenteredString(c5, max_len_verdict_or_stream_lvl, underscores);
+	getCenteredString(c6, max_len_verdict_or_stream_lvl, underscores);
+	getCenteredString(c7, max_len_verdict_or_stream_lvl, underscores);
+	printf("  %s   %s   %s |_%s___%s___%s___%s_| \n", c1, c2, c3, c4, c5, c6, c7);
+
 	getCenteredString(c4, max_len_verdict_or_stream_lvl, "");
 	getCenteredString(c5, max_len_verdict_or_stream_lvl, "");
 	getCenteredString(c6, max_len_verdict_or_stream_lvl, "");
 	getCenteredString(c7, max_len_verdict_or_stream_lvl, "");
 	printf("  %s   %s   %s | %s | %s | %s | %s | \n", c1, c2, c3, c4, c5, c6, c7);
 
-	getCenteredString(c1, max_len_irp_op_str, "");
-	getCenteredString(c2, max_len_op_str, "");
-	getCenteredString(c3, max_len_op_pos_str, "");
 	getCenteredString(c4, max_len_verdict_or_stream_lvl, FILE_SIZE_AND_LEVEL_STRINGS[0]);
 	getCenteredString(c5, max_len_verdict_or_stream_lvl, FILE_SIZE_AND_LEVEL_STRINGS[1]);
 	getCenteredString(c6, max_len_verdict_or_stream_lvl, FILE_SIZE_AND_LEVEL_STRINGS[2]);
 	getCenteredString(c7, max_len_verdict_or_stream_lvl, FILE_SIZE_AND_LEVEL_STRINGS[3]);
 	printf("  %s   %s   %s | %s | %s | %s | %s | \n", c1, c2, c3, c4, c5, c6, c7);
 
+
+	// From here onwards c1, c2 and c3 are constantly updated (as the rest)
 	getCenteredString(c1, max_len_irp_op_str, underscores);
 	getCenteredString(c2, max_len_op_str, underscores);
 	getCenteredString(c3, max_len_op_pos_str, underscores);
@@ -784,40 +801,42 @@ void printTestTableResults() {
 	/*
 	Result should be similar to this:
 												  ___________________________________________________
+												 |                                                   |
+												 |           INPUT STREAM FOR THE WRAPPER            |
+												 |___________________________________________________|
 												 |            |            |            |            |
 												 | SMALL  (0) |  BIG (-1)  |  BIG  (0)  |  BIG (+1)  |
 	 ____________________________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
 	|       |          |       INSIDE_MARK       |    PASS    |    PASS    |    PASS    |    PASS    |
-	|       |  NOTHING | INSIDE_AND_OUTSIDE_MARK |  N/A (ok)  |    PASS    |    PASS    |    PASS    |
-	|       |          |      OUTSIDE_MARK       |  N/A (ok)  |    PASS    |    PASS    |    PASS    |
+	|       |  NOTHING | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  |    PASS    |    PASS    |    PASS    |
+	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    PASS    |    PASS    |
 	|       |__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
-	|       |          |       INSIDE_MARK       |    PASS    |    FAIL    |    FAIL    |  NOT DONE  |
-	| READ  |  CIPHER  | INSIDE_AND_OUTSIDE_MARK |  N/A (ok)  |    FAIL    |    FAIL    |  NOT DONE  |
-	|       |          |      OUTSIDE_MARK       |  N/A (ok)  |    FAIL    |    FAIL    |  NOT DONE  |
+	|       |          |       INSIDE_MARK       |    PASS    |    PASS    |    FAIL    | ABORT (OK) |
+	| READ  |  CIPHER  | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  |    PASS    |    FAIL    | ABORT (OK) |
+	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    FAIL    | ABORT (OK) |
 	|       |__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
-	|       |          |       INSIDE_MARK       |    PASS    |  NOT DONE  |    PASS    |    PASS    |
-	|       | DECIPHER | INSIDE_AND_OUTSIDE_MARK |  N/A (ok)  |  NOT DONE  |    PASS    |    PASS    |
-	|       |          |      OUTSIDE_MARK       |  N/A (ok)  |  NOT DONE  |    PASS    |    PASS    |
+	|       |          |       INSIDE_MARK       |    PASS    | ABORT (OK) |    PASS    |    PASS    |
+	|       | DECIPHER | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  | ABORT (OK) |    PASS    |    PASS    |
+	|       |          |      OUTSIDE_MARK       |  N/A (OK)  | ABORT (OK) |    PASS    |    PASS    |
 	|_______|__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
 	|       |          |       INSIDE_MARK       |    PASS    |    PASS    |    PASS    |    PASS    |
-	|       |  NOTHING | INSIDE_AND_OUTSIDE_MARK |  N/A (ok)  |    PASS    |    PASS    |    PASS    |
-	|       |          |      OUTSIDE_MARK       |  N/A (ok)  |    PASS    |    PASS    |    PASS    |
+	|       |  NOTHING | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  |    PASS    |    PASS    |    PASS    |
+	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    PASS    |    PASS    |
 	|       |__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
-	|       |          |       INSIDE_MARK       |    PASS    |    PASS    |    PASS    |  NOT DONE  |
-	| WRITE |  CIPHER  | INSIDE_AND_OUTSIDE_MARK |  N/A (ok)  |    PASS    |    PASS    |  NOT DONE  |
-	|       |          |      OUTSIDE_MARK       |  N/A (ok)  |    PASS    |    FAIL    |  NOT DONE  |
+	|       |          |       INSIDE_MARK       |    PASS    |  N/A (OK)  |    FAIL    | ABORT (OK) |
+	| WRITE |  CIPHER  | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  |  N/A (OK)  |    FAIL    | ABORT (OK) |
+	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    FAIL    | ABORT (OK) |
 	|       |__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
-	|       |          |       INSIDE_MARK       |  NOT DONE  |  NOT DONE  |  NOT DONE  |  NOT DONE  |
-	|       | DECIPHER | INSIDE_AND_OUTSIDE_MARK |  NOT DONE  |  NOT DONE  |  NOT DONE  |  NOT DONE  |
-	|       |          |      OUTSIDE_MARK       |  NOT DONE  |  NOT DONE  |  NOT DONE  |  NOT DONE  |
+	|       |          |       INSIDE_MARK       |    PASS    | ABORT (OK) |    PASS    |  N/A (OK)  |
+	|       | DECIPHER | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  | ABORT (OK) |    PASS    |  N/A (OK)  |
+	|       |          |      OUTSIDE_MARK       |  N/A (OK)  | ABORT (OK) |    PASS    |    PASS    |
 	|_______|__________|_________________________|____________|____________|____________|____________|
-
 
 	In the syntax of     print("%*.*s", a, b, str);     the vaules of a, b, str represent:
 		a = minimum of printed characters adding spaces to the left if necessary.
@@ -871,7 +890,8 @@ void printTestTableLegend() {
 	printf("The possible results are:\n");
 	printf("  * PASS: test successfully executed and passed.\n");
 	printf("  * FAIL: test executed and failed.\n");
-	printf("  * N/A: test not executed because it has no valid meaning. Can be counted as a success value.\n");
+	printf("  * ABORT (OK): test executeed and the wrapper aborted the operation, what was expected. Counts as a success value.\n");
+	printf("  * N/A (OK): test not executed because it has no valid meaning. Counts as a success value.\n");
 	printf("  * NOT DONE: test not executed. This is the default value and should never appear in the tests. Indicates a bug in the testing code and not in the wrapper\n");
 	printf("\n\n");
 }

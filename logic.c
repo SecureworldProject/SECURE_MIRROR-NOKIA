@@ -346,7 +346,6 @@ void printFMI(struct FileMarkInfo* fmi) {
 
 // TODO: improve implementation with better randomness
 uint32_t createFRN() {
-	return 25161;
 	if (testing_mode_on) {
 		return 25161;
 	}
@@ -1865,7 +1864,7 @@ int postWriteLogic(
 					fmi->file_frn = INVALID_FRN;
 				}
 				if (fmi->buffer_mark_lvl == -1) {
-					printf("ERROR: cannot decipher a deciphered file");
+					printf("ERROR: cannot decipher a deciphered file\n");
 					error_code = ERROR_WRITE_FAULT;
 					goto POST_WRITE_CLEANUP;
 				}

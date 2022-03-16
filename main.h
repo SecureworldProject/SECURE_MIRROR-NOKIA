@@ -15,6 +15,10 @@
 // Uncomment to print context at the beginning
 //#define RUN_PRINT_CONTEXT
 
+// Uncomment to start debug mode (includes debugging options in the sharing menu and not quitting when dll fails to load)
+#define SECUREMIRROR_DEBUG_MODE
+
+
 #define NUM_LETTERS 26
 
 // Returns the index (position in the alphabet starting at 0) associated to the letter (allows lower/upper case and char/WCHAR types)
