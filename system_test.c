@@ -444,11 +444,12 @@ void unitTestMenu() {
 	c = (n - a * 1000 - b * 100) / 10;
 	d = (n - a * 1000 - b * 100 - c * 10);
 
+	testing_mode_on = TRUE;
 	unitTest(a, b, c, d);
+	testing_mode_on = FALSE;
 
 	printTestTableResults(FALSE);
 	printTestTableLegend();
-
 }
 
 
