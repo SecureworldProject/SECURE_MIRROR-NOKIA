@@ -62,7 +62,8 @@ void sharingMainMenu() {
 		#ifdef SECUREMIRROR_DEBUG_MODE
 		printf("  4) (Debug only) Print the File Mark Info Table\n");
 		printf("  5) (Debug only) Test System\n");
-		printf("  6) (Debug only) Print Unit Test Information\n");
+		printf("  6) (Debug only) Unit Test\n");
+		printf("  7) (Debug only) Print Unit Test Information\n");
 		#endif
 		printf("  9) Show help\n");
 		printf("\n");
@@ -90,11 +91,16 @@ void sharingMainMenu() {
 						#endif		// else goes through next options until default
 					case 5:
 						#ifdef SECUREMIRROR_DEBUG_MODE
-						printf("Not implemented yet.\n");
 						testEverything();
 						break;
 						#endif		// else goes through next options until default
 					case 6:
+						#ifdef SECUREMIRROR_DEBUG_MODE
+						printf("Not implemented yet.\n");
+						unitTestMenu();
+						break;
+						#endif		// else goes through next options until default
+					case 7:
 						#ifdef SECUREMIRROR_DEBUG_MODE
 						printf("Not implemented yet.\n");
 						printUnitTestData();

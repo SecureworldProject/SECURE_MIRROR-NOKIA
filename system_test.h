@@ -20,6 +20,6 @@ static const char* test_stream = "Quisiera yo, si fuera posible (lector amantísi
 /////  FUNCTION PROTOTYPES  /////
 void testEverything();
 void printUnitTestData();
-
+void unitTestMenu();
 
 #endif //!__SYSTEM_TEST_H

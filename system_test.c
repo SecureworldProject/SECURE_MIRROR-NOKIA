@@ -109,7 +109,7 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset, int length);
 
 void getCenteredString(char* str_out, int chars_to_write, const char* str_in);
-void printTestTableResults();
+void printTestTableResults(BOOL use_codes);
 void printTestTableLegend();
 
 
@@ -134,7 +134,7 @@ void testEverything() {
 				}
 			}
 		}
-		printTestTableResults();
+		printTestTableResults(FALSE);
 		printTestTableLegend();
 	}
 
@@ -144,6 +144,11 @@ void testEverything() {
 
 
 DWORD initTestStreams() {
+	static initialized = FALSE;
+	if (initialized) {
+		return ERROR_SUCCESS;
+	}
+
 	struct Cipher* p_cipher = NULL;
 	struct KeyData* key = NULL;
 	uint32_t frn_deciphered = 0;
@@ -200,6 +205,7 @@ DWORD initTestStreams() {
 	invokeCipher(p_cipher, big_ciphered_stream, big_cleartext_stream, big_stream_buffer_size, 0, key, frn_ciphered);
 	mark(big_ciphered_stream, 1, frn_ciphered);
 
+	initialized = TRUE;
 	return ERROR_SUCCESS;
 }
 
@@ -376,8 +382,6 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 		//}
 	}
 
-	PRINT("Hasta aqui bien 3\n");
-
 	// Execute test using monitored drive and compute output
 	if (irp_op == IRP_OP_READ) {
 		aborted |= (ERROR_SUCCESS != readTestFile(&(current_test->output_stream), test_file_path_m, offset, length));
@@ -386,8 +390,6 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 		aborted |= (ERROR_SUCCESS != writeTestFile(current_test->input_stream, test_file_path_m, offset, length));
 		aborted |= (ERROR_SUCCESS != readTestFile(&(current_test->output_stream), test_file_path_c, offset, length));
 	}
-	PRINT("Hasta aqui bien 4\n");
-
 
 	// Check the result of the test
 	if (current_test->desired_output_stream != NULL) {		// Check the expected result is a correct buffer
@@ -423,6 +425,32 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 		}
 	}
 }
+
+void unitTestMenu() {
+	initTestStreams();
+
+	int n;
+	int a, b, c, d = 0;
+
+	printTestTableResults(TRUE);
+
+	printf("Introduce test code: ");
+	if (1 != scanf("%d", &n)) return;
+	printf("\n");
+
+	// Get indexes
+	a = n / 1000;
+	b = (n - a * 1000) / 100;
+	c = (n - a * 1000 - b * 100) / 10;
+	d = (n - a * 1000 - b * 100 - c * 10);
+
+	unitTest(a, b, c, d);
+
+	printTestTableResults(FALSE);
+	printTestTableLegend();
+
+}
+
 
 DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, int length) {
 	FILE* file_ptr = NULL;
@@ -547,11 +575,13 @@ DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset
 }
 
 
-void printTestTableResults() {
+void printTestTableResults(BOOL use_codes) {
 	uint32_t max_len_irp_op_str = 0;
 	uint32_t max_len_op_str = 0;
 	uint32_t max_len_op_pos_str = 0;
 	uint32_t max_len_verdict_or_stream_lvl = 0;
+
+	char code[5] = "0000";
 
 	// Reserve space for up to 64 printable characters per column
 	char c1[65] = "";
@@ -691,15 +721,32 @@ void printTestTableResults() {
 			}
 
 			// Iterate over OperationPosition and print table results
-			for (size_t op_pos = 0; op_pos < 3; op_pos++) {
-				getCenteredString(c1, max_len_irp_op_str,				(op_pos == 1 && op == 1) ? IRP_OPERATION_STRINGS[irp_op] : "");
-				getCenteredString(c2, max_len_op_str,					(op_pos == 1) ? OPERATION_STRINGS[op] : "");
-				getCenteredString(c3, max_len_op_pos_str,				OPERATION_POSITION_STRINGS[op_pos]);
-				getCenteredString(c4, max_len_verdict_or_stream_lvl,	TEST_VERDICT_STRINGS[tests_array[irp_op][op][op_pos][0].verdict]);
-				getCenteredString(c5, max_len_verdict_or_stream_lvl,	TEST_VERDICT_STRINGS[tests_array[irp_op][op][op_pos][1].verdict]);
-				getCenteredString(c6, max_len_verdict_or_stream_lvl,	TEST_VERDICT_STRINGS[tests_array[irp_op][op][op_pos][2].verdict]);
-				getCenteredString(c7, max_len_verdict_or_stream_lvl,	TEST_VERDICT_STRINGS[tests_array[irp_op][op][op_pos][3].verdict]);
-				printf("| %s | %s | %s | %s | %s | %s | %s | \n", c1, c2, c3, c4, c5, c6, c7);
+			if (use_codes) {
+				for (size_t op_pos = 0; op_pos < 3; op_pos++) {
+					getCenteredString(c1, max_len_irp_op_str, (op_pos == 1 && op == 1) ? IRP_OPERATION_STRINGS[irp_op] : "");
+					getCenteredString(c2, max_len_op_str, (op_pos == 1) ? OPERATION_STRINGS[op] : "");
+					getCenteredString(c3, max_len_op_pos_str, OPERATION_POSITION_STRINGS[op_pos]);
+					sprintf(code, "%04d", irp_op * 1000 + op * 100 + op_pos * 10 + 0);
+					getCenteredString(c4, max_len_verdict_or_stream_lvl, code);
+					sprintf(code, "%04d", irp_op * 1000 + op * 100 + op_pos * 10 + 1);
+					getCenteredString(c5, max_len_verdict_or_stream_lvl, code);
+					sprintf(code, "%04d", irp_op * 1000 + op * 100 + op_pos * 10 + 2);
+					getCenteredString(c6, max_len_verdict_or_stream_lvl, code);
+					sprintf(code, "%04d", irp_op * 1000 + op * 100 + op_pos * 10 + 3);
+					getCenteredString(c7, max_len_verdict_or_stream_lvl, code);
+					printf("| %s | %s | %s | %s | %s | %s | %s | \n", c1, c2, c3, c4, c5, c6, c7);
+				}
+			} else {
+				for (size_t op_pos = 0; op_pos < 3; op_pos++) {
+					getCenteredString(c1, max_len_irp_op_str, (op_pos == 1 && op == 1) ? IRP_OPERATION_STRINGS[irp_op] : "");
+					getCenteredString(c2, max_len_op_str, (op_pos == 1) ? OPERATION_STRINGS[op] : "");
+					getCenteredString(c3, max_len_op_pos_str, OPERATION_POSITION_STRINGS[op_pos]);
+					getCenteredString(c4, max_len_verdict_or_stream_lvl, TEST_VERDICT_STRINGS[tests_array[irp_op][op][op_pos][0].verdict]);
+					getCenteredString(c5, max_len_verdict_or_stream_lvl, TEST_VERDICT_STRINGS[tests_array[irp_op][op][op_pos][1].verdict]);
+					getCenteredString(c6, max_len_verdict_or_stream_lvl, TEST_VERDICT_STRINGS[tests_array[irp_op][op][op_pos][2].verdict]);
+					getCenteredString(c7, max_len_verdict_or_stream_lvl, TEST_VERDICT_STRINGS[tests_array[irp_op][op][op_pos][3].verdict]);
+					printf("| %s | %s | %s | %s | %s | %s | %s | \n", c1, c2, c3, c4, c5, c6, c7);
+				}
 			}
 		}
 	}

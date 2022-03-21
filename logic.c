@@ -761,13 +761,9 @@ int8_t unmark(uint8_t* input, uint32_t* frn) {
 	uint16_t compressed_length = ((uint16_t*)(input))[1];	//*(uint32_t*)&input[1];
 	uint16_t header_bit_length = ((uint16_t*)(input))[2] + (6 /*HEADER_BASE_SIZE*/ << 3); //*(uint16_t*)&input[4] + (6 /*HEADER_BASE_SIZE*/ << 3);
 	int8_t mark_level = (int8_t)input[MARK_LENGTH - 1];
+	uint32_t tmp_frn = *((uint32_t*)(&(input[MARK_LENGTH - 1 - 4])));	// Get uint8_t in pos 507. Take its memory addr. Make it uint32_t*. Indirect to take its contents
 
 	PRINT("Checking mark. decompressed_length=%u, compressed_length=%u, header_bit_length=%u (%u bytes)\n", decompressed_length, compressed_length, header_bit_length, header_bit_length / 8 + ((header_bit_length % 8) ? 0 : 1));
-
-	if (mark_level == UNKNOWN_MARK_LEVEL || mark_level == 0) {
-		*frn = INVALID_FRN;
-		return 0;
-	}
 
 	if (decompressed_length != (uint16_t)MARK_LENGTH) {
 		*frn = INVALID_FRN;
@@ -784,6 +780,16 @@ int8_t unmark(uint8_t* input, uint32_t* frn) {
 		return 0;
 	}
 
+	if (mark_level == UNKNOWN_MARK_LEVEL || mark_level == 0) {
+		*frn = INVALID_FRN;
+		return 0;
+	}
+
+	if (tmp_frn == INVALID_FRN) {
+		*frn = INVALID_FRN;
+		return 0;
+	}
+
 	uint8_t* output = NULL;		// Allocated inside huffman_decode
 	PRINT("Trying to unmark...\n");
 
@@ -796,7 +802,7 @@ int8_t unmark(uint8_t* input, uint32_t* frn) {
 	PRINT("Unmarked\n");
 
 	// Copy FRN from the mark
-	*frn = *((uint32_t*)(&(input[MARK_LENGTH - 1 - 4])));	// Get uint8_t in pos 507. Take its memory addr. Make it uint32_t*. Indirect to take its contents
+	*frn = tmp_frn;
 
 	// Copy decoded buffer into input buffer
 	memcpy(input, output, MARK_LENGTH);
