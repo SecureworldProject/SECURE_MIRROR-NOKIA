@@ -31,14 +31,14 @@ static const char* TEST_VERDICT_STRINGS[] = { "NOT DONE", "FAIL", "PASS", "N/A (
 // Paths to the test files
 #define TEST_C_FOLDER_PATH L"C:\\Users\\Pepito\\TEST\\"		//L"C:\\secureworld\\"
 #define TEST_M_FOLDER_PATH L"E:\\"		//L"\\\\?\\E:\\"						//L"M:\\secureworld\\"
-const WCHAR* TEST_SMALL_FILE_NAME			= L"TEST_SMALL.txt";
-const WCHAR* TEST_BIG_DECIPHERED_FILE_NAME	= L"TEST_BIG_DECIPHERED.txt";
-const WCHAR* TEST_BIG_CLEARTEXT_FILE_NAME	= L"TEST_BIG_CLEARTEXT.txt";
-const WCHAR* TEST_BIG_CIPHERED_FILE_NAME	= L"TEST_BIG_CIPHERED.txt";
+//const WCHAR* TEST_SMALL_FILE_NAME			= L"TEST_SMALL.txt";
+//const WCHAR* TEST_BIG_DECIPHERED_FILE_NAME	= L"TEST_BIG_DECIPHERED.txt";
+//const WCHAR* TEST_BIG_CLEARTEXT_FILE_NAME	= L"TEST_BIG_CLEARTEXT.txt";
+//const WCHAR* TEST_BIG_CIPHERED_FILE_NAME	= L"TEST_BIG_CIPHERED.txt";
 
 // Stream definitions and variables (filled in initTestStreams())
-#define SMALL_STREAM_BUFFER_SIZE 500
-size_t big_stream_buffer_size = 0;
+#define SMALL_STREAM_BUFFER_SIZE (DWORD)500
+DWORD big_stream_buffer_size = 0;
 uint8_t* small_stream = NULL;
 uint8_t* big_deciphered_stream = NULL;
 uint8_t* big_cleartext_stream = NULL;
@@ -169,8 +169,13 @@ DWORD initTestStreams() {
 	frn_ciphered = createFRN();
 
 	// Allocate buffer streams. Memory space for the text, but not the last '\0' is allocated.
-	// Note big_cleartext_stream has 1 more allocated byte to contain last '\0'. But it is OK if all the operations are done using big_stream_buffer_size
-	big_stream_buffer_size = strlen(test_stream);
+	// Note: big_cleartext_stream has 1 more allocated byte to contain last '\0'. But it is OK if all the operations are done using big_stream_buffer_size
+	// Note 2: following block is a safer equivalent of: big_stream_buffer_size = (DWORD)strlen(test_stream);
+	{
+		size_t tmp_val = strlen(test_stream);
+		if (tmp_val > 0xFFFFFFFF) return -1;
+		else big_stream_buffer_size = (DWORD)tmp_val;
+	}
 	small_stream = malloc(SMALL_STREAM_BUFFER_SIZE * sizeof(uint8_t));
 	big_deciphered_stream = malloc(big_stream_buffer_size * sizeof(uint8_t));
 	big_cleartext_stream = test_stream;
@@ -195,17 +200,6 @@ DWORD initTestStreams() {
 	invokeCipher(p_cipher, big_ciphered_stream, big_cleartext_stream, big_stream_buffer_size, 0, key, frn_ciphered);
 	mark(big_ciphered_stream, 1, frn_ciphered);
 
-	//PRINT("------------ - VVVVVVVVVVVVVVVVVVVVVVVVVVVV------------ - \n");
-	//PRINT("small_stream: %.*s \n", SMALL_STREAM_BUFFER_SIZE,  small_stream);
-	//PRINT("big_deciphered_stream: %.*s \n", big_stream_buffer_size-1, big_deciphered_stream);
-	//PRINT("big_cleartext_stream: %.*s \n", big_stream_buffer_size-1, big_cleartext_stream);
-	//PRINT("big_ciphered_stream: %.*s \n", big_stream_buffer_size-1, big_ciphered_stream);
-	//PRINT("------------ - ^^^^^^^^^^^^^^^^^^^^^^^^^^^^------------ - \n");
-	//PRINT_HEX(big_deciphered_stream, big_stream_buffer_size - 1);
-	//PRINT_HEX(big_cleartext_stream, big_stream_buffer_size - 1);
-	//PRINT_HEX(big_ciphered_stream, big_stream_buffer_size - 1);
-	//PRINT("------------ - ^^^^^^^^^^^^^^^^^^^^^^^^^^^^------------ - \n");
-
 	return ERROR_SUCCESS;
 }
 
@@ -219,8 +213,8 @@ void freeTestStreams() {
 		big_ciphered_stream = NULL;
 	}
 	if (big_cleartext_stream != NULL) {
-		// Do not free, because it is const
-		big_ciphered_stream = NULL;
+		// Pointer is not freed in this case because it points to a const string
+		big_cleartext_stream = NULL;
 	}
 	if (big_deciphered_stream != NULL) {
 		free(big_deciphered_stream);
@@ -259,7 +253,7 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 	current_test->output_stream = NULL;
 	current_test->verdict = TEST_VERDICT_NOT_DONE;
 
-	// Check special cases
+	// Check special cases where the test makes no sense itself, and mark them as N/A (which has a success meaning)
 	if ((stream_lvl == SMALL && op_position != INSIDE_MARK)
 		|| (IRP_OP_WRITE == irp_op && CIPHER == ciphering_op && OUTSIDE_MARK != op_position && BIG_DECIPHERED == stream_lvl)	// cases 1101 and 1111
 		|| (IRP_OP_WRITE == irp_op && DECIPHER == ciphering_op && OUTSIDE_MARK != op_position && BIG_CIPHERED == stream_lvl)	// cases 1203 and 1213
@@ -268,22 +262,8 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 		return;
 	}
 
-	// This is to do the first TEST only!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	/*
-	if (//(1 == irp_op && 2 == ciphering_op && 0 == op_position && 1 == stream_lvl) ||
-		(1 == ciphering_op && 3 == stream_lvl) ||
-		(2 == ciphering_op && 1 == stream_lvl)) {
-		//(1 == irp_op && 2 == ciphering_op)) {			// - write descifrar
-		//(1 == irp_op)// && 2 == ciphering_op)) {
-		PRINT("Skipping test...\n");
-		//current_test->verdict = TEST_VERDICT_NOT_DONE;
-		//return;
-	}*/
-
-
 	// Select the input stream
 	current_test->input_stream = all_test_streams[stream_lvl];
-
 
 	// Select offset and length to use in the operation to perform the test
 	switch (op_position) {
@@ -321,9 +301,6 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 	index = wcslen(TEST_C_FOLDER_PATH);
 	wcscpy(test_file_path_c, TEST_C_FOLDER_PATH);
 	wcscpy(&(test_file_path_c[index]), test_file_name);
-
-	PRINT("@@@@@@@@@@@ FILENAME: %ws \t path_m=%ws \t path_c=%ws\n", test_file_name, test_file_path_m, test_file_path_c);
-
 
 	// Compute desired output
 	switch (ciphering_op) {
@@ -377,7 +354,6 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 			break;
 	}
 
-
 	// App type is fixed. Change operative asociated to the operation READ or WRITE
 	if (irp_op == IRP_OP_READ) {
 		my_op_table->tuples[0]->on_read = ciphering_op;
@@ -422,7 +398,7 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 			} else {
 				current_test->verdict = TEST_VERDICT_FAIL;
 			}
-			if (ciphering_op == NOTHING) {
+			/*if (ciphering_op == NOTHING) {
 				PRINT("\n\n\n\n\n\n\n\n");
 				PRINT("memcmp(current_test->desired_output_stream + offset, current_test->output_stream + offset, length): %d\n", memcmp(current_test->desired_output_stream + offset, current_test->output_stream + offset, length));
 				PRINT("DESIRED: %*s \n", length, &((current_test->desired_output_stream)[offset]));
@@ -432,7 +408,7 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 				PRINT_HEX(current_test->output_stream + offset, length);
 				PRINT("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
 				PRINT("\n\n\n\n\n\n\n\n");
-			}
+			}*/
 		} else {		// The real output is NULL, there was an error
 			current_test->verdict = TEST_VERDICT_FAIL;
 		}
@@ -460,19 +436,18 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 	// Open a file with a wide character path/filename
 	result = _wfopen_s(&file_ptr, file_path, L"rb");
 	if (result != 0 || file_ptr == NULL) {
-		printf("ERROR: could not read file (%ws) for the test.\n", file_path);
 		error = ERROR_OPEN_FAILED;
+		fprintf(stderr, "ERROR: could not open (read) file (%ws) for the test (error=%lu).\n", file_path, error);
 		goto READ_TEST_FILE_CLEANUP;
 	}
 
 	// Point to end of file, get the offset (=file size). Point to offset
 	fseek(file_ptr, 0L, SEEK_END);
 	file_size = ftell(file_ptr);
-	//rewind(file_ptr);
 	fseek(file_ptr, offset, SEEK_SET);
 
 	if (length == -1) {
-		elem_count = file_size;
+		elem_count = (int)file_size;
 	} else {
 		elem_count = length;
 	}
@@ -481,6 +456,7 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 	*read_buffer = calloc(file_size, sizeof(uint8_t));
 	if (*read_buffer == NULL) {
 		error = ERROR_NOT_ENOUGH_MEMORY;
+		fprintf(stderr, "ERROR: could not allocte memory for the read_buffer in the file (%ws) for the test (error=%lu).\n", file_path, error);
 		goto READ_TEST_FILE_CLEANUP;
 	}
 
@@ -490,6 +466,7 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 	result = fread_s(&((*read_buffer)[offset]), file_size-offset, sizeof(uint8_t), elem_count, file_ptr);
 	if (result != elem_count || ferror(file_ptr) != 0) {
 		error = ERROR_READ_FAULT;
+		fprintf(stderr, "ERROR: could not read file (%ws) for the test (error=%lu).\n", file_path, error);
 		goto READ_TEST_FILE_CLEANUP;
 	}
 
@@ -500,7 +477,6 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 
 	// Close file if necessary
 	READ_TEST_FILE_CLEANUP:
-	PRINT("\n\n\n\nERROR LEYENDO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n\n\n");
 	if (file_ptr != NULL) {
 		fclose(file_ptr);
 	}
@@ -512,57 +488,10 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 	return error;
 }
 
-DWORD writeTestFile_OLD(uint8_t* buffer_to_write, const WCHAR* file_path, int offset, int length) {
-	FILE* file_ptr = NULL;
-	size_t result = 0;
-	DWORD error = ERROR_SUCCESS;
-	size_t file_size = 0;
-	int elem_count = length;
-	//PRINT("buffer_to_write=%p, file_path=%ws, offset=%d, length=%d\n", buffer_to_write, file_path, offset, length);
-	//PRINT_HEX(buffer_to_write, length);
-
-	// Open a file with a wide character path/filename
-	result = _wfopen_s(&file_ptr, file_path, L"ab");
-	if (result != 0 || file_ptr == NULL) {
-		printf("ERROR: could not write file (%ws) for the test.\n", file_path);
-		error = ERROR_READ_FAULT;
-		goto WRITE_TEST_FILE_CLEANUP;
-	}
-
-	// Point to end of file, get the offset (=file size). Point to offset
-	fseek(file_ptr, 0L, SEEK_END);
-	file_size = ftell(file_ptr);
-	PRINT("ÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑÑ\n");
-	PRINT("file_size = %llu\n", file_size);
-	//rewind(file_ptr);
-	fseek(file_ptr, offset, SEEK_SET);
-	PRINT("ftell despues de fseek = %ld\n", ftell(file_ptr));
-
-
-
-	result = fwrite(buffer_to_write, sizeof(uint8_t), elem_count, file_ptr);
-	if (result != elem_count) {// || ferror(file_ptr) != 0) {
-		error = ERROR_WRITE_FAULT;
-		goto WRITE_TEST_FILE_CLEANUP;
-	}
-
-	// If no errors, set result to success
-	fclose(file_ptr);
-	return ERROR_SUCCESS;
-
-	// Close file if necessary
-	WRITE_TEST_FILE_CLEANUP:
-	if (file_ptr != NULL) {
-		fclose(file_ptr);
-	}
-
-	return error;
-}
 DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset, int length) {
 	HANDLE handle = INVALID_HANDLE_VALUE;
 	size_t result = 0;
 	DWORD error = ERROR_SUCCESS;
-	size_t file_size = 0;
 	LARGE_INTEGER distanceToMove = { 0 };
 	DWORD bytes_written = 0;
 	DWORD bytes_to_write = length;
@@ -573,31 +502,18 @@ DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset
 	// Open a file with a wide character path/filename
 	handle = CreateFileW(file_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);	// maybe change FILE_ATTRIBUTE_NORMAL with 0
 	if (handle == INVALID_HANDLE_VALUE) {
-		printf("ERROR: could not write file (%ws) for the test.\n", file_path);
 		error = ERROR_READ_FAULT;
+		fprintf(stderr, "ERROR: could not open (write) file (%ws) for the test (error=%lu).\n", file_path, error);
 		goto WRITE_TEST_FILE_CLEANUP;
 	}
 
-	// Maybe should check file_size > 0 (although that would mean that file_size > 8 EiB = 2^63 Bytes)
-	if (!GetFileSizeEx(handle, &file_size)) {
-		error = GetLastError();
-		PRINT("\tERROR: cannot get file size (%d)\n", error);
-		goto WRITE_TEST_FILE_CLEANUP;
-	};
-
-
-	// Point to end of file, get the offset (=file size). Point to offset
-	//PRINT("file_size = %llu\n", file_size);
-
+	// Point to desired offset
 	distanceToMove.QuadPart = offset;
 	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 		error = GetLastError();
-		PRINT("ERROR handle seeking in postWrite (error=%lu)\n", error);
+		fprintf(stderr, "ERROR: could not point handle to the desired offset for writting file (%ws) for the test (error=%lu).\n", file_path, error);
 		goto WRITE_TEST_FILE_CLEANUP;
 	}
-
-	//PRINT("distanceToMove despues de SetFilePointerEx() = %llu\n", distanceToMove.QuadPart);
-
 
 	// Write new content to file
 	if (!WriteFile(
@@ -607,12 +523,13 @@ DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset
 		&bytes_written,
 		NULL)
 		) {
-		printf("ERROR writing mark in postWrite!!!\n");
 		error = ERROR_WRITE_FAULT;
+		fprintf(stderr, "ERROR: could not write file (%ws) for the test.\n", file_path);
 		goto WRITE_TEST_FILE_CLEANUP;
 	}
 	if (bytes_written != length) {
 		error = ERROR_WRITE_FAULT;
+		fprintf(stderr, "ERROR: could not write file (%ws) for the test.\n", file_path);
 		goto WRITE_TEST_FILE_CLEANUP;
 	}
 
@@ -800,7 +717,7 @@ void printTestTableResults() {
 
 	/*
 	Result should be similar to this:
-												  ___________________________________________________
+	                                              ___________________________________________________
 												 |                                                   |
 												 |           INPUT STREAM FOR THE WRAPPER            |
 												 |___________________________________________________|
@@ -813,9 +730,9 @@ void printTestTableResults() {
 	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    PASS    |    PASS    |
 	|       |__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
-	|       |          |       INSIDE_MARK       |    PASS    |    PASS    |    FAIL    | ABORT (OK) |
-	| READ  |  CIPHER  | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  |    PASS    |    FAIL    | ABORT (OK) |
-	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    FAIL    | ABORT (OK) |
+	|       |          |       INSIDE_MARK       |    PASS    |    PASS    |    PASS    | ABORT (OK) |
+	| READ  |  CIPHER  | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  |    PASS    |    PASS    | ABORT (OK) |
+	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    PASS    | ABORT (OK) |
 	|       |__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
 	|       |          |       INSIDE_MARK       |    PASS    | ABORT (OK) |    PASS    |    PASS    |
@@ -828,9 +745,9 @@ void printTestTableResults() {
 	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    PASS    |    PASS    |
 	|       |__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
-	|       |          |       INSIDE_MARK       |    PASS    |  N/A (OK)  |    FAIL    | ABORT (OK) |
-	| WRITE |  CIPHER  | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  |  N/A (OK)  |    FAIL    | ABORT (OK) |
-	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    FAIL    | ABORT (OK) |
+	|       |          |       INSIDE_MARK       |    PASS    |  N/A (OK)  |    PASS    | ABORT (OK) |
+	| WRITE |  CIPHER  | INSIDE_AND_OUTSIDE_MARK |  N/A (OK)  |  N/A (OK)  |    PASS    | ABORT (OK) |
+	|       |          |      OUTSIDE_MARK       |  N/A (OK)  |    PASS    |    PASS    | ABORT (OK) |
 	|       |__________|_________________________|____________|____________|____________|____________|
 	|       |          |                         |            |            |            |            |
 	|       |          |       INSIDE_MARK       |    PASS    | ABORT (OK) |    PASS    |  N/A (OK)  |
@@ -899,7 +816,7 @@ void printTestTableLegend() {
 
 // The caller of the function is responsible of ensuring there will be enough space in 'str_out' to hold 'chars_to_write' characters
 void getCenteredString(char *str_out, int chars_to_write, const char* str_in) {
-	int len = MIN(strlen(str_in), chars_to_write);
+	int len = MIN((int)strlen(str_in), chars_to_write);
 
 	sprintf(str_out, "%*.*s%*.*s",
 		chars_to_write / 2,							len / 2,			str_in,
@@ -914,7 +831,7 @@ void printUnitTestData() {
 	int length = 0;
 
 	printf("Say number test: ");
-	scanf("%d", &n);
+	if (1 != scanf("%d", &n)) return;
 	printf("\n");
 
 	// Get indexes

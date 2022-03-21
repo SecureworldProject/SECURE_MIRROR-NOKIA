@@ -346,6 +346,7 @@ void printFMI(struct FileMarkInfo* fmi) {
 
 // TODO: improve implementation with better randomness
 uint32_t createFRN() {
+	return 9;
 	if (testing_mode_on) {
 		return 25161;
 	}
