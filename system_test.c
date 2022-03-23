@@ -109,7 +109,7 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset, int length);
 
 void getCenteredString(char* str_out, int chars_to_write, const char* str_in);
-void printTestTableResults(BOOL use_codes);
+void printTestTableResults(BOOL use_codes_instead_of_results);
 void printTestTableLegend();
 
 
@@ -248,6 +248,7 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 	uint8_t pointable_uint8 = 0;
 	uint8_t *recyclable_buffer = NULL;
 	BOOL aborted = FALSE;
+	DWORD error = ERROR_SUCCESS;
 
 	PRINT("\n=====> STARTING UNIT TEST: irp_op=%d, ciphering_op=%d, op_position=%d, stream_lvl=%d \n", irp_op, ciphering_op, op_position, stream_lvl);
 
@@ -384,13 +385,30 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 
 	// Execute test using monitored drive and compute output
 	if (irp_op == IRP_OP_READ) {
-		aborted |= (ERROR_SUCCESS != readTestFile(&(current_test->output_stream), test_file_path_m, offset, length));
+		error = readTestFile(&(current_test->output_stream), test_file_path_m, offset, length);
+		if (error != ERROR_SUCCESS) {
+			PRINT("ERROR in the test %c%c%c%c when reading (error code: %lu)\n", test_file_name[5], test_file_name[7], test_file_name[9], test_file_name[11], error);
+			aborted = TRUE;
+			goto CHECK_TEST_RESULT;
+		}
 	}
 	else if (irp_op == IRP_OP_WRITE) {
-		aborted |= (ERROR_SUCCESS != writeTestFile(current_test->input_stream, test_file_path_m, offset, length));
-		aborted |= (ERROR_SUCCESS != readTestFile(&(current_test->output_stream), test_file_path_c, offset, length));
+		error = writeTestFile(current_test->input_stream, test_file_path_m, offset, length);
+		if (error != ERROR_SUCCESS) {
+			PRINT("ERROR in the test %c%c%c%c when writting (error code: %lu)\n", test_file_name[5], test_file_name[7], test_file_name[9], test_file_name[11], error);
+			aborted = TRUE;
+			goto CHECK_TEST_RESULT;
+		}
+
+		error = readTestFile(&(current_test->output_stream), test_file_path_c, offset, length);
+		if (error != ERROR_SUCCESS) {
+			PRINT("ERROR in the test %c%c%c%c when reading (error code: %lu)\n", test_file_name[5], test_file_name[7], test_file_name[9], test_file_name[11], error);
+			aborted = TRUE;
+			goto CHECK_TEST_RESULT;
+		}
 	}
 
+	CHECK_TEST_RESULT:
 	// Check the result of the test
 	if (current_test->desired_output_stream != NULL) {		// Check the expected result is a correct buffer
 		if (current_test->output_stream != NULL) {		// Check the real output is a correct buffer
@@ -429,31 +447,46 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 void unitTestMenu() {
 	initTestStreams();
 
-	int n;
+	WCHAR line[MAX_PATH] = { 0 };
+
+	int test_code;
 	int a, b, c, d = 0;
 
 	printTestTableResults(TRUE);
 
-	printf("Introduce test code: ");
-	if (1 != scanf("%d", &n)) return;
-	printf("\n");
+	printf("Enter a test code: ");
+	if (fgetws(line, MAX_PATH, stdin)) {
+		if (1 == swscanf_s(line, L"%d", &test_code)) {
 
-	// Get indexes
-	a = n / 1000;
-	b = (n - a * 1000) / 100;
-	c = (n - a * 1000 - b * 100) / 10;
-	d = (n - a * 1000 - b * 100 - c * 10);
+			printf("\n");
 
-	testing_mode_on = TRUE;
-	unitTest(a, b, c, d);
-	testing_mode_on = FALSE;
+			// Get indexes
+			a = test_code / 1000;
+			b = (test_code - a * 1000) / 100;
+			c = (test_code - a * 1000 - b * 100) / 10;
+			d = (test_code - a * 1000 - b * 100 - c * 10);
 
-	printTestTableResults(FALSE);
-	printTestTableLegend();
+			// Check the test_code is valid
+			if ((a != IRP_OP_READ && a != IRP_OP_WRITE) ||
+				(b != NOTHING && b != CIPHER && b != DECIPHER) ||
+				(c != INSIDE_MARK && c != INSIDE_AND_OUTSIDE_MARK && c != OUTSIDE_MARK) ||
+				(d != SMALL && d != BIG_DECIPHERED && d != BIG_CLEARTEXT && d != BIG_CIPHERED)) {
+				printf("ERROR: entered code (%1d%1d%1d%1d) is not valid\n", a, b, c, d);
+				return;
+			}
+
+			testing_mode_on = TRUE;
+			unitTest(a, b, c, d);
+			testing_mode_on = FALSE;
+
+			printTestTableResults(FALSE);
+			printTestTableLegend();
+		}
+	}
 }
 
 
-DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, int length) {
+DWORD readTestFileOLD(uint8_t** read_buffer, const WCHAR* file_path, int offset, int length) {
 	FILE* file_ptr = NULL;
 	size_t result = 0;
 	DWORD error = ERROR_SUCCESS;
@@ -492,7 +525,7 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 	// Read from "file_ptr" into "read_buffer"
 	// Stops if reaches maximum allocated memory of "read_buffer"
 	// Stops if reads "file_size" chunks of "sizeof(uint8_t)" bytes
-	result = fread_s(&((*read_buffer)[offset]), file_size-offset, sizeof(uint8_t), elem_count, file_ptr);
+	result = fread_s(&((*read_buffer)[offset]), file_size - offset, sizeof(uint8_t), elem_count, file_ptr);
 	if (result != elem_count || ferror(file_ptr) != 0) {
 		error = ERROR_READ_FAULT;
 		fprintf(stderr, "ERROR: could not read file (%ws) for the test (error=%lu).\n", file_path, error);
@@ -516,6 +549,92 @@ DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, in
 
 	return error;
 }
+DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, int length) {
+	HANDLE handle = INVALID_HANDLE_VALUE;
+	LARGE_INTEGER distanceToMove = { 0 };
+	DWORD bytes_read;
+
+
+	size_t result = 0;
+	DWORD error = ERROR_SUCCESS;
+	size_t file_size = 0;
+	int elem_count = 0;
+
+	PRINT("readTestFile() function call: read_buffer=%p, file_path=%ws, offset=%d, length=%d\n", read_buffer, file_path, offset, length);
+
+	// Open a file with a wide character path/filename
+	handle = CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);	// maybe change FILE_ATTRIBUTE_NORMAL with 0
+	if (handle == INVALID_HANDLE_VALUE) {
+		error = ERROR_OPEN_FAILED;
+		fprintf(stderr, "ERROR: could not open (read) file (%ws) for the test (error=%lu).\n", file_path, error);
+		goto READ_TEST_FILE_CLEANUP;
+	}
+
+	// Point to desired offset
+	distanceToMove.QuadPart = offset;
+	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
+		error = GetLastError();
+		fprintf(stderr, "ERROR: could not point handle to the desired offset for writting file (%ws) for the test (error=%lu).\n", file_path, error);
+		goto READ_TEST_FILE_CLEANUP;
+	}
+
+	// Get file size
+	error = getFileSize(&file_size, handle, file_path);
+	if (error != ERROR_SUCCESS) {
+		fprintf(stderr, "ERROR: could not get file size of the file (%ws) for the test (error=%lu).\n", file_path, error);
+		goto READ_TEST_FILE_CLEANUP;
+	}
+
+
+	// Allocate enough memory to read the whole file
+	*read_buffer = calloc(file_size, sizeof(uint8_t));
+	if (*read_buffer == NULL) {
+		error = ERROR_NOT_ENOUGH_MEMORY;
+		fprintf(stderr, "ERROR: could not allocte memory for the read_buffer in the file (%ws) for the test (error=%lu).\n", file_path, error);
+		goto READ_TEST_FILE_CLEANUP;
+	}
+
+	// Read from "file_ptr" into "read_buffer"
+	// Stops if reaches maximum allocated memory of "read_buffer"
+	// Stops if reads "file_size" chunks of "sizeof(uint8_t)" bytes
+	if (!ReadFile(
+		handle,
+		&((*read_buffer)[offset]),
+		(length == -1) ? file_size : length,
+		&bytes_read,
+		NULL))
+	{
+		error = ERROR_READ_FAULT;
+		fprintf(stderr, "ERROR: could not read file (%ws) for the test.\n", file_path);
+		goto READ_TEST_FILE_CLEANUP;
+	}
+	if (bytes_read != length) {
+		error = ERROR_READ_FAULT;
+		fprintf(stderr, "ERROR: could not read file (%ws) for the test.\n", file_path);
+		goto READ_TEST_FILE_CLEANUP;
+	}
+
+	// If no errors, close the handle and return success
+	CloseHandle(handle);
+	handle = INVALID_HANDLE_VALUE;
+
+	return ERROR_SUCCESS;
+
+
+	// Close file handle if necessary and return corresponding error
+	READ_TEST_FILE_CLEANUP:
+	if (handle != INVALID_HANDLE_VALUE) {
+		CloseHandle(handle);
+		handle = INVALID_HANDLE_VALUE;
+	}
+	/*if (read_buffer != NULL) {					// TO DO uncomment?
+		free(read_buffer);
+		read_buffer = NULL;
+	}*/
+
+	return error;
+}
+
 
 DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset, int length) {
 	HANDLE handle = INVALID_HANDLE_VALUE;
@@ -525,13 +644,13 @@ DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset
 	DWORD bytes_written = 0;
 	DWORD bytes_to_write = length;
 
-	//PRINT("buffer_to_write=%p, file_path=%ws, offset=%d, length=%d\n", buffer_to_write, file_path, offset, length);
+	//PRINT("writeTestFile() function call: buffer_to_write=%p, file_path=%ws, offset=%d, length=%d\n", buffer_to_write, file_path, offset, length);
 	//PRINT_HEX(buffer_to_write, length);
 
 	// Open a file with a wide character path/filename
 	handle = CreateFileW(file_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);	// maybe change FILE_ATTRIBUTE_NORMAL with 0
 	if (handle == INVALID_HANDLE_VALUE) {
-		error = ERROR_READ_FAULT;
+		error = ERROR_OPEN_FAILED;
 		fprintf(stderr, "ERROR: could not open (write) file (%ws) for the test (error=%lu).\n", file_path, error);
 		goto WRITE_TEST_FILE_CLEANUP;
 	}
@@ -562,21 +681,23 @@ DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset
 		goto WRITE_TEST_FILE_CLEANUP;
 	}
 
-	// If no errors, set result to success
+	// If no errors, close the handle and return success
 	CloseHandle(handle);
+	handle = INVALID_HANDLE_VALUE;
 	return ERROR_SUCCESS;
 
-	// Close handle if necessary
+	// Close file handle if necessary and return corresponding error
 	WRITE_TEST_FILE_CLEANUP:
 	if (handle != INVALID_HANDLE_VALUE) {
 		CloseHandle(handle);
+		handle = INVALID_HANDLE_VALUE;
 	}
 
 	return error;
 }
 
 
-void printTestTableResults(BOOL use_codes) {
+void printTestTableResults(BOOL use_codes_instead_of_results) {
 	uint32_t max_len_irp_op_str = 0;
 	uint32_t max_len_op_str = 0;
 	uint32_t max_len_op_pos_str = 0;
@@ -722,7 +843,7 @@ void printTestTableResults(BOOL use_codes) {
 			}
 
 			// Iterate over OperationPosition and print table results
-			if (use_codes) {
+			if (use_codes_instead_of_results) {
 				for (size_t op_pos = 0; op_pos < 3; op_pos++) {
 					getCenteredString(c1, max_len_irp_op_str, (op_pos == 1 && op == 1) ? IRP_OPERATION_STRINGS[irp_op] : "");
 					getCenteredString(c2, max_len_op_str, (op_pos == 1) ? OPERATION_STRINGS[op] : "");
@@ -872,46 +993,71 @@ void getCenteredString(char *str_out, int chars_to_write, const char* str_in) {
 	);
 }
 
-void printUnitTestData() {
-	int n;
+void printUnitTestDataMenu() {
+	WCHAR line[MAX_PATH] = { 0 };
+	int test_code;
 	int a, b, c, d = 0;
 	struct Test* current_test = NULL;
 	int length = 0;
 
-	printf("Say number test: ");
-	if (1 != scanf("%d", &n)) return;
-	printf("\n");
+	// Show possible test codes in the table
+	printTestTableResults(TRUE);
 
-	// Get indexes
-	a = n / 1000;
-	b = (n - a*1000) / 100;
-	c = (n - a*1000 - b*100) / 10;
-	d = (n - a*1000 - b*100 - c*10);
+	printf("Enter a test code: ");
+	if (fgetws(line, MAX_PATH, stdin)) {
+		if (1 == swscanf_s(line, L"%d", &test_code)) {
 
-	// Set print length
-	length = (d == 0) ? 500 : 1000;
+			printf("\n");
 
+			// Get indexes
+			a = test_code / 1000;
+			b = (test_code - a * 1000) / 100;
+			c = (test_code - a * 1000 - b * 100) / 10;
+			d = (test_code - a * 1000 - b * 100 - c * 10);
 
-	current_test = &(tests_array[a][b][c][d]);
-	PRINT("current test %d %d %d %d:\n", a, b, c, d);
-	if (current_test->input_stream == NULL) {
-		PRINT("INPUT  : NULL \n");
-	} else {
-		PRINT("INPUT  : %*s \n", length, current_test->input_stream);
+			// Check the test_code is valid
+			if ((a != IRP_OP_READ && a != IRP_OP_WRITE) ||
+				(b != NOTHING && b != CIPHER && b != DECIPHER) ||
+				(c != INSIDE_MARK && c != INSIDE_AND_OUTSIDE_MARK && c != OUTSIDE_MARK) ||
+				(d != SMALL && d != BIG_DECIPHERED  && d != BIG_CLEARTEXT && d != BIG_CIPHERED)) {
+				printf("ERROR: entered code (%1d%1d%1d%1d) is not valid\n", a, b, c, d);
+				return;
+			}
+
+			// Set print length
+			length = (d == INSIDE_MARK) ? 500 : 1000;
+
+			current_test = &(tests_array[a][b][c][d]);
+
+			// Print the results
+			PRINT("\nShowing results of the test %d %d %d %d:\n", a, b, c, d);
+			if (current_test->input_stream == NULL) {
+				PRINT("INPUT  : NULL \n");
+			} else {
+				PRINT("INPUT  : %*s \n", length, current_test->input_stream);
+			}
+			if (current_test->desired_output_stream == NULL) {
+				PRINT("DESIRED: NULL \n");
+			} else {
+				PRINT("DESIRED: %*s \n", length, current_test->desired_output_stream);
+			}
+			if (current_test->output_stream == NULL) {
+				PRINT("OUTPUT : NULL \n");
+			} else {
+				PRINT("OUTPUT : %*s \n", length, current_test->output_stream);
+			}
+			PRINT("VERDICT: %s \n", TEST_VERDICT_STRINGS[current_test->verdict]);
+
+			// Print buffers
+			if (current_test->input_stream != NULL) {
+				PRINT_HEX(current_test->input_stream, length);
+			}
+			if (current_test->desired_output_stream != NULL) {
+				PRINT_HEX(current_test->desired_output_stream, length);
+			}
+			if (current_test->output_stream != NULL) {
+				PRINT_HEX(current_test->output_stream, length);
+			}
+		}
 	}
-	if (current_test->desired_output_stream == NULL) {
-		PRINT("DESIRED: NULL \n");
-	} else {
-		PRINT("DESIRED: %*s \n", length, current_test->desired_output_stream);
-	}
-	if (current_test->output_stream == NULL) {
-		PRINT("OUTPUT : NULL \n");
-	} else {
-		PRINT("OUTPUT : %*s \n", length, current_test->output_stream);
-	}
-	PRINT("VERDICT: %d \n", current_test->verdict);
-
-	PRINT_HEX(current_test->input_stream, length);
-	PRINT_HEX(current_test->desired_output_stream, length);
-	PRINT_HEX(current_test->output_stream, length);
 }

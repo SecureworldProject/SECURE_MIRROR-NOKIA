@@ -103,7 +103,7 @@ void sharingMainMenu() {
 					case 7:
 						#ifdef SECUREMIRROR_DEBUG_MODE
 						printf("Not implemented yet.\n");
-						printUnitTestData();
+						printUnitTestDataMenu();
 						break;
 						#endif		// else goes through next options until default
 					case 9:
