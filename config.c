@@ -550,12 +550,17 @@ static void processChallenge(int group_index, int challenge_index, json_value* v
 				} // else --> The pointer is null because it was not possible to allocate memory
 			}
 
-			else if (strcmp(value->u.object.values[i].name, "Props") == 0) {
+			/*else if (strcmp(value->u.object.values[i].name, "Props") == 0) {
 				ctx.groups[group_index]->challenges[challenge_index]->properties = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
 				if (ctx.groups[group_index]->challenges[challenge_index]->properties) {
 					strcpy(ctx.groups[group_index]->challenges[challenge_index]->properties, value->u.object.values[i].value->u.string.ptr);
 				} // else --> The pointer is null because it was not possible to allocate memory
+			}*/
+			else if (strcmp(value->u.object.values[i].name, "Props") == 0) {
+				// WARNING: moving pointer,
+				ctx.groups[group_index]->challenges[challenge_index]->properties = value->u.object.values[i].value;
 			}
+
 		}
 	}
 }
@@ -590,6 +595,7 @@ static void processChallengeEqGroup(int index, json_value* value, int depth) {
 		key->size = 0;											// Obtain from config.json?
 		key->data = (byte*)malloc(sizeof(byte) * key->size);	// Key data is allocated as many space as indicated by the size member of the struct
 		key->expires = (time_t)0;								// Key expired in 1970
+		InitializeCriticalSection(&(key->critical_section));	// Initialize the critical section to access the key safely
 	} // else --> The pointer is null because it was not possible to allocate memory
 
 }
@@ -826,7 +832,7 @@ void loadContext() {
 	processContext(value, 0);
 
 	// Free unnecessary pointers
-	json_value_free(value);		// This frees all the internal pointers. Be sure to have copied the data and not just pointed to it.
+	//json_value_free(value);		// This frees all the internal pointers. Be sure to have copied the data and not just pointed to it.
 	free(file_contents);
 
 	// Translate strings ids to pointers

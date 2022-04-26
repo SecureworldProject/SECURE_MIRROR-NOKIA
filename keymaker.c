@@ -23,12 +23,18 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group);
 
 /**
  * Updates the composed_key parameter with a time-valid full key depending on the given challenge groups.
- */
+ * The created KeyData is special:
+ *	- It only has size and data fileds filled.
+ *	- It must never be modified and therefore its critical_section field is empty (not needed).
+ *	- As this function ensures a time-valid key that should not be stored, its expires field is empty (not needed).
+**/
 int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct KeyData* composed_key) {
 	// TO DO (possible improvements)
+	// Idea 0: remove memory leakage doing corresponding free() on errors.
 	// Idea 1: may be better to limit the max number of keys and make it array.
-	// Idea 2: remove keys local var and getSubkey() twice instead of saving the result.
-	// Idea 3: remove keys local var and asume subkey sizes are fixed and already initialized. Get the size directly and then call getSubkey() once.
+	// Idea 2: remove keys local var and getSubkey() twice instead of saving the result. This may be worse, must be tested.
+	// Idea 3: remove keys local var and assume subkey sizes are fixed and already initialized. Compute the size directly and then call getSubkey() once.
+	// Idea 4: fill critical_section and expires fields and allow to save it in folders struct.
 
 	struct KeyData** keys = NULL;
 	int num_groups = 0;
@@ -67,6 +73,8 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 	// Free local variable keys
 	free(keys);
 
+	PRINT_HEX(composed_key->data, composed_key->size);
+
 	return ERROR_SUCCESS;	// Success
 }
 
@@ -90,6 +98,7 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	// Get current time
 	time(&current_time);
 
+	EnterCriticalSection(&(challenge_group->subkey->critical_section));
 	// Check if key expired and needs to be computed now
 	if (difftime(current_time, challenge_group->subkey->expires) < 0) {
 		// Iterate over challenges until one returns that it could be executed
@@ -99,7 +108,7 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 
 			// Add parameters if necessary
 			if (exec_ch_func != NULL) {
-				result = exec_ch_func(challenge_group, challenge_group->challenges[j]);
+				result = exec_ch_func();
 				if (result != 0) {
 					PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[j]->file_name);
 				} else {
@@ -110,6 +119,7 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 			}
 		}
 	}
+	LeaveCriticalSection(&(challenge_group->subkey->critical_section));
 
 	return challenge_group->subkey;
 }

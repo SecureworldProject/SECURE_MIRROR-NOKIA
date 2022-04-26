@@ -15,6 +15,7 @@ Nokia Febrero 2021
 #include <stdlib.h>
 #include <windows.h>
 #include <stdint.h>
+#include "json.h"
 
 
 #ifdef __cplusplus
@@ -149,8 +150,9 @@ extern "C" {
 
 	struct KeyData {
 		byte* data;
-		int size;			// Size in bytes of data
-		time_t expires;		// In the case of the full key we will take the first expire date
+		int size;							// Size in bytes of data
+		time_t expires;						// In the case of the full key we will take the first expire date
+		CRITICAL_SECTION critical_section;	// The critical section lock to access safely the fields in KeyData
 	};
 
 	struct Pendrive {
@@ -200,14 +202,14 @@ extern "C" {
 
 	struct ChallengeEquivalenceGroup {
 		char* id;
-		struct KeyData* subkey;		// Not obtained from json
+		struct KeyData* subkey;	// Not obtained from json
 		struct Challenge** challenges;
 	};
 
 	struct Challenge {
 		WCHAR* file_name;
 		HINSTANCE lib_handle;
-		char* properties;		// String of properties as in a HTML query: "prop1=valor&prop2=valor..."
+		json_value* properties;	// Properties as a json_value
 	};
 
 	struct Cipher {
