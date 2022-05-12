@@ -659,6 +659,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 			error = GetLastError();
 			DbgPrint(L"\terror code = %d\n\n", error);
 
+
 			status = DokanNtStatusFromWin32(error);
 
 		} else {
@@ -799,7 +800,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 	enum Operation op_final = NOTHING;
 
 	full_app_path = getAppPathDokan(DokanFileInfo);
-	PRINT("Op: MIRROR READ FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
+	PRINT("Op: MIRROR READ FILE,   Process ID: %d   APP_Path: %ws,   FILE_path: %ws\n", DokanFileInfo->ProcessId, full_app_path, file_path);
 
 	op1 = getTableOperation(IRP_OP_READ, &full_app_path, MountPoint[THREAD_INDEX][0]);
 	op2 = getOpSyncFolder(IRP_OP_READ, file_path);
@@ -905,7 +906,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorReadFile(LPCWSTR FileName, LPVOID Buffer,
 
 	//PRINT("Hemos leido 3: %.520s END\n", (char*)Buffer);
 	//PRINT("Hemos leido 4: %.50s END\n", &(((char*)Buffer)[513]));
-	PRINT("Final\n");
+	PRINT("DOKAN READ SUCCEDED\n");
 
 	return STATUS_SUCCESS;
 }
@@ -936,7 +937,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 	enum Operation op_final = NOTHING;
 
 	full_app_path = getAppPathDokan(DokanFileInfo);
-	printf("Op: MIRROR WRITE FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
+	printf("Op: MIRROR WRITE FILE,   Process ID: %d   APP_Path: %ws,   FILE_path: %ws\n", DokanFileInfo->ProcessId, full_app_path, file_path);
 
 	op1 = getTableOperation(IRP_OP_WRITE, &full_app_path, MountPoint[THREAD_INDEX][0]); // Better directly create global variable with pointer to table in this mounted disk
 	op2 = getOpSyncFolder(IRP_OP_WRITE, file_path);
@@ -1090,6 +1091,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorWriteFile(LPCWSTR FileName, LPCVOID Buffer,
 		return DokanNtStatusFromWin32(error_code);
 	}
 
+	PRINT("DOKAN WIRTE SUCCEDED\n");
 
 	return STATUS_SUCCESS;
 }
@@ -1438,6 +1440,12 @@ static NTSTATUS DOKAN_CALLBACK MirrorSetEndOfFile(
 
 	GetFilePath(filePath, DOKAN_MAX_PATH, FileName, DokanFileInfo);
 
+	WCHAR* full_app_path = NULL;
+	full_app_path = getAppPathDokan(DokanFileInfo);
+	PRINT("Op: MIRROR SET END OF FILE,   Process ID: %d   APP_Path: %ws,   FILE_path: %ws\n", DokanFileInfo->ProcessId, full_app_path, filePath);
+	PRINT("Setting end of file to, %I64d\n", ByteOffset);
+
+
 	DbgPrint(L"SetEndOfFile %s, %I64d\n", filePath, ByteOffset);
 
 	handle = (HANDLE)DokanFileInfo->Context;
@@ -1716,7 +1724,7 @@ static NTSTATUS DOKAN_CALLBACK MirrorGetVolumeInformation(
 	if (MaximumComponentLength)
 		*MaximumComponentLength = 255;
 	if (FileSystemFlags) {
-		*FileSystemFlags = FILE_SUPPORTS_REMOTE_STORAGE | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS | FILE_NAMED_STREAMS;
+		*FileSystemFlags = FILE_SUPPORTS_REMOTE_STORAGE | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS;// | FILE_NAMED_STREAMS;
 		if (g_CaseSensitive)
 			*FileSystemFlags = FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES;
 	}

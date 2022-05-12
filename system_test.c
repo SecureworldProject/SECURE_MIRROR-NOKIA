@@ -414,8 +414,10 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 		if (current_test->output_stream != NULL) {		// Check the real output is a correct buffer
 			// Check output == desired_output
 			if (memcmp(&((current_test->desired_output_stream)[offset]), &((current_test->output_stream)[offset]), length) == 0) {
+				PRINT("The bytes obtained match the expected: TEST PASSED\n");
 				current_test->verdict = TEST_VERDICT_PASS;
 			} else {
+				PRINT("The bytes obtained do not match the expected: TEST FAILED\n");
 				current_test->verdict = TEST_VERDICT_FAIL;
 			}
 			/*if (ciphering_op == NOTHING) {
@@ -445,7 +447,9 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 }
 
 void unitTestMenu() {
+	testing_mode_on = TRUE;
 	initTestStreams();
+	testing_mode_on = FALSE;
 
 	WCHAR line[MAX_PATH] = { 0 };
 

@@ -77,9 +77,8 @@ struct LetterDeviceMap {
 
 /////  GLOBAL VARS  /////
 
-struct LetterDeviceMap* letter_device_table;
-
-static BOOL testing_mode_on = FALSE;
+extern struct LetterDeviceMap* letter_device_table;
+extern BOOL testing_mode_on;
 
 
 

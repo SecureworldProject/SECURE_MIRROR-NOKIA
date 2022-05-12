@@ -18,10 +18,17 @@
 
 
 
+/////  GLOBAL VARS  /////
+
+struct LetterDeviceMap* letter_device_table;
+BOOL testing_mode_on = FALSE;
+
+
+
+
 /////  FUNCTION DEFINITIONS  /////
 
 int main(int argc, char* argv[]) {
-
 	struct ThreadData th_data[NUM_LETTERS] = { 0 };
 	HANDLE threads[NUM_LETTERS] = { 0 };
 	for (size_t i = 0; i < NUM_LETTERS; i++) threads[i] = INVALID_HANDLE_VALUE;

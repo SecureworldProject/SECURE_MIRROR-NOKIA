@@ -346,9 +346,9 @@ void printFMI(struct FileMarkInfo* fmi) {
 
 // TODO: improve implementation with better randomness
 uint32_t createFRN() {
-	return 9;
 	if (testing_mode_on) {
-		return 25161;
+		PRINT("testing mode on is active, forcing new FRN to 5\n");
+		return 5;
 	}
 	
 	int frn = INVALID_FRN;
@@ -1282,8 +1282,14 @@ int preWriteLogic(
 	// Check the table
 	fmi = getFMITableEntry(file_path, app_path);
 	printf("fmi %s null\n", fmi==NULL ? "IS" : "is NOT");
-	if (op == DECIPHER && (fmi==NULL || fmi->buffer_mark_lvl == UNKNOWN_MARK_LEVEL)) {	// FMI must have been created in postWrite of small file that grew into a big file
-		printf("WARNING in preWriteLogic: this should never happen (operation = %d, mark_lvl = %d)\n", op, fmi->buffer_mark_lvl);
+	if (op == DECIPHER) {	// FMI must have been created in postWrite of small file that grew into a big file
+		if (fmi == NULL) {
+			printf("WARNING in preWriteLogic: this should never happen (operation = %d, fmi = NULL)\n", op);
+		} else {
+			if (fmi->buffer_mark_lvl == UNKNOWN_MARK_LEVEL) {
+				printf("WARNING in preWriteLogic: this should never happen (operation = %d, mark_lvl = %d)\n", op, fmi->buffer_mark_lvl);
+			}
+		}
 	}
 	if (fmi == NULL) {
 		fmi = createFMI(file_path, app_path, UNKNOWN_MARK_LEVEL, INVALID_FRN, UNKNOWN_MARK_LEVEL, INVALID_FRN, 0);
@@ -1902,6 +1908,8 @@ int postWriteLogic(
 		error_code = GetLastError();
 		PRINT("ERROR: SetFilePointerEx in postWrite(error_code = %lu)\n", error_code);
 	}
+
+	PRINT("Postwrite returns with error_code = %d \n", error_code);
 
 	return error_code;
 }

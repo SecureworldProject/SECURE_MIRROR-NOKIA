@@ -10,6 +10,13 @@
 
 
 
+/////  GLOBAL VARS  /////
+
+struct Context ctx;
+
+
+
+
 /////  FUNCTION DEFINITIONS  /////
 
 /**

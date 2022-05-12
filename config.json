@@ -131,6 +131,11 @@
 			"AppType": "MAILER"
 		},
 		{
+			"AppPath": "C:\\Program Files\\Microsoft Office\\root\\Office16",
+			"AppName": "OUTLOOK.EXE",
+			"AppType": "MAILER"
+		},
+		{
 			"AppPath": "C:\\Windows",
 			"AppName": "notepad.exe",
 			"AppType": "ANY"

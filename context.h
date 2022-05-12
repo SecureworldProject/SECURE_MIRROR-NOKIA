@@ -126,7 +126,8 @@ extern "C" {
 		struct ChallengeEquivalenceGroup** groups;
 		struct Cipher** ciphers;
 		struct ThirdParty** third_parties;
-	} ctx;
+	};
+	extern struct Context ctx;
 
 	struct Folder {
 		WCHAR* path;

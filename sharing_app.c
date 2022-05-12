@@ -106,6 +106,10 @@ void sharingMainMenu() {
 						printUnitTestDataMenu();
 						break;
 						#endif		// else goes through next options until default
+					/*case 8:
+						testing_mode_on = !testing_mode_on;
+						printf("Cambiado testing mode on (%p) a: %s\n", &testing_mode_on, (testing_mode_on) ? "true" : "false");
+						break;*/
 					case 9:
 						printMenuHelp();
 						break;
