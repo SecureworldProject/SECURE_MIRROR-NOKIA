@@ -819,83 +819,82 @@ int8_t unmark(uint8_t* input, uint32_t* frn) {
 }
 
 
-BOOL getLogonFromTokenHandle(HANDLE hToken, char* strUser, char* strdomain) {
-	DWORD dwSize = MAX_NAME;
-	BOOL bSuccess = FALSE;
-	DWORD dwLength = 0;
+BOOL getLogonFromTokenHandle(HANDLE token_handle, char* str_user, char* str_domain) {
+	DWORD size = MAX_NAME;
+	BOOL success = FALSE;
+	DWORD length = 0;
 
-	PTOKEN_USER ptu = NULL;
+	PTOKEN_USER p_token_user = NULL;
 	//Verify the parameter passed in is not NULL.
-	if (NULL == hToken)
-		goto Cleanup;
+	if (NULL == token_handle)
+		goto LABEL_CLEANUP_GET_LOGON_NAME;
 
 	if (!GetTokenInformation(
-		hToken,			// handle to the access token
-		TokenUser,		// get information about the token's groups
-		(LPVOID)ptu,	// pointer to PTOKEN_USER buffer
-		0,				// size of buffer
-		&dwLength		// receives required buffer size
+		token_handle,			// Handle to the access token
+		TokenUser,				// Get information about the token's groups
+		(LPVOID)p_token_user,	// Pointer to PTOKEN_USER buffer
+		0,						// Size of buffer
+		&length					// Receives required buffer size
 	)) {
 		if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
-			goto Cleanup;
+			goto LABEL_CLEANUP_GET_LOGON_NAME;
 
-		ptu = (PTOKEN_USER)HeapAlloc(GetProcessHeap(),
-			HEAP_ZERO_MEMORY, dwLength);
+		p_token_user = (PTOKEN_USER)HeapAlloc(GetProcessHeap(),
+			HEAP_ZERO_MEMORY, length);
 
-		if (ptu == NULL)
-			goto Cleanup;
+		if (p_token_user == NULL)
+			goto LABEL_CLEANUP_GET_LOGON_NAME;
 	}
 
 	if (!GetTokenInformation(
-		hToken,			// handle to the access token
-		TokenUser,		// get information about the token's groups
-		(LPVOID)ptu,	// pointer to PTOKEN_USER buffer
-		dwLength,		// size of buffer
-		&dwLength		// receives required buffer size
+		token_handle,			// Handle to the access token
+		TokenUser,				// Get information about the token's groups
+		(LPVOID)p_token_user,	// Pointer to PTOKEN_USER buffer
+		length,					// Size of buffer
+		&length					// Receives required buffer size
 	)) {
-		goto Cleanup;
+		goto LABEL_CLEANUP_GET_LOGON_NAME;
 	}
-	SID_NAME_USE SidType;
-	char lpName[MAX_NAME];
-	char lpDomain[MAX_NAME];
+	SID_NAME_USE sid_type;
+	char p_name[MAX_NAME];
+	char p_domain[MAX_NAME];
 
-	if (!LookupAccountSidA(NULL, ptu->User.Sid, lpName, &dwSize, lpDomain, &dwSize, &SidType)) {
+	if (!LookupAccountSidA(NULL, p_token_user->User.Sid, p_name, &size, p_domain, &size, &sid_type)) {
 		DWORD dwResult = GetLastError();
 		if (dwResult == ERROR_NONE_MAPPED)
-			strcpy(lpName, "NONE_MAPPED");
+			strcpy(p_name, "NONE_MAPPED");
 		else {
 			printf("LookupAccountSid Error %u\n", GetLastError());
 		}
 	} else {
-		//printf("Current user is  %s\\%s\n", lpDomain, lpName);
+		//printf("Current user is  %s\\%s\n", p_domain, p_name);
 
-		strcpy(strUser, lpName);
-		strcpy(strdomain, lpDomain);
-		bSuccess = TRUE;
+		strcpy(str_user, p_name);
+		strcpy(str_domain, p_domain);
+		success = TRUE;
 	}
 
-	Cleanup:
-
-	if (ptu != NULL)
-		HeapFree(GetProcessHeap(), 0, (LPVOID)ptu);
-	return bSuccess;
+	LABEL_CLEANUP_GET_LOGON_NAME:
+	if (p_token_user != NULL)
+		HeapFree(GetProcessHeap(), 0, (LPVOID)p_token_user);
+	return success;
 }
 
-int getUsernameByPID(const DWORD procId, char* strUser, char* strdomain) {
-	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, procId);
-	if (hProcess == NULL)
+int getUsernameByPID(const DWORD pid, char* str_user, char* str_domain) {
+	HANDLE h_process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+	if (h_process == NULL)
 		return E_FAIL;
-	HANDLE hToken = NULL;
+	HANDLE token_handle = NULL;
 
-	if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) {
-		CloseHandle(hProcess);
+	if (!OpenProcessToken(h_process, TOKEN_QUERY, &token_handle)) {
+		CloseHandle(h_process);
 		return E_FAIL;
 	}
-	BOOL bres = getLogonFromTokenHandle(hToken, strUser, strdomain);
+	BOOL result = getLogonFromTokenHandle(token_handle, str_user, str_domain);
 
-	CloseHandle(hToken);
-	CloseHandle(hProcess);
-	return bres ? S_OK : E_FAIL;
+	CloseHandle(token_handle);
+	CloseHandle(h_process);
+	return result ? S_OK : E_FAIL;
 }
 
 
