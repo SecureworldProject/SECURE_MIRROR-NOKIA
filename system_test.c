@@ -107,6 +107,7 @@ void freeTestStreams();
 void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum OperationPosition op_position, enum StreamLevel filesize_lvl);
 DWORD readTestFile(uint8_t** read_buffer, const WCHAR* file_path, int offset, int length);
 DWORD writeTestFile(uint8_t* buffer_to_write, const WCHAR* file_path, int offset, int length);
+HRESULT getUsernameByPID(const DWORD procId, char* strUser, char* strdomain);
 
 void getCenteredString(char* str_out, int chars_to_write, const char* str_in);
 void printTestTableResults(BOOL use_codes_instead_of_results);

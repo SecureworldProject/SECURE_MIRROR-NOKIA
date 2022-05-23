@@ -17,12 +17,14 @@ Nokia Febrero 2021
 
 
 
+
 /////  DEFINITIONS  /////
 
 #define FILE_MARK_INFO_TABLE_INITIAL_SIZE 32
 #define FILE_MARK_INFO_TABLE_SIZE_INCREMENT 8
 #define FMI_TABLE_ENTRY_EXPIRATION_TIME 5		// Defined in secconds
 #define THREAD_PURGE_SLEEP (20*1000)			// Defined in milisecconds
+#define MAX_NAME 256							// Username max length
 
 
 // This is a byte array of length 'MARK_LENGTH'
@@ -70,6 +72,9 @@ struct FileMarkInfo* createFMI(WCHAR* file_path, WCHAR* app_path, int8_t buffer_
 void destroyFMI(struct FileMarkInfo* fmi);
 void printFMI(struct FileMarkInfo* fmi);
 struct KeyData* createFileBufferKey(struct KeyData* composed_key, uint32_t frn);
+
+int getUsernameByPID(const DWORD procId, char* strUser, char* strdomain);
+BOOL getLogonFromTokenHandle(HANDLE hToken, char* strUser, char* strdomain);
 
 
 
@@ -814,8 +819,87 @@ int8_t unmark(uint8_t* input, uint32_t* frn) {
 }
 
 
+BOOL getLogonFromTokenHandle(HANDLE hToken, char* strUser, char* strdomain) {
+	DWORD dwSize = MAX_NAME;
+	BOOL bSuccess = FALSE;
+	DWORD dwLength = 0;
 
-BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
+	PTOKEN_USER ptu = NULL;
+	//Verify the parameter passed in is not NULL.
+	if (NULL == hToken)
+		goto Cleanup;
+
+	if (!GetTokenInformation(
+		hToken,			// handle to the access token
+		TokenUser,		// get information about the token's groups
+		(LPVOID)ptu,	// pointer to PTOKEN_USER buffer
+		0,				// size of buffer
+		&dwLength		// receives required buffer size
+	)) {
+		if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+			goto Cleanup;
+
+		ptu = (PTOKEN_USER)HeapAlloc(GetProcessHeap(),
+			HEAP_ZERO_MEMORY, dwLength);
+
+		if (ptu == NULL)
+			goto Cleanup;
+	}
+
+	if (!GetTokenInformation(
+		hToken,			// handle to the access token
+		TokenUser,		// get information about the token's groups
+		(LPVOID)ptu,	// pointer to PTOKEN_USER buffer
+		dwLength,		// size of buffer
+		&dwLength		// receives required buffer size
+	)) {
+		goto Cleanup;
+	}
+	SID_NAME_USE SidType;
+	char lpName[MAX_NAME];
+	char lpDomain[MAX_NAME];
+
+	if (!LookupAccountSidA(NULL, ptu->User.Sid, lpName, &dwSize, lpDomain, &dwSize, &SidType)) {
+		DWORD dwResult = GetLastError();
+		if (dwResult == ERROR_NONE_MAPPED)
+			strcpy(lpName, "NONE_MAPPED");
+		else {
+			printf("LookupAccountSid Error %u\n", GetLastError());
+		}
+	} else {
+		//printf("Current user is  %s\\%s\n", lpDomain, lpName);
+
+		strcpy(strUser, lpName);
+		strcpy(strdomain, lpDomain);
+		bSuccess = TRUE;
+	}
+
+	Cleanup:
+
+	if (ptu != NULL)
+		HeapFree(GetProcessHeap(), 0, (LPVOID)ptu);
+	return bSuccess;
+}
+
+int getUsernameByPID(const DWORD procId, char* strUser, char* strdomain) {
+	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, procId);
+	if (hProcess == NULL)
+		return E_FAIL;
+	HANDLE hToken = NULL;
+
+	if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) {
+		CloseHandle(hProcess);
+		return E_FAIL;
+	}
+	BOOL bres = getLogonFromTokenHandle(hToken, strUser, strdomain);
+
+	CloseHandle(hToken);
+	CloseHandle(hProcess);
+	return bres ? S_OK : E_FAIL;
+}
+
+
+BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path, ULONG pid) {
 	WCHAR* tmp_str;
 
 	//PRINT("preCreateLogic!!\n");
@@ -826,6 +910,9 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 	struct App* app = NULL;
 	int result = 0;
 	BOOL block_access = FALSE;	// Allow by default
+
+	char* p_usr = NULL;
+	char* p_dom = NULL;
 
 	// This is much slower but more secure
 	//WCHAR* file_path = malloc(MAX_PATH * sizeof(WCHAR));
@@ -851,8 +938,9 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 		//PRINT("comparing parental: %ws \n", ctx.parentals[i]->folder);
 		tmp_str = wcsstr(file_path, ctx.parentals[i]->folder);
 		if (tmp_str && tmp_str == file_path) {
+			// OLD CHECKING METHOD
 			// Initialize user name if not done yet
-			if (user == NULL){
+			/*if (user == NULL) {
 				user_size = UNLEN + 1;
 				user = malloc(sizeof(WCHAR) * user_size);
 				if (user == NULL || GetUserNameW(user, p_user_size) == 0) {		// If the function fails, the return value is zero.
@@ -862,11 +950,28 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 				} else {
 					PRINT("UserName is: %ws\n", user);
 				}
+			}*/
+
+			// Retrieve the logged on user
+			p_usr = malloc(MAX_NAME);
+			if (p_usr == NULL) {
+				return TRUE;		// Block due to not being able to allocate memory for the username
 			}
+			p_dom = malloc(MAX_NAME);
+			if (p_usr == NULL) {
+				free(p_usr);
+				return TRUE;		// Block due to not being able to allocate memory for the domain
+			}
+			getUsernameByPID(pid, p_usr, p_dom);
+			PRINT("CON LA NUEVA FUNCION --> %s  -  %s\n", p_usr, p_dom);
+			WCHAR p_w_usr[MAX_NAME] = { 0 };
+			mbstowcs(p_w_usr, p_usr, MAX_NAME);
+			free(p_usr);
+			free(p_dom);
 
 			// Check if user name is allowed for this folder and challenges are correct.
 			for (size_t j = 0; j < _msize(ctx.parentals[i]->users) / sizeof(WCHAR*); j++) {
-				if (wcscmp(ctx.parentals[i]->users[j], user) == 0) {
+				if (wcscmp(ctx.parentals[i]->users[j], p_w_usr) == 0) {
 					// The path is a parental controlled folder and the user matches, then check the challenges to block or allow.
 					result = makeParentalKey(ctx.parentals[i]->challenge_groups, &block_access);
 					if (result != 0) {
@@ -878,8 +983,7 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path) {
 			}
 
 			// The path is a parental controlled folder but the user does not match with any of the ones with access, then block.
-			//PRINT("returning TRUE for folder %ws\n", tmp_str);
-			free(user);
+			//PRINT("Blocking folder '%ws' due to user is not allowed\n", tmp_str);
 			return TRUE;	// Block access
 		}
 	}

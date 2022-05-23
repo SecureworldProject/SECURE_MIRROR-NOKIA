@@ -66,7 +66,7 @@ void threadPurge();
 
 // Logic functions
 
-BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path);
+BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path, ULONG pid);
 
 int preReadLogic(
 	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path,

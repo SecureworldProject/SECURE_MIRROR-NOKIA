@@ -409,7 +409,7 @@ MirrorCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 	PRINT("Op: MIRROR CREATE FILE,   APP_Path: %ws,   FILE_path: %ws\n", (full_app_path != NULL) ? full_app_path : L"NULL", file_path);
 	#endif
 
-	if (preCreateLogic(file_path, full_app_path)) {
+	if (preCreateLogic(file_path, full_app_path, DokanFileInfo->ProcessId)) {
 		return STATUS_IO_PRIVILEGE_FAILED;
 	}
 
