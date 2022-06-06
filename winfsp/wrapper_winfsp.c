@@ -39,7 +39,7 @@ typedef struct
     PWSTR Path;
 } PTFS;
 
-
+PTFS *fslist[NUM_LETTERS];
 
 typedef struct
 {
@@ -49,6 +49,7 @@ typedef struct
 
 // This macro uses a parameter name from passthrough functions (only works inside them)
 #define THREAD_INDEX DEVICE_LETTER_TO_INDEX((FileSystem->MountPoint)[0])
+
 //===================================================================================================
 
 BOOL g_SecureLogs;	//Variable para logs de SecureWorld
@@ -109,8 +110,8 @@ static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
 static VOID PtfsDelete(PTFS* Ptfs); 
 static NTSTATUS EnableBackupRestorePrivileges(VOID);
 static ULONG wcstol_deflt(wchar_t* w, ULONG deflt);
-static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv);
-static NTSTATUS SvcStop(FSP_SERVICE* Service);
+//static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv);
+//static NTSTATUS SvcStop(FSP_SERVICE* Service);
 
 /////  FUNCTION DEFINITIONS  /////
 
@@ -128,8 +129,7 @@ PPEB getPeb() {
 
 int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
     static BOOLEAN winfsplauncher = FALSE;
-    if (winfsplauncher == TRUE)
-        return -1;
+         
         
 
     int index = DEVICE_LETTER_TO_INDEX(letter);
@@ -149,8 +149,19 @@ int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Pro
     PRINT("MAPALAUNCH:   volume_name='%ws'\n", volume_names[index]);
     int argc = 0;
     WCHAR* argv = NULL;
+    if (winfsplauncher == FALSE) {
+
+    
     winfsplauncher = TRUE;
+
     WinfspMain(argc, argv);     // Parameters are not used
+    }
+    else {
+        FsStart(letter);
+        printf("Tras FsStart\n");
+    }
+    
+    
 }
 
 WCHAR* getAppPathWinfsp() {
@@ -306,7 +317,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     full_app_path = getAppPathWinfsp();
 
 
-    if (preCreateLogic(FullPath, full_app_path)) {
+    if (preCreateLogic(FullPath, full_app_path,hprocess)) {
         return STATUS_IO_PRIVILEGE_FAILED;						// TO DO complete
     }
     //--------------------------------------------------------------------------------------------------------------------*/
@@ -471,12 +482,14 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
     PULONG PBytesTransferred)
 {
+    printf("Offset %llu\n", Offset);
     HANDLE Handle = HandleFromContext(FileContext);
     OVERLAPPED Overlapped = { 0 }; 
 
     Overlapped.Offset = (DWORD)Offset; 
     Overlapped.OffsetHigh = (DWORD)(Offset >> 32); 
       
+    printf("Offset Despues overlapped %llu\n", Offset);
     //--------------------------------------------------------------------------------------
     WCHAR file_path[MAX_PATH];//add 
     // Create auxiliar parameters for internal modification of the operation (mark and possible block cipher)
@@ -492,6 +505,18 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     enum Operation op2;
     enum Operation op_final = NOTHING;
 
+    printf("Offset antes Getfinalpath %llu\n", Offset);
+    if (Handle <= 32) {
+        printf("handle invalido\n");
+        return ERROR_READ_FAULT;
+
+    }
+
+
+    GetFinalPathNameByHandleW(Handle, file_path, MAX_PATH -1, 8);
+
+    printf("Offset despues Getfinalpath %llu\n", Offset);
+
     full_app_path = getAppPathWinfsp(FileSystem);
     PRINT("Op: Pasthrough READ FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
@@ -501,6 +526,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     op_final = operationAddition(op1, op2);
     PRINT("Obtained operations: op1=%d, op2=%d, op_final=%d\n", op1, op2, op_final);
 
+    printf("Offset despues de operaciones %llu\n", Offset);
     // Get file size
     uint64_t file_size;
     error_code = getFileSize(&file_size, Handle, file_path);
@@ -509,6 +535,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
         goto READ_CLEANUP;			// Handle case where file size cannot be obtained. Abort operation??
     }
 
+    printf("Offset antes preread %llu\n", Offset);
     // Initialize new read variables with updated values adjusted for the mark and possible block cipher
     error_code = preReadLogic(
         file_size, op_final, file_path, full_app_path,
@@ -609,6 +636,8 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     enum Operation op1;
     enum Operation op2;
     enum Operation op_final = NOTHING;
+
+    //GetFinalPathNameByHandleW(Handle, file_path, MAX_PATH -1, 0);
 
     full_app_path = getAppPathWinfsp (FileSystem);
     printf("Op: MIRROR WRITE FILE,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
@@ -948,16 +977,22 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     Handle = CreateFileW(
         Path, FILE_READ_ATTRIBUTES, 0, 0,
         OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    printf("a\n");
+
     if (INVALID_HANDLE_VALUE == Handle)
         return FspNtStatusFromWin32(GetLastError());
 
+
     Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
+    printf("b\n");
+
     if (0 == Length)
     {
         LastError = GetLastError();
         CloseHandle(Handle);
         return FspNtStatusFromWin32(LastError);
     }
+
     if (L'\\' == FullPath[Length - 1])
         FullPath[--Length] = L'\0';
 
@@ -969,16 +1004,20 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     }
 
     CloseHandle(Handle);
-
+    printf("c\n");
     /* from now on we must goto exit on failure */
 
     Ptfs = malloc(sizeof *Ptfs);
+    printf("d\n");
+
     if (0 == Ptfs)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
     }
     memset(Ptfs, 0, sizeof *Ptfs);
+
+    printf("e\n");
 
     Length = (Length + 1) * sizeof(WCHAR);
     Ptfs->Path = malloc(Length);
@@ -1008,20 +1047,28 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),
         WIDEN(PROGNAME));
 
+    printf("f\n");
+
     Result = FspFileSystemCreate(
-        VolumeParams.Prefix[0] ? WIDEN(FSP_FSCTL_NET_DEVICE_NAME) : WIDEN(FSP_FSCTL_DISK_DEVICE_NAME),
+        VolumeParams.Prefix[0] ? WIDEN(FSP_FSCTL_NET_DEVICE_NAME) : WIDEN(FSP_FSCTL_DISK_DEVICE_NAME),        
         &VolumeParams,
         &PtfsInterface,
         &Ptfs->FileSystem);
+    printf("g\n");
+
     if (!NT_SUCCESS(Result))
         goto exit;
     Ptfs->FileSystem->UserContext = Ptfs;
 
+
     Result = FspFileSystemSetMountPoint(Ptfs->FileSystem, MountPoint);
+
+    printf("h\n");
     if (!NT_SUCCESS(Result))
         goto exit;
 
     FspFileSystemSetDebugLog(Ptfs->FileSystem, DebugFlags);
+    printf("I\n");
 
     Result = STATUS_SUCCESS;
 
@@ -1215,11 +1262,145 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS FsStart(WCHAR letter)
+{
+
+    PWSTR DebugLogFile = 0;
+    ULONG DebugFlags = 0;
+    PWSTR VolumePrefix = 0;
+    PWSTR PassThrough = 0;
+    PWSTR MountPointLocal = 0;
+    HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
+    WCHAR PassThroughBuf[MAX_PATH];
+    PTFS* Ptfs = 0;
+    NTSTATUS Result;
+
+    // Use global variables as input parameters, instead of CMD line arguments
+    PassThrough = RootDirectoryA;
+    MountPointLocal = MountPointA;
+
+    PRINT("FsStart: RootDirectory[0] = %ws , MountPoint[0] = %ws \n", RootDirectoryA, MountPointA);
+
+    if (0 == PassThrough && 0 != VolumePrefix)
+    {
+        PWSTR P;
+
+        P = wcschr(VolumePrefix, L'\\');
+        if (0 != P && L'\\' != P[1])
+        {
+            P = wcschr(P + 1, L'\\');
+            if (0 != P &&
+                (
+                    (L'A' <= P[1] && P[1] <= L'Z') ||
+                    (L'a' <= P[1] && P[1] <= L'z')
+                    ) &&
+                L'$' == P[2])
+            {
+                StringCbPrintf(PassThroughBuf, sizeof PassThroughBuf, L"%c:%s", P[1], P + 3);
+                PassThrough = PassThroughBuf;
+            }
+        }
+    }
+
+    if (0 == PassThrough || 0 == MountPointLocal)
+        goto usage;
+
+
+    EnableBackupRestorePrivileges();
+
+    printf("4\n");
+
+    if (0 != DebugLogFile)
+    {
+        if (0 == wcscmp(L"-", DebugLogFile))
+            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
+        else
+            DebugLogHandle = CreateFileW(
+                DebugLogFile,
+                FILE_APPEND_DATA,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                0,
+                OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                0);
+        if (INVALID_HANDLE_VALUE == DebugLogHandle)
+        {
+            fail(L"cannot open debug log file");
+            goto usage;
+        }
+
+        FspDebugLogSetHandle(DebugLogHandle);
+    }
+
+    printf("5\n");
+
+    PTFS *ptfs2 = 0;
+    
+    PRINT("Antes de Create: PassThrough = %ws , MountPointLocal = %ws , VolumePrefix = %ws \n", PassThrough, MountPointLocal, VolumePrefix);
+    
+    Result = PtfsCreate(PassThrough, 0, MountPointLocal, 0, &ptfs2);
+    
+    fslist[DEVICE_LETTER_TO_INDEX(letter)]=ptfs2;
+    printf("3.5\n");
+    
+    if (!NT_SUCCESS(Result))
+    {
+        fail(L"cannot create file system");
+        goto exit;
+    }
+
+    printf("3\n");
+
+    Result = FspFileSystemStartDispatcher(fslist[DEVICE_LETTER_TO_INDEX(letter)]->FileSystem, 0);
+    if (!NT_SUCCESS(Result))
+    {
+        fail(L"cannot start file system");
+        goto exit;
+    }
+
+    printf("2\n");
+
+    MountPointLocal = FspFileSystemMountPoint(fslist[DEVICE_LETTER_TO_INDEX(letter)]->FileSystem);
+
+    printf("1\n");
+
+    info(L"%s%s%s -p %s -m %s",
+        WIDEN(PROGNAME),
+        0 != VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
+        0 != VolumePrefix && L'\0' != VolumePrefix[0] ? VolumePrefix : L"",
+        PassThrough,
+        MountPointLocal);
+
+    
+    Result = STATUS_SUCCESS;
+    
+    printf("Va bien\n");
+    return Result;
+
+exit:
+    printf("Algo a ido mal en exit\n");
+    if (!NT_SUCCESS(Result) && 0 != Ptfs)
+        PtfsDelete(Ptfs);
+
+    return Result;
+
+usage:
+    printf("Algo a ido mal en usage\n");
+    //fail(usage, WIDEN(PROGNAME));
+
+    return STATUS_UNSUCCESSFUL;
+
+#undef argtos
+#undef argtol
+}
+
 int WinfspMain(int argc, wchar_t **argv)
 {
     
     if (!NT_SUCCESS(FspLoad(0)))
         return ERROR_DELAY_LOAD_FAILED;
     
+
     return FspServiceRun(WIDEN(PROGNAME), SvcStart, SvcStop, 0);
+    
 }
