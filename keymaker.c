@@ -84,6 +84,7 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
  */
 struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	time_t current_time = 0;
+	int group_length = 0;
 	typedef int(__stdcall* exec_ch_func_type)();
 
 	int result = 0;
@@ -101,21 +102,33 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	EnterCriticalSection(&(challenge_group->subkey->critical_section));
 	// Check if key expired and needs to be computed now
 	if (difftime(current_time, challenge_group->subkey->expires) < 0) {
-		// Iterate over challenges until one returns that it could be executed
-		for (size_t j = 0; j < _msize(challenge_group->challenges) / sizeof(struct Challenge*); j++) {
-			// Define function pointer corresponding with executeChallenge() input and output types
-			exec_ch_func = (exec_ch_func_type)GetProcAddress(challenge_group->challenges[j]->lib_handle, "executeChallenge");
 
-			// Add parameters if necessary
-			if (exec_ch_func != NULL) {
-				result = exec_ch_func();
-				if (result != 0) {
-					PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[j]->file_name);
+		// TODO: start on the challenge that executed correctly on the init() instead of always starting on index 0
+		// Iterate over challenges until one returns that it could be executed
+		group_length = _msize(challenge_group->challenges) / sizeof(struct Challenge*);
+		for (size_t j = 0; j < group_length; j++) {
+			// Check library was loaded
+			if (INVALID_HANDLE_VALUE != challenge_group->challenges[j]->lib_handle) {
+				// Define function pointer corresponding with executeChallenge() input and output types
+				exec_ch_func = (exec_ch_func_type)GetProcAddress(challenge_group->challenges[j]->lib_handle, "executeChallenge");
+
+				// Add parameters if necessary
+				if (exec_ch_func != NULL) {
+					result = exec_ch_func();
+					if (result != 0) {
+						PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[j]->file_name);
+					} else {
+						break;		// Stop executing more challenges in the group when one is already working
+					}
 				} else {
-					break;		// Stop executing more challenges in the group when one is already working
+					PRINT("WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", challenge_group->challenges[j]->file_name, GetLastError());
 				}
-			} else {
-				PRINT("WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", challenge_group->challenges[j]->file_name, GetLastError());
+
+				// At this point, current challenge did not work. Check if it is the last challenge in the group and reset j to restart the loop
+				if (j == group_length - 1) {
+					j = -1;		// J will become 0 With the update in the loop (j++)
+					Sleep(1);	// Sleep 1ms so process does not starve others
+				}
 			}
 		}
 	}
