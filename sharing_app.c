@@ -185,6 +185,7 @@ void decipherFileMenu() {
 		printf("\tThere was an error while trying to create the deciphered copy. (errcode: %d)\n", result);
 	} else {
 		printf("\tThe deciphered copy was successfully created.\n");
+		printf("\tGENERATING TRACES FOR POTENTIALLY DANGEROUS ACTIVITIES.\n");
 	}
 
 	return;
@@ -571,6 +572,11 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 						fprintf(stderr, "ERROR in createDecipheredFileCopy: trying to compose key (%d)\n", result);
 						error_code = -4;
 						goto DECIPHERED_FILE_COPY_CLEANUP;
+					}
+
+					// Create a new FRN if the original file was cleartext (and therefore frn is invalid)
+					if (frn == INVALID_FRN) {
+						frn = createFRN();
 					}
 				}
 
