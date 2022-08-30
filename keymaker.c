@@ -101,7 +101,7 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 
 	EnterCriticalSection(&(challenge_group->subkey->critical_section));
 	// Check if key expired and needs to be computed now
-	if (difftime(current_time, challenge_group->subkey->expires) < 0) {
+	if (difftime(current_time, challenge_group->subkey->expires) > 0) {
 
 		// TODO: start on the challenge that executed correctly on the init() instead of always starting on index 0
 		// Iterate over challenges until one returns that it could be executed
@@ -144,19 +144,23 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *block_access) {
 	int num_groups = 0;
 	int index = 0;
+	struct KeyData* curr_key = 0;
 	*block_access = FALSE;
 
 	if (block_access == NULL)		return ERROR_INVALID_PARAMETER;	// block_access is NULL
 
-	if (challenge_groups == NULL)	return 0;	// No challenge groups (same as if all challenges are passed)
+	if (challenge_groups == NULL)	return ERROR_SUCCESS;	// No challenge groups (same as if all challenges are passed)
 
 	num_groups = _msize(challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*);
-	if (num_groups <= 0)			return 0;	// No challenge groups (same as if all challenges are passed)
+	if (num_groups <= 0)			return ERROR_SUCCESS;	// No challenge groups (same as if all challenges are passed)
 
 	// Make the key
 	for (size_t i = 0; i < num_groups; i++) {
-		*block_access |= getSubkey(challenge_groups[i])->data[0];
+		PRINT("challenge_group->id = %s\n", challenge_groups[i]->id);
+		curr_key = getSubkey(challenge_groups[i]);
+		PRINT("curr_key = %d \n", curr_key->data[0]);
+		*block_access |= curr_key->data[0];
 	}
 
-	return 0;	// Success
+	return ERROR_SUCCESS;	// Success
 }

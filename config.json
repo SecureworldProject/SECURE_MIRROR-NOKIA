@@ -76,7 +76,7 @@
 		{
 			"Folder": "C:/Users/Pepito/Documents/TOP_SECRET/",
 			"Users": ["Pepito", "Admin", "Sergio"],
-			"ChallengeEqGroups": ["GroupParental2"]
+			"ChallengeEqGroups": ["GroupParental1"]
 		}
 	],
 
@@ -264,11 +264,14 @@
 		"GroupParental1": {
 			"ChallengeList": [
 				{
-					"FileName": "set_key_1.dll",
-					"Description": "Always set the key to true.",
+					"FileName": "challenge_loader_python.dll",
+					"Description": "Loads a python challenge.",
 					"Props": {
+						"module_python": "chpass",
 						"validity_time": 3600,
-						"refresh_time": 3000
+						"refresh_time": 3000,
+						"param1": "clavesecreta",
+						"mode": "parental"
 					},
 					"Requirements": "none"
 				}
@@ -287,7 +290,21 @@
 					"Requirements": "camera"
 				}
 			]
-		}
+		},
+		"GroupParental3": {
+			"ChallengeList": [
+				{
+					"FileName": "set_key_1.dll",
+					"Description": "Always set the key to true.",
+					"Props": {
+						"validity_time": 3600,
+						"refresh_time": 3000
+					},
+					"Requirements": "none"
+				}
+			]
+		},
+
 	},
 
 	"Ciphers": {

@@ -155,6 +155,7 @@ static void processProtection(struct Protection* ctx_value, json_value* value, i
 		key->size = 0;											// Obtain from config.json?
 		key->data = (byte*)malloc(sizeof(byte) * key->size);	// Key data is allocated as many space as indicated by the size member of the struct
 		key->expires = (time_t)0;								// Key expired in 1970
+		//InitializeCriticalSection(&(key->critical_section));	// Initialize the critical section to access the key safely. NOT NEEDED FOR FULL KEY (only securemirror modifies it)
 	} // else --> The pointer is null because it was not possible to allocate memory
 
 }
