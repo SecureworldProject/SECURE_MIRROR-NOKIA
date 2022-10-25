@@ -416,6 +416,45 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
     *PFileContext = FileContext;
 
+    //----------------------Captura del Handle---------------------------------------------------------------------------------------
+
+    WCHAR* nameproc = malloc(FULLPATH_SIZE * sizeof(WCHAR));
+    //WCHAR nameproc[FULLPATH_SIZE];
+    HANDLE han_proc;
+    HANDLE han_file;
+
+
+    //PRINT("hANDLE %d\n", han_proc);
+    //hprocess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
+    han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
+    han_file = HandleFromContext(FileContext);
+
+    PRINT("En OPEN HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
+
+    //PRINT("OPEN han_file %d\n", han_file);
+
+    for (int i = 0; i < 100; i++)
+    {
+
+        if (tabla[i].flag == 0) {
+            tabla[i].hand_file = han_file;
+
+            //PRINT("OPEN tabla[i].hfile %d\n", tabla[i].hfile);
+            if (GetProcessImageFileNameW(han_proc, nameproc, FULLPATH_SIZE) > 0) {
+                tabla[i].path_proc = nameproc;
+                PRINT("NAMEPROC %ws\n", nameproc);
+
+
+            }
+            else { PRINT("Error nameproc \n"); }
+
+            tabla[i].flag = 1;
+            PRINT("En OPEN tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
+            PRINT("En OPEN tabla[%d].hanFile %lld\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
+            break;
+        }
+    }
+
     return GetFileInfoInternal(FileContext->Handle, FileInfo);
 }
 
@@ -487,6 +526,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
                 
             tabla[i].flag = 1;
             PRINT("En OPEN tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
+            PRINT("En OPEN tabla[%d].hanFile %lld\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
             break;
         }
     }   
@@ -573,6 +613,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
     PULONG PBytesTransferred)
 {
+    printf("LENGTH=%lu\n", Length);
     HANDLE Handle = HandleFromContext(FileContext);
     OVERLAPPED Overlapped = { 0 }; 
 
@@ -617,9 +658,11 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
         PRINT("tabla[i].pathproc %ws\n", (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
 
         if (tabla[i].hand_file == han_file) {
-           //strncpy(full_app_path,tabla[i].path_proc, FULLPATH_SIZE);
+            full_app_path = (WCHAR*)malloc(wcslen(tabla[i].path_proc) * sizeof(WCHAR));
+
+            wcscpy(full_app_path,tabla[i].path_proc);
             
-            full_app_path = tabla[i].path_proc;
+            //full_app_path = tabla[i].path_proc;
             PRINT("Op: Pasthrough READ FILE dentro for,  APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
             break;
         }
@@ -662,7 +705,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     PRINT("Vamos al read wINFSP\n");
     //READ-----------------------------------------------------------------------
 //if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, aux_offset)) {
-    if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, NULL)) {
+    if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, &Overlapped)) {
 
         
         PRINT(L"\tread error = %u, buffer length = %u, read length = %u\n\n", error_code, aux_buffer_length, *aux_read_length);
@@ -759,7 +802,8 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     {       
         PRINT("tabla[%d].hand_file %d\n",i, tabla[i].hand_file);
         if (tabla[i].hand_file == han_file) {
-            full_app_path = tabla[i].path_proc;
+            full_app_path = (WCHAR*)malloc(wcslen(tabla[i].path_proc) * sizeof(WCHAR));
+            wcscpy(full_app_path, tabla[i].path_proc);
             PRINT("Op:  WINFSP WRITE FILE dentro for,  APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
         }
     }
