@@ -7,7 +7,7 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "TableTEST",
-				"ChallengeEqGroups": ["Group1", "Group2", "Group3", "Group4"],
+				"ChallengeEqGroups": ["Group3", "Group4"],
 				"Cipher": "simple"
 			}
 		},
@@ -198,8 +198,8 @@
 					"Description": "This challenge looks for a certain pattern in the wall using a python code.",
 					"Props": {
 						"module_python": "challengeMM_RGB",
-						"validity_time": 300,
-						"refresh_time": 180,
+						"validity_time": 3000,
+						"refresh_time": 1800,
 						"param1": "Por favor haz una captura de la imagen que visualizas en la pantalla de la pared"
 					},
 					"Requirements": "mobile-camera"
@@ -231,10 +231,9 @@
 		"Group3": {
 			"ChallengeList": [
 				{
-					"FileName": "challenge_loader_python.dll",
+					"FileName": "simple_challenge.dll",
 					"Description": "Loads a python challenge.",
 					"Props": {
-						"module_python": "simple_challenge",
 						"validity_time": 3600,
 						"refresh_time": 3000,
 						"param1": "textpy",
@@ -264,14 +263,14 @@
 		"GroupParental1": {
 			"ChallengeList": [
 				{
-					"FileName": "challenge_loader_python.dll",
+					"FileName": "challenge_loader_python.dll----------",
 					"Description": "Loads a python challenge.",
 					"Props": {
 						"module_python": "chpass",
 						"validity_time": 3600,
 						"refresh_time": 3000,
-						"param1": "clavesecreta",
-						"mode": "parental"
+						"mode": "parental",
+						"parental_key": "1234"
 					},
 					"Requirements": "none"
 				}

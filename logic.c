@@ -13,6 +13,10 @@ Nokia Febrero 2021
 #include "keymaker.h"
 #include <Lmcons.h>		// only to get UNLEN
 #include "huffman.h"
+#include <bcrypt.h>
+
+#pragma comment(lib, "Bcrypt")
+
 
 
 
@@ -71,6 +75,7 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info);
 struct FileMarkInfo* createFMI(WCHAR* file_path, WCHAR* app_path, int8_t buffer_mark_lvl, uint32_t buffer_frn, int8_t file_mark_lvl, uint32_t file_frn, time_t last_closed);
 void destroyFMI(struct FileMarkInfo* fmi);
 void printFMI(struct FileMarkInfo* fmi);
+void getRandom(uint8_t* buffer, int buf_size);
 struct KeyData* createFileBufferKey(struct KeyData* composed_key, uint32_t frn);
 
 int getUsernameByPID(const DWORD procId, char* strUser, char* strdomain);
@@ -355,9 +360,11 @@ uint32_t createFRN() {
 		PRINT("testing mode on is active, forcing new FRN to 5\n");
 		return 5;
 	}
+	//return 6;
 	
 	int frn = INVALID_FRN;
 	static is_initialized = FALSE;
+	uint8_t frn_buf[4];
 
 	// Initialization, should only be called once
 	if (!is_initialized) {
@@ -365,12 +372,43 @@ uint32_t createFRN() {
 	}
 
 	while (frn == INVALID_FRN){
+		//getRandom(frn_buf, 4);
+		//frn = (uint32_t)(frn_buf[0] << 24 | frn_buf[1] << 16 | frn_buf[2] << 8 | frn_buf[3]);
 		frn = rand();	// Obtains a pseudo-random integer between 0 and RAND_MAX
 	}
 
 	return frn;
 }
 
+
+void getRandom(uint8_t* buffer, int buf_size) {
+	static BCRYPT_ALG_HANDLE alg_h = NULL;
+	NTSTATUS status = STATUS_SUCCESS;
+
+	// While algorithm handle is not correctly initialized, continue trying
+	while (NULL == alg_h || !BCRYPT_SUCCESS(status)) {
+		status = BCryptOpenAlgorithmProvider(
+			&alg_h,
+			BCRYPT_RNG_ALGORITHM,
+			NULL,
+			0
+		);
+	}
+
+	// Generate random number
+	do {
+		status = BCryptGenRandom(
+			alg_h,
+			buffer,
+			buf_size,
+			0
+		);
+	} while (!BCRYPT_SUCCESS(status));	// Continue generating random numbers if there is an error
+
+	// BCryptCloseAlgorithmProvider(alg_h, 0)		// No need to close, due to alg_h is static
+
+	return;
+}
 
 /**
 * Creates the key that is really used for ciphering/deciphering using the FRN (specific to the file) and the composed key (mix of subkeys from the challenges).

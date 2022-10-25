@@ -99,22 +99,31 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	// Get current time
 	time(&current_time);
 
+	printf("Current time: %d\n", current_time);
+	printf("Expiration time: %d\n", challenge_group->subkey->expires);
+	printf("Difftime(a, b): %f\n", difftime(current_time, challenge_group->subkey->expires));
 	EnterCriticalSection(&(challenge_group->subkey->critical_section));
 	// Check if key expired and needs to be computed now
-	if (difftime(current_time, challenge_group->subkey->expires) > 0) {
+	if (difftime(current_time, challenge_group->subkey->expires) > 0) {		// Means: current_time > challenge_group->subkey->expires
 
 		// TODO: start on the challenge that executed correctly on the init() instead of always starting on index 0
 		// Iterate over challenges until one returns that it could be executed
 		group_length = _msize(challenge_group->challenges) / sizeof(struct Challenge*);
+		printf("group_length: %d\n", group_length);
 		for (size_t j = 0; j < group_length; j++) {
+			printf("j: %d\n", j);
 			// Check library was loaded
 			if (INVALID_HANDLE_VALUE != challenge_group->challenges[j]->lib_handle) {
 				// Define function pointer corresponding with executeChallenge() input and output types
+				printf("VALID handle value\n");
 				exec_ch_func = (exec_ch_func_type)GetProcAddress(challenge_group->challenges[j]->lib_handle, "executeChallenge");
+				printf("exec_ch_func holds now the addr of the func executeChallenge\n");
 
 				// Add parameters if necessary
 				if (exec_ch_func != NULL) {
+					printf("exec_ch_func holds now the addr of the func executeChallenge\n");
 					result = exec_ch_func();
+					printf("result of exec_ch_func is %d\n", result);
 					if (result != 0) {
 						PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[j]->file_name);
 					} else {
@@ -126,12 +135,16 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 
 				// At this point, current challenge did not work. Check if it is the last challenge in the group and reset j to restart the loop
 				if (j == group_length - 1) {
+					printf("update j\n");
 					j = -1;		// J will become 0 With the update in the loop (j++)
 					Sleep(1);	// Sleep 1ms so process does not starve others
 				}
+			} else {
+				printf("INVALID HANDLE VALUE for the dll!!\n");
 			}
 		}
 	}
+	printf("before leaving crit sect\n");
 	LeaveCriticalSection(&(challenge_group->subkey->critical_section));
 
 	return challenge_group->subkey;

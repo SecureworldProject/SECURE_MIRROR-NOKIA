@@ -327,7 +327,7 @@ static void processParentalControls(json_value* value, int depth) {
 						else if (strcmp(array_value->u.object.values[j].name, "ChallengeEqGroups") == 0) {
 							groups_array_length = array_value->u.object.values[j].value->u.array.length;
 							if (groups_array_length <= 0) {		// Fixes warning C6386 (Visual Studio bug)
-								ctx.parentals[i]->challenge_groups = NULL;
+								ctx.parentals[i]->challenge_groups = (char**)malloc(0); // Allocate 0 bytes to avoid crashes when calling _msize(NULL)
 							} else {
 								// This will be a ChallengeEquivalenceGroup pointer pointer but for now it will hold ids, so force it to char pointer pointer
 								#pragma warning(suppress: 4133)
