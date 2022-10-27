@@ -1033,7 +1033,7 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path, ULONG pid) {
 
 
 int preReadLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, BOOL use_overlaped,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
 ) {
@@ -1101,7 +1101,7 @@ int preReadLogic(
 
 
 int postReadLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, BOOL use_overlaped,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
 ) {
@@ -1174,6 +1174,13 @@ int postReadLogic(
 			}
 
 			// Read first part of the file (MARK_LENGTH bytes)
+			OVERLAPPED* overlapped = NULL;
+			if (use_overlaped) {
+				overlapped = calloc(1, sizeof(OVERLAPPED));
+				//overlapped->Offset = (DWORD)0;
+
+			}
+
 			if (!ReadFile(
 				handle,
 				extra_read_buffer,
