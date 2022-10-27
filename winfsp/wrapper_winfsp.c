@@ -62,7 +62,7 @@ static WCHAR* volume_names[NUM_LETTERS] = { NULL };
 // TO DO protections here instead of Cipher or others
 static struct Protection* protections[NUM_LETTERS] = { NULL };
 
-struct TABLA  ////ADD/////////////////
+struct TABLA  ////ADD//////
 {
     HANDLE hand_file;
     WCHAR* path_proc;
@@ -347,8 +347,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     GrantedAccess |= GENERIC_READ;
     //---------------------------------------------------------ADD------------------
     WCHAR* full_app_path;
-    HANDLE handle_proc;
-    HANDLE handle_file;
+    HANDLE han_proc;
+    HANDLE han_file;
     WCHAR path_proc[MAX_PATH];
     WCHAR file_path[MAX_PATH];
     //-------------------------------------------------------------
@@ -387,13 +387,13 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
     //-------------------------------------------------------------------------------------------------------------
     
-    handle_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
+    han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
 
-    if (GetProcessImageFileNameA(handle_proc, path_proc, sizeof(path_proc) / sizeof(*path_proc)) != 0)
+    if (GetProcessImageFileNameA(han_proc, path_proc, sizeof(path_proc) / sizeof(*path_proc)) != 0)
         full_app_path = &path_proc;
     
-    handle_file = HandleFromContext(PFileContext);
-    GetFinalPathNameByHandleW(handle_file, file_path, MAX_PATH - 1, 8);
+    han_file = HandleFromContext(PFileContext);
+    GetFinalPathNameByHandleW(han_file, file_path, MAX_PATH - 1, 8);
 
     //INT("Op: Create FILE,  APP_Path: %s,   FILE_path: %ws\n", full_app_path, file_path);
 
@@ -420,16 +420,16 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
     WCHAR* nameproc = malloc(FULLPATH_SIZE * sizeof(WCHAR));
     //WCHAR nameproc[FULLPATH_SIZE];
-    HANDLE han_proc;
-    HANDLE han_file;
+    //HANDLE han_proc;
+    //HANDLE han_file;
 
 
     //PRINT("hANDLE %d\n", han_proc);
     //hprocess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
-    han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
-    han_file = HandleFromContext(FileContext);
+    //han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
+    //han_file = HandleFromContext(FileContext);
 
-    PRINT("En OPEN HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
+    PRINT("En CREATE HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
 
     //PRINT("OPEN han_file %d\n", han_file);
 
@@ -449,8 +449,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
             else { PRINT("Error nameproc \n"); }
 
             tabla[i].flag = 1;
-            PRINT("En OPEN tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
-            PRINT("En OPEN tabla[%d].hanFile %lld\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
+            PRINT("En Create tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
+            PRINT("En Create tabla[%d].hanFile %lld\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
             break;
         }
     }
@@ -467,8 +467,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     ULONG CreateFlags;
     PTFS_FILE_CONTEXT *FileContext;
 
-    PRINT("MontPoint %ws\n", MountPointA);
-    PRINT("MontP %ws\n", FileSystem->MountPoint);
+    //PRINT("MontPoint %ws\n", MountPointA);
+    //PRINT("MontP %ws\n", FileSystem->MountPoint);
 
     if (!ConcatPath(Ptfs, FileName, FullPath))
         return STATUS_OBJECT_NAME_INVALID;
@@ -692,7 +692,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     // Initialize new read variables with updated values adjusted for the mark and possible block cipher
     PRINT("ANTES DEL PREREAD WINFSP");
     error_code = preReadLogic(
-        file_size, op_final, file_path, full_app_path,
+        file_size, op_final, file_path, full_app_path, TRUE,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
     );
@@ -705,6 +705,9 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     PRINT("Vamos al read wINFSP\n");
     //READ-----------------------------------------------------------------------
 //if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, aux_offset)) {
+    Overlapped.Offset = (DWORD)aux_offset;
+    Overlapped.OffsetHigh = (DWORD)(aux_offset >> 32);
+   
     if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, &Overlapped)) {
 
         
@@ -716,7 +719,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     PRINT("DESPUES DEL READ wINFSP ANTES DEL POSTREAD\n");
     // Initialize new read variables with updated values adjusted for the mark and possible block cipher
     error_code = postReadLogic(
-        file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle,
+        file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, TRUE,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_buffer_length, &aux_read_length, &aux_offset
     );
