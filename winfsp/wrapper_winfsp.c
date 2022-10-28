@@ -70,7 +70,7 @@ struct TABLA  ////ADD//////
 }tabla[100] = { NULL };
 
 
-    
+
 
 
 /////  FUNCTION PROTOTYPES  /////
@@ -98,16 +98,16 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext0, P
 static NTSTATUS SetDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, BOOLEAN DeleteFile);
 static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
 {
-    .GetVolumeInfo = GetVolumeInfo,            
-    .SetVolumeLabel = SetVolumeLabel_,        // modified
+    .GetVolumeInfo = GetVolumeInfo,
+    .SetVolumeLabel = SetVolumeLabel_,          // modified
     .GetSecurityByName = GetSecurityByName,
-    .Create = Create,                        // modified
-    .Open = Open,                            // modified to capture PID also can be done in create
+    .Create = Create,                           // modified
+    .Open = Open,                               // modified to capture PID also can be done in create
     .Overwrite = Overwrite,
     .Cleanup = Cleanup,
     .Close = Close,
-    .Read = Read,                           // modified
-    .Write = Write,                        // modified
+    .Read = Read,                               // modified
+    .Write = Write,                             // modified
     .Flush = Flush,
     .GetFileInfo = GetFileInfo,
     .SetBasicInfo = SetBasicInfo,
@@ -118,7 +118,7 @@ static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
     .ReadDirectory = ReadDirectory,
     .SetDelete = SetDelete,
 };
-static VOID PtfsDelete(PTFS* Ptfs); 
+static VOID PtfsDelete(PTFS* Ptfs);
 static NTSTATUS EnableBackupRestorePrivileges(VOID);
 static ULONG wcstol_deflt(wchar_t* w, ULONG deflt);
 //static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv);
@@ -140,13 +140,12 @@ PPEB getPeb() {
 
 int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Protection* protection) {
     static BOOLEAN winfsplauncher = FALSE;
-         
-        
+
 
     int index = DEVICE_LETTER_TO_INDEX(letter);
     PRINT("winfspMapAndLaunch parameters:   index=%2d     letter=%wc     path='%ws'\n", index, letter, path);
     PRINT("CMDLINE: %ws \n", GetCommandLineW());
-   
+
 
     wcscpy_s(RootDirectoryA, sizeof(RootDirectoryA) / sizeof(WCHAR), path);
 
@@ -156,13 +155,13 @@ int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Pro
 
     protections[index] = protection;
     volume_names[index] = volume_name;
-    
+
     PRINT("MAPALAUNCH:   volume_name='%ws'\n", volume_names[index]);
     int argc = 0;
     WCHAR* argv = NULL;
     if (winfsplauncher == FALSE) {
 
-    
+
     winfsplauncher = TRUE;
 
     WinfspMain(argc, argv);     // Parameters are not used
@@ -171,8 +170,8 @@ int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Pro
         FsStart(letter);
         printf("Tras FsStart\n");
     }
-    
-    
+
+
 }
 
 /*WCHAR* getAppPathWinfsp(PTFS_FILE_CONTEXT* FileContext) {
@@ -181,8 +180,8 @@ int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Pro
     DWORD process_full_path_length = 0;
 
     process_full_path_length = MAX_PATH;
-    
-    
+
+
     process_full_path = malloc(process_full_path_length * sizeof(WCHAR));
     printf("Proceso_full: %s\n", process_full_path);
     if (process_full_path != NULL) {
@@ -193,8 +192,8 @@ int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Pro
                 process_handle = tabla[i].hproc;
             }
         }
-            
-        
+
+
         if (GetProcessImageFileNameW(process_handle, process_full_path, process_full_path_length) > 0) {
             CloseHandle(process_handle);
             return process_full_path;
@@ -203,7 +202,6 @@ int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Pro
         wcscpy_s(process_full_path, process_full_path_length, L"Memory Mapping");
         return process_full_path;
         //free(process_full_path);
-      
     }
 
     return NULL;
@@ -214,12 +212,8 @@ static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo
 {
     BY_HANDLE_FILE_INFORMATION ByHandleFileInfo;
 
-    
-
     if (!GetFileInformationByHandle(Handle, &ByHandleFileInfo))
         return FspNtStatusFromWin32(GetLastError());
-        
-    
 
 
     FileInfo->FileAttributes = ByHandleFileInfo.dwFileAttributes;
@@ -235,7 +229,6 @@ static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo
     FileInfo->IndexNumber = 0;
     FileInfo->HardLinks = 0;
 
-    
     return STATUS_SUCCESS;
 }
 
@@ -271,7 +264,7 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem,
     else {
         wcscpy_s(VolumeLabel, VolumeInfo->VolumeLabelLength, L"WinFsp");
         return STATUS_INVALID_DEVICE_REQUEST;
-    }        
+    }
 }
 static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
@@ -386,12 +379,12 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         FileAttributes = FILE_ATTRIBUTE_NORMAL;
 
     //-------------------------------------------------------------------------------------------------------------
-    
+
     han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
 
     if (GetProcessImageFileNameA(han_proc, path_proc, sizeof(path_proc) / sizeof(*path_proc)) != 0)
         full_app_path = &path_proc;
-    
+
     han_file = HandleFromContext(PFileContext);
     GetFinalPathNameByHandleW(han_file, file_path, MAX_PATH - 1, 8);
 
@@ -424,12 +417,12 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     //HANDLE han_file;
 
 
-    //PRINT("hANDLE %d\n", han_proc);
+    //PRINT("hANDLE %p\n", han_proc);
     //hprocess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
     //han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
     //han_file = HandleFromContext(FileContext);
 
-    PRINT("En CREATE HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
+    PRINT("En CREATE HAN_PROC %d\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
 
     //PRINT("OPEN han_file %d\n", han_file);
 
@@ -493,14 +486,14 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 
     *PFileContext = FileContext;
     //----------------------Captura del Handle---------------------------------------------------------------------------------------
-    
+
     WCHAR* nameproc = malloc(FULLPATH_SIZE* sizeof(WCHAR));
     //WCHAR nameproc[FULLPATH_SIZE];
     HANDLE han_proc;
     HANDLE han_file;
-   
 
-    //PRINT("hANDLE %d\n", han_proc);
+
+    //PRINT("hANDLE %p\n", han_proc);
     //hprocess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
     han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
     han_file = HandleFromContext(FileContext);
@@ -508,10 +501,9 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     PRINT("En OPEN HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
 
     //PRINT("OPEN han_file %d\n", han_file);
-    
-    for (int i = 0; i < 100; i++)
-    {    
-        
+
+    for (int i = 0; i < 100; i++) {
+
         if (tabla[i].flag == 0) {
             tabla[i].hand_file = han_file;
 
@@ -519,18 +511,18 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
             if (GetProcessImageFileNameW(han_proc, nameproc, FULLPATH_SIZE) > 0){
                 tabla[i].path_proc = nameproc;
                 PRINT("NAMEPROC %ws\n", nameproc);
-
-                   
             }
-            else { PRINT("Error nameproc \n"); }
-                
+            else {
+                PRINT("Error nameproc \n");
+            }
+
             tabla[i].flag = 1;
             PRINT("En OPEN tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
             PRINT("En OPEN tabla[%d].hanFile %lld\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
             break;
         }
-    }   
-   
+    }
+
     return GetFileInfoInternal(FileContext->Handle, FileInfo);
 }
 
@@ -615,15 +607,15 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 {
     printf("LENGTH=%lu\n", Length);
     HANDLE Handle = HandleFromContext(FileContext);
-    OVERLAPPED Overlapped = { 0 }; 
+    OVERLAPPED Overlapped = { 0 };
 
-    Overlapped.Offset = (DWORD)Offset; 
-    Overlapped.OffsetHigh = (DWORD)(Offset >> 32); 
-      
+    Overlapped.Offset = (DWORD)Offset;
+    Overlapped.OffsetHigh = (DWORD)(Offset >> 32);
+
     printf("Offset Despues overlapped %llu\n", Offset);
     //--------------------------------------------------------------------------------------
-    WCHAR file_path[FULLPATH_SIZE];//add 
-    HANDLE han_file;//add 
+    WCHAR file_path[FULLPATH_SIZE];//add
+    HANDLE han_file;//add
     // Create auxiliar parameters for internal modification of the operation (mark and possible block cipher)
     PVOID aux_buffer = NULL;
     ULONG aux_buffer_length = 0;
@@ -648,20 +640,18 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 
     //printf("Offset despues Getfinalpath %llu\n", Offset);
     han_file = HandleFromContext(FileContext);
-    PRINT("HANDLE %d\n", han_file);
+    PRINT("HANDLE %p\n", han_file);
 
-    for (int i = 0; i < 100; i++)
-    {
-               
+    for (int i = 0; i < 100; i++) {
+
         PRINT("tabla[i].hfile %d\n", tabla[i].hand_file);
 
         PRINT("tabla[i].pathproc %ws\n", (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
 
         if (tabla[i].hand_file == han_file) {
             full_app_path = (WCHAR*)malloc(wcslen(tabla[i].path_proc) * sizeof(WCHAR));
-
             wcscpy(full_app_path,tabla[i].path_proc);
-            
+
             //full_app_path = tabla[i].path_proc;
             PRINT("Op: Pasthrough READ FILE dentro for,  APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
             break;
@@ -669,7 +659,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     }
     //formatPath(&full_app_path);
     PRINT("Op: Pasthrough READ FILE fuera for,  APP_Path: %ws,   FILE_path: %ws\n",full_app_path, file_path);
-        
+
     op1 = getTableOperation(IRP_OP_READ,&full_app_path, FileSystem->MountPoint[0]);
 
     PRINT("Despues de Op,  APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
@@ -687,7 +677,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
         PRINT("ERROR getting file size\n");
         goto READ_CLEANUP;			// Handle case where file size cannot be obtained. Abort operation??
     }
-    
+
     printf("Offset antes preread %llu\n", Offset);
     // Initialize new read variables with updated values adjusted for the mark and possible block cipher
     PRINT("ANTES DEL PREREAD WINFSP");
@@ -707,10 +697,8 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 //if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, aux_offset)) {
     Overlapped.Offset = (DWORD)aux_offset;
     Overlapped.OffsetHigh = (DWORD)(aux_offset >> 32);
-   
-    if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, &Overlapped)) {
 
-        
+    if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, &Overlapped)) {
         PRINT(L"\tread error = %u, buffer length = %u, read length = %u\n\n", error_code, aux_buffer_length, *aux_read_length);
         goto READ_CLEANUP;
         return FspNtStatusFromWin32(GetLastError());
@@ -731,8 +719,8 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     PRINT("DESPUES DEL POSTREAD wINFSP\n");
     DbgPrint(L"\tByte to read: %d, Byte read %d, offset %lld\n\n", Length, *PBytesTransferred, Offset);
 
-    
-READ_CLEANUP:  
+
+READ_CLEANUP:
     if (aux_buffer != Buffer && aux_buffer != NULL) {
         PRINT("free(aux_buffer)\n");
         free(aux_buffer);
@@ -751,10 +739,9 @@ READ_CLEANUP:
     }
 
     PRINT("Final READ\n");
-    
-   
+
+
     return STATUS_SUCCESS;
-   
 }
 
 
@@ -799,10 +786,10 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 
     GetFinalPathNameByHandleW(Handle, file_path, FULLPATH_SIZE -1, 8);
     han_file = HandleFromContext(FileContext);
-    PRINT("HANDLE write %d\n", han_file);
+    PRINT("HANDLE write %p\n", han_file);
 
     for (int i = 0; i < 100; i++)
-    {       
+    {
         PRINT("tabla[%d].hand_file %d\n",i, tabla[i].hand_file);
         if (tabla[i].hand_file == han_file) {
             full_app_path = (WCHAR*)malloc(wcslen(tabla[i].path_proc) * sizeof(WCHAR));
@@ -812,7 +799,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     }
     printf("Op: WINFSP WRITE FILE fuera for,   APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-    
+
     op1 = getTableOperation(IRP_OP_WRITE, &full_app_path, FileSystem->MountPoint[0]); // Better directly create global variable with pointer to table in this mounted disk
     op2 = getOpSyncFolder(IRP_OP_WRITE, file_path);
 
@@ -828,7 +815,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     }
 
     error_code = preWriteLogic(
-        &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
+        &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, FALSE, WriteToEndOfFile,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
     );
@@ -840,16 +827,19 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     DbgPrint(L"WriteFile : %s, offset %I64d, length %d\n", file_path, Offset, Length);
 
     //WRITE-------------------------
+    Overlapped.Offset = (DWORD)aux_offset;
+    Overlapped.OffsetHigh = (DWORD)(aux_offset >> 32);
+
     if (!WriteFile(Handle, aux_buffer, aux_bytes_to_write, aux_bytes_written, &Overlapped)){
         return FspNtStatusFromWin32(GetLastError());
         DbgPrint(L"\twrite error = %u, buffer length = %d, write length = %d\n", error_code, Length, *PBytesTransferred);
-        goto WRITE_CLEANUP; 
-    }  else { 
+        goto WRITE_CLEANUP;
+    }  else {
         DbgPrint(L"\twrite %d, offset %I64d\n\n", *PBytesTransferred, Offset);
     }
 
     error_code = postWriteLogic(
-        &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
+        &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, FALSE, WriteToEndOfFile,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
     );
@@ -861,7 +851,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         DbgPrint(L"\twrite %d, offset %I64d\n\n", *PBytesTransferred, Offset);
     }
 
-    error_code = postWriteLogic(
+    /*error_code = postWriteLogic(
         &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
         &Buffer, &Length, &PBytesTransferred, &Offset,
         &aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
@@ -869,10 +859,10 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     if (error_code != 0) {
         PRINT("ERROR in postWriteLogic. error_code = %d\n", error_code);
         goto WRITE_CLEANUP;
-    }
+    }*/
 
 
-WRITE_CLEANUP:   
+WRITE_CLEANUP:
 	if (aux_buffer != Buffer && aux_buffer != NULL) {
         PRINT("free(aux_buffer en write)\n");
 		free(aux_buffer);
@@ -890,9 +880,7 @@ WRITE_CLEANUP:
         return FspNtStatusFromWin32(error_code);
     }
 
-
     PRINT("Final WRITE\n");
-    
 
     return GetFileInfoInternal(Handle, FileInfo);
 }
@@ -1155,13 +1143,13 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     Handle = CreateFileW(
         Path, FILE_READ_ATTRIBUTES, 0, 0,
         OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-    
+
     if (INVALID_HANDLE_VALUE == Handle)
         return FspNtStatusFromWin32(GetLastError());
 
 
     Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
-    
+
     if (0 == Length)
     {
         LastError = GetLastError();
@@ -1180,10 +1168,10 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     }
 
     CloseHandle(Handle);
-    
+
     /* from now on we must goto exit on failure */
     Ptfs = malloc(sizeof *Ptfs);
-    
+
     if (0 == Ptfs)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
@@ -1220,11 +1208,11 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
         WIDEN(PROGNAME));
 
     Result = FspFileSystemCreate(
-        VolumeParams.Prefix[0] ? WIDEN(FSP_FSCTL_NET_DEVICE_NAME) : WIDEN(FSP_FSCTL_DISK_DEVICE_NAME),        
+        VolumeParams.Prefix[0] ? WIDEN(FSP_FSCTL_NET_DEVICE_NAME) : WIDEN(FSP_FSCTL_DISK_DEVICE_NAME),
         &VolumeParams,
         &PtfsInterface,
         &Ptfs->FileSystem);
-    
+
     if (!NT_SUCCESS(Result))
         goto exit;
     Ptfs->FileSystem->UserContext = Ptfs;
@@ -1236,7 +1224,7 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
         goto exit;
 
     FspFileSystemSetDebugLog(Ptfs->FileSystem, DebugFlags);
-    
+
     Result = STATUS_SUCCESS;
 
 exit:
@@ -1327,9 +1315,9 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     // Use global variables as input parameters, instead of CMD line arguments
     PassThrough = RootDirectoryA;
     MountPointLocal = MountPointA;
-    
+
     PRINT("SvcStart: RootDirectory[0] = %ws , MountPoint[0] = %ws \n", RootDirectoryA, MountPointA);
-    
+
     if (0 == PassThrough && 0 != VolumePrefix)
     {
         PWSTR P;
@@ -1474,7 +1462,7 @@ static NTSTATUS FsStart(WCHAR letter)
 
 
     EnableBackupRestorePrivileges();
-        
+
     if (0 != DebugLogFile)
     {
         if (0 == wcscmp(L"-", DebugLogFile))
@@ -1496,31 +1484,31 @@ static NTSTATUS FsStart(WCHAR letter)
 
         FspDebugLogSetHandle(DebugLogHandle);
     }
-      
+
     PTFS *ptfs2 = 0;
-    
+
     PRINT("Antes de Create: PassThrough = %ws , MountPointLocal = %ws , VolumePrefix = %ws \n", PassThrough, MountPointLocal, VolumePrefix);
-    
+
     Result = PtfsCreate(PassThrough, 0, MountPointLocal, 0, &ptfs2);
-    
+
     fslist[DEVICE_LETTER_TO_INDEX(letter)]=ptfs2;
-      
+
     if (!NT_SUCCESS(Result))
     {
         fail(L"cannot create file system");
         goto exit;
     }
 
-    
+
     Result = FspFileSystemStartDispatcher(fslist[DEVICE_LETTER_TO_INDEX(letter)]->FileSystem, 0);
     if (!NT_SUCCESS(Result))
     {
         fail(L"cannot start file system");
         goto exit;
     }
-        
+
     MountPointLocal = FspFileSystemMountPoint(fslist[DEVICE_LETTER_TO_INDEX(letter)]->FileSystem);
-       
+
     info(L"%s%s%s -p %s -m %s",
         WIDEN(PROGNAME),
         0 != VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
@@ -1528,9 +1516,9 @@ static NTSTATUS FsStart(WCHAR letter)
         PassThrough,
         MountPointLocal);
 
-    
+
     Result = STATUS_SUCCESS;
-    
+
     return Result;
 
 exit:
@@ -1541,7 +1529,6 @@ exit:
     return Result;
 
 usage:
-  
     //fail(usage, WIDEN(PROGNAME));
 
     return STATUS_UNSUCCESSFUL;
@@ -1552,11 +1539,8 @@ usage:
 
 int WinfspMain(int argc, wchar_t **argv)
 {
-    
     if (!NT_SUCCESS(FspLoad(0)))
         return ERROR_DELAY_LOAD_FAILED;
-    
 
     return FspServiceRun(WIDEN(PROGNAME), SvcStart, SvcStop, 0);
-    
 }

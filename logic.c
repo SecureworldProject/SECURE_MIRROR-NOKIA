@@ -1033,7 +1033,7 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path, ULONG pid) {
 
 
 int preReadLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, BOOL use_overlaped,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, BOOL use_overlapped,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
 ) {
@@ -1101,7 +1101,7 @@ int preReadLogic(
 
 
 int postReadLogic(
-	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, BOOL use_overlaped,
+	uint64_t file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, BOOL use_overlapped,
 	LPVOID* orig_buffer, DWORD* orig_buffer_length, LPDWORD* orig_read_length, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_buffer_length, LPDWORD* aux_read_length, LONGLONG* aux_offset
 ) {
@@ -1141,6 +1141,9 @@ int postReadLogic(
 	//uint32_t buffer_frn = INVALID_FRN;
 	//uint32_t file_frn = INVALID_FRN;
 
+	OVERLAPPED overlapped = { 0 };
+
+
 	// SMALL FILES
 	if (small_file) {
 		goto POST_READ_CLEANUP;
@@ -1174,19 +1177,12 @@ int postReadLogic(
 			}
 
 			// Read first part of the file (MARK_LENGTH bytes)
-			OVERLAPPED* overlapped = NULL;
-			if (use_overlaped) {
-				overlapped = calloc(1, sizeof(OVERLAPPED));
-				//overlapped->Offset = (DWORD)0;
-
-			}
-
 			if (!ReadFile(
 				handle,
 				extra_read_buffer,
 				MARK_LENGTH,
 				&extra_bytes_read,
-				NULL)
+				&overlapped)
 				) {
 				printf("ERROR reading mark in postWrite!!!\n");
 				error_code = ERROR_READ_FAULT;
@@ -1353,7 +1349,7 @@ int postReadLogic(
 
 
 int preWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, BOOL use_overlapped, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {
@@ -1389,6 +1385,8 @@ int preWriteLogic(
 	struct FileMarkInfo* fmi = NULL;
 	//int8_t file_mark_lvl = UNKNOWN_MARK_LEVEL;
 	//uint32_t frn = INVALID_FRN;
+
+	OVERLAPPED overlapped = { 0 };
 
 	// Writting to EOF is the same as the offset being the original file size
 	if (write_to_eof) {
@@ -1472,7 +1470,7 @@ int preWriteLogic(
 				read_buffer,
 				MARK_LENGTH,
 				&bytes_read,
-				NULL)
+				NULL)//&overlapped)
 				) {
 				printf("ERROR reading mark inside preWrite!!!\n");
 				error_code = ERROR_READ_FAULT;
@@ -1527,7 +1525,7 @@ int preWriteLogic(
 			read_buffer,
 			MARK_LENGTH,
 			&bytes_read,
-			NULL)
+			NULL)//&overlapped)
 			) {
 			printf("ERROR reading mark inside preWrite!!!\n");
 			error_code = ERROR_READ_FAULT;
@@ -1749,7 +1747,7 @@ int preWriteLogic(
 
 
 int postWriteLogic(
-	uint64_t* file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, UCHAR write_to_eof,
+	uint64_t* file_size, enum Operation op, WCHAR* file_path, WCHAR* app_path, struct Protection* protection, HANDLE handle, BOOL use_overlapped, UCHAR write_to_eof,
 	LPCVOID* orig_buffer, DWORD* orig_bytes_to_write, LPDWORD* orig_bytes_written, LONGLONG* orig_offset,
 	LPVOID* aux_buffer, DWORD* aux_bytes_to_write, LPDWORD* aux_bytes_written, LONGLONG* aux_offset
 ) {
@@ -1768,6 +1766,12 @@ int postWriteLogic(
 	struct FileMarkInfo* fmi = NULL;
 	//int8_t mark_lvl = UNKNOWN_MARK_LEVEL;
 	//uint32_t frn = INVALID_FRN;
+
+	OVERLAPPED overlapped_first_part = { 0 };
+	OVERLAPPED overlapped_second_part = { 0 };
+	overlapped_second_part.Offset = (DWORD)MARK_LENGTH;
+	overlapped_second_part.OffsetHigh = (DWORD)MARK_LENGTH >> 32;
+	OVERLAPPED overlapped_write = { 0 };
 
 	if (orig_buffer == NULL || *orig_buffer == NULL || orig_bytes_to_write == NULL || orig_bytes_written == NULL || *orig_bytes_written == NULL ||
 		orig_offset == NULL || protection == NULL || file_path == NULL || app_path == NULL) {
@@ -1797,7 +1801,7 @@ int postWriteLogic(
 		return error_code;
 	}
 
-	// Check files that become larger than MARK_LENGTH
+	// Check files that became larger than MARK_LENGTH
 	if (*file_size < MARK_LENGTH && new_file_size >= MARK_LENGTH) {
 		// Add fmi to the table. At this point file mark/frn are equal to buffer mark/frn, but will be changed afterwards if needed
 		fmi = createFMI(file_path, app_path, UNKNOWN_MARK_LEVEL, INVALID_FRN, UNKNOWN_MARK_LEVEL, INVALID_FRN, 0);
@@ -1825,7 +1829,7 @@ int postWriteLogic(
 			buffer1,
 			MARK_LENGTH,
 			&bytes_done,
-			NULL)
+			NULL)//&overlapped_first_part)
 			) {
 			printf("ERROR reading mark in postWrite!!!\n");
 			error_code = ERROR_READ_FAULT;
@@ -1876,7 +1880,7 @@ int postWriteLogic(
 					buffer2,
 					(new_file_size - MARK_LENGTH),
 					&bytes_done,
-					NULL)
+					NULL)//&overlapped_second_part)
 					) {
 					printf("ERROR reading mark in postWrite!!!\n");
 					error_code = ERROR_READ_FAULT;
@@ -1926,7 +1930,7 @@ int postWriteLogic(
 					buffer3,
 					new_file_size,
 					&bytes_done,
-					NULL)
+					(use_overlapped ? &overlapped_write : NULL))
 					) {
 					printf("ERROR writing mark in postWrite!!!\n");
 					error_code = ERROR_WRITE_FAULT;
@@ -1969,7 +1973,7 @@ int postWriteLogic(
 					buffer2,
 					(new_file_size - MARK_LENGTH),
 					&bytes_done,
-					NULL)
+					NULL)//&overlapped_second_part)
 					) {
 					printf("ERROR reading mark in postWrite!!!\n");
 					error_code = ERROR_READ_FAULT;
@@ -2008,7 +2012,7 @@ int postWriteLogic(
 					buffer3,
 					new_file_size,
 					&bytes_done,
-					NULL)
+					(use_overlapped ? &overlapped_write : NULL))
 					) {
 					printf("ERROR writing mark in postWrite!!!\n");
 					error_code = ERROR_WRITE_FAULT;
