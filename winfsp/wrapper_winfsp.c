@@ -74,7 +74,7 @@ struct TABLA  ////ADD//////
 
 
 /////  FUNCTION PROTOTYPES  /////
-//WCHAR* getAppPathWinfsp(PTFS_FILE_CONTEXT* FileContext);
+
 
 static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO* FileInfo);
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM* FileSystem, FSP_FSCTL_VOLUME_INFO* VolumeInfo);
@@ -121,8 +121,6 @@ static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
 static VOID PtfsDelete(PTFS* Ptfs);
 static NTSTATUS EnableBackupRestorePrivileges(VOID);
 static ULONG wcstol_deflt(wchar_t* w, ULONG deflt);
-//static NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv);
-//static NTSTATUS SvcStop(FSP_SERVICE* Service);
 
 /////  FUNCTION DEFINITIONS  /////
 
@@ -173,39 +171,6 @@ int winfspMapAndLaunch(WCHAR* path, WCHAR letter, WCHAR* volume_name, struct Pro
 
 
 }
-
-/*WCHAR* getAppPathWinfsp(PTFS_FILE_CONTEXT* FileContext) {
-    HANDLE process_handle = NULL;
-    WCHAR* process_full_path = NULL;
-    DWORD process_full_path_length = 0;
-
-    process_full_path_length = MAX_PATH;
-
-
-    process_full_path = malloc(process_full_path_length * sizeof(WCHAR));
-    printf("Proceso_full: %s\n", process_full_path);
-    if (process_full_path != NULL) {
-
-        for (int i = 0; i < 100; i++)
-        {
-            if (tabla[i].hfile == FileContext->Handle) {
-                process_handle = tabla[i].hproc;
-            }
-        }
-
-
-        if (GetProcessImageFileNameW(process_handle, process_full_path, process_full_path_length) > 0) {
-            CloseHandle(process_handle);
-            return process_full_path;
-        }
-        CloseHandle(process_handle);
-        wcscpy_s(process_full_path, process_full_path_length, L"Memory Mapping");
-        return process_full_path;
-        //free(process_full_path);
-    }
-
-    return NULL;
-}*/
 
 
 static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo)
@@ -339,11 +304,12 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 // Add read access when write access is required
     GrantedAccess |= GENERIC_READ;
     //---------------------------------------------------------ADD------------------
-    WCHAR* full_app_path;
+    WCHAR* full_app_path = NULL;
     HANDLE han_proc;
-    HANDLE han_file;
-    WCHAR path_proc[MAX_PATH];
-    WCHAR file_path[MAX_PATH];
+    //HANDLE han_file_pre;
+    HANDLE han_file_pos;
+    WCHAR* nameproc = malloc(FULLPATH_SIZE * sizeof(WCHAR));
+    //WCHAR file_path[FULLPATH_SIZE];
     //-------------------------------------------------------------
     if (!ConcatPath(Ptfs, FileName, FullPath))
         return STATUS_OBJECT_NAME_INVALID;
@@ -381,19 +347,25 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     //-------------------------------------------------------------------------------------------------------------
 
     han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
+    PRINT("han_proc %p\n", han_proc);
 
-    if (GetProcessImageFileNameA(han_proc, path_proc, sizeof(path_proc) / sizeof(*path_proc)) != 0)
-        full_app_path = &path_proc;
+    if (GetProcessImageFileNameW(han_proc, nameproc, FULLPATH_SIZE) > 0) {
+        full_app_path = nameproc;
+        PRINT("NAMEPROC_PRE %ws\n", nameproc);
+    }
+    else {
+        PRINT("Error nameproc \n");
+    }
+   
+    //han_file_pre = HandleFromContext(FileContext);
+    //GetFinalPathNameByHandleW(han_file_pre, file_path, MAX_PATH - 1, 8);
+    
 
-    han_file = HandleFromContext(PFileContext);
-    GetFinalPathNameByHandleW(han_file, file_path, MAX_PATH - 1, 8);
+    //PRINT("El han en precreate:%p\n", han_file_pre);
+    PRINT("Op: Pasthrough CREATE FILE,   APP_Path: %ws,   FILE_path: %ws\n", (full_app_path != NULL) ? full_app_path : L"NULL", FullPath);
+    //PRINT("Op: Pasthrough READ FILE fuera for,  APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
-    //INT("Op: Create FILE,  APP_Path: %s,   FILE_path: %ws\n", full_app_path, file_path);
-
-    PRINT("Op: MIRROR CREATE FILE,   APP_Path: %ws,   FILE_path: %ws\n", (&full_app_path != NULL) ? &full_app_path : L"NULL", file_path);
-
-
-    if (preCreateLogic(file_path, &full_app_path, FspFileSystemOperationProcessId())) {
+    if (preCreateLogic(FullPath, &full_app_path, FspFileSystemOperationProcessId())) {
         return STATUS_IO_PRIVILEGE_FAILED;						// TO DO complete
     }
 
@@ -411,7 +383,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
     //----------------------Captura del Handle---------------------------------------------------------------------------------------
 
-    WCHAR* nameproc = malloc(FULLPATH_SIZE * sizeof(WCHAR));
+    
     //WCHAR nameproc[FULLPATH_SIZE];
     //HANDLE han_proc;
     //HANDLE han_file;
@@ -422,28 +394,23 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     //han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
     //han_file = HandleFromContext(FileContext);
 
-    PRINT("En CREATE HAN_PROC %d\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
-
-    //PRINT("OPEN han_file %d\n", han_file);
+    //PRINT("En CREATE HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
+    han_file_pos = HandleFromContext(FileContext);
+    
+    PRINT("CREATE han_file %p\n", han_file_pos);
 
     for (int i = 0; i < 100; i++)
     {
 
         if (tabla[i].flag == 0) {
-            tabla[i].hand_file = han_file;
-
-            //PRINT("OPEN tabla[i].hfile %d\n", tabla[i].hfile);
-            if (GetProcessImageFileNameW(han_proc, nameproc, FULLPATH_SIZE) > 0) {
-                tabla[i].path_proc = nameproc;
-                PRINT("NAMEPROC %ws\n", nameproc);
-
-
-            }
-            else { PRINT("Error nameproc \n"); }
-
+            tabla[i].hand_file = han_file_pos;
+            PRINT("CREATE tabla[i].hfile %p\n", tabla[i].hand_file);
+            tabla[i].path_proc = nameproc;
+            PRINT("NAMEPROC_pos %ws\n", tabla[i].path_proc);
+           
             tabla[i].flag = 1;
             PRINT("En Create tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
-            PRINT("En Create tabla[%d].hanFile %lld\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
+            PRINT("En Create tabla[%d].hanFile %p\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
             break;
         }
     }
@@ -460,8 +427,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     ULONG CreateFlags;
     PTFS_FILE_CONTEXT *FileContext;
 
-    //PRINT("MontPoint %ws\n", MountPointA);
-    //PRINT("MontP %ws\n", FileSystem->MountPoint);
+    GrantedAccess |= GENERIC_READ;
 
     if (!ConcatPath(Ptfs, FileName, FullPath))
         return STATUS_OBJECT_NAME_INVALID;
@@ -488,7 +454,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     //----------------------Captura del Handle---------------------------------------------------------------------------------------
 
     WCHAR* nameproc = malloc(FULLPATH_SIZE* sizeof(WCHAR));
-    //WCHAR nameproc[FULLPATH_SIZE];
     HANDLE han_proc;
     HANDLE han_file;
 
@@ -498,7 +463,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
     han_file = HandleFromContext(FileContext);
 
-    PRINT("En OPEN HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
+    //PRINT("En OPEN HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
 
     //PRINT("OPEN han_file %d\n", han_file);
 
@@ -510,15 +475,15 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
             //PRINT("OPEN tabla[i].hfile %d\n", tabla[i].hfile);
             if (GetProcessImageFileNameW(han_proc, nameproc, FULLPATH_SIZE) > 0){
                 tabla[i].path_proc = nameproc;
-                PRINT("NAMEPROC %ws\n", nameproc);
+                //PRINT("NAMEPROC %ws\n", nameproc);
             }
             else {
                 PRINT("Error nameproc \n");
             }
 
             tabla[i].flag = 1;
-            PRINT("En OPEN tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
-            PRINT("En OPEN tabla[%d].hanFile %lld\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
+            //PRINT("En OPEN tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
+            //PRINT("En OPEN tabla[%d].hanFile %p\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
             break;
         }
     }
@@ -588,6 +553,7 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
     HANDLE Handle = HandleFromContext(FileContext);
 
     //------------------------Limpiar TABLA------------------------------------------------------------
+    printf("CLOSE HANDLE= %p\n", Handle);
     for (int i = 0; i < 100; i++) {
         if (tabla[i].flag == 1 && tabla[i].hand_file== Handle) {
             tabla[i].hand_file = NULL;
@@ -644,7 +610,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 
     for (int i = 0; i < 100; i++) {
 
-        PRINT("tabla[i].hfile %d\n", tabla[i].hand_file);
+        PRINT("tabla[i].hfile %p\n", tabla[i].hand_file);
 
         PRINT("tabla[i].pathproc %ws\n", (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
 
@@ -652,12 +618,11 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
             full_app_path = (WCHAR*)malloc(wcslen(tabla[i].path_proc) * sizeof(WCHAR));
             wcscpy(full_app_path,tabla[i].path_proc);
 
-            //full_app_path = tabla[i].path_proc;
             PRINT("Op: Pasthrough READ FILE dentro for,  APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
             break;
         }
     }
-    //formatPath(&full_app_path);
+    
     PRINT("Op: Pasthrough READ FILE fuera for,  APP_Path: %ws,   FILE_path: %ws\n",full_app_path, file_path);
 
     op1 = getTableOperation(IRP_OP_READ,&full_app_path, FileSystem->MountPoint[0]);
@@ -680,7 +645,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 
     printf("Offset antes preread %llu\n", Offset);
     // Initialize new read variables with updated values adjusted for the mark and possible block cipher
-    PRINT("ANTES DEL PREREAD WINFSP");
+    PRINT("ANTES DEL PREREAD WINFSP \n");
     error_code = preReadLogic(
         file_size, op_final, file_path, full_app_path, TRUE,
         &Buffer, &Length, &PBytesTransferred, &Offset,
@@ -694,7 +659,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 
     PRINT("Vamos al read wINFSP\n");
     //READ-----------------------------------------------------------------------
-//if (!ReadFile(Handle, aux_buffer, aux_buffer_length, aux_read_length, aux_offset)) {
+
     Overlapped.Offset = (DWORD)aux_offset;
     Overlapped.OffsetHigh = (DWORD)(aux_offset >> 32);
 
@@ -750,6 +715,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
     PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
 {
+    PRINT("Entró al WRITE \n");
     HANDLE Handle = HandleFromContext(FileContext);
     LARGE_INTEGER FileSize;
     OVERLAPPED Overlapped = { 0 };
@@ -790,7 +756,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 
     for (int i = 0; i < 100; i++)
     {
-        PRINT("tabla[%d].hand_file %d\n",i, tabla[i].hand_file);
+        PRINT("tabla[%d].hand_file %p\n",i, tabla[i].hand_file);
         if (tabla[i].hand_file == han_file) {
             full_app_path = (WCHAR*)malloc(wcslen(tabla[i].path_proc) * sizeof(WCHAR));
             wcscpy(full_app_path, tabla[i].path_proc);
@@ -851,17 +817,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         DbgPrint(L"\twrite %d, offset %I64d\n\n", *PBytesTransferred, Offset);
     }
 
-    /*error_code = postWriteLogic(
-        &file_size, op_final, file_path, full_app_path, protections[THREAD_INDEX], Handle, WriteToEndOfFile,
-        &Buffer, &Length, &PBytesTransferred, &Offset,
-        &aux_buffer, &aux_bytes_to_write, &aux_bytes_written, &aux_offset
-    );
-    if (error_code != 0) {
-        PRINT("ERROR in postWriteLogic. error_code = %d\n", error_code);
-        goto WRITE_CLEANUP;
-    }*/
-
-
+   
 WRITE_CLEANUP:
 	if (aux_buffer != Buffer && aux_buffer != NULL) {
         PRINT("free(aux_buffer en write)\n");
