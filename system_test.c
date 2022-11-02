@@ -369,6 +369,22 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 	}
 	else if (irp_op == IRP_OP_WRITE) {
 		my_op_table->tuples[0]->on_write = ciphering_op;
+		if (ciphering_op== NOTHING)
+		    my_op_table->tuples[0]->on_read = NOTHING;//Para las lecturas extras de WINFSP despues de la escrituras.
+		else if (ciphering_op == CIPHER) {
+			if (stream_lvl == BIG_CLEARTEXT)
+				my_op_table->tuples[0]->on_read = DECIPHER;//Para las lecturas extras de WINFSP despues de la escrituras.
+			else if (stream_lvl == BIG_DECIPHERED)
+				my_op_table->tuples[0]->on_read = CIPHER;
+		}
+				
+		else if (ciphering_op == DECIPHER) {
+			if (stream_lvl == BIG_CLEARTEXT)
+				my_op_table->tuples[0]->on_read = NOTHING;//Para las lecturas extras de WINFSP despues de la escrituras.
+			else if (stream_lvl == BIG_CIPHERED)
+				my_op_table->tuples[0]->on_read = CIPHER;
+		}
+			
 		//test_operative.on_write = ciphering_op;
 	}
 
