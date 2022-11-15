@@ -306,10 +306,10 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     //---------------------------------------------------------ADD------------------
     WCHAR* full_app_path = NULL;
     HANDLE han_proc;
-    //HANDLE han_file_pre;
+    
     HANDLE han_file_pos;
     WCHAR* nameproc = malloc(FULLPATH_SIZE * sizeof(WCHAR));
-    //WCHAR file_path[FULLPATH_SIZE];
+    
     //-------------------------------------------------------------
     if (!ConcatPath(Ptfs, FileName, FullPath))
         return STATUS_OBJECT_NAME_INVALID;
@@ -357,13 +357,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         PRINT("Error nameproc \n");
     }
    
-    //han_file_pre = HandleFromContext(FileContext);
-    //GetFinalPathNameByHandleW(han_file_pre, file_path, MAX_PATH - 1, 8);
+     PRINT("Op: Pasthrough CREATE FILE,   APP_Path: %ws,   FILE_path: %ws\n", (full_app_path != NULL) ? full_app_path : L"NULL", FullPath);
     
-
-    //PRINT("El han en precreate:%p\n", han_file_pre);
-    PRINT("Op: Pasthrough CREATE FILE,   APP_Path: %ws,   FILE_path: %ws\n", (full_app_path != NULL) ? full_app_path : L"NULL", FullPath);
-    //PRINT("Op: Pasthrough READ FILE fuera for,  APP_Path: %ws,   FILE_path: %ws\n", full_app_path, file_path);
 
     if (preCreateLogic(FullPath, &full_app_path, FspFileSystemOperationProcessId())) {
         return STATUS_IO_PRIVILEGE_FAILED;						// TO DO complete
@@ -384,17 +379,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     //----------------------Captura del Handle---------------------------------------------------------------------------------------
 
     
-    //WCHAR nameproc[FULLPATH_SIZE];
-    //HANDLE han_proc;
-    //HANDLE han_file;
-
-
-    //PRINT("hANDLE %p\n", han_proc);
-    //hprocess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
-    //han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
-    //han_file = HandleFromContext(FileContext);
-
-    //PRINT("En CREATE HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
     han_file_pos = HandleFromContext(FileContext);
     
     PRINT("CREATE han_file %p\n", han_file_pos);
@@ -457,33 +441,27 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     HANDLE han_proc;
     HANDLE han_file;
 
-
-    //PRINT("hANDLE %p\n", han_proc);
-    //hprocess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION, FALSE, FspFileSystemOperationProcessId());
     han_proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, FspFileSystemOperationProcessId());
     han_file = HandleFromContext(FileContext);
 
-    //PRINT("En OPEN HAN_PROC %p\n", (han_proc) == INVALID_HANDLE_VALUE ? -1 : han_proc);
-
-    //PRINT("OPEN han_file %d\n", han_file);
+  
 
     for (int i = 0; i < 100; i++) {
 
         if (tabla[i].flag == 0) {
             tabla[i].hand_file = han_file;
 
-            //PRINT("OPEN tabla[i].hfile %d\n", tabla[i].hfile);
+            
             if (GetProcessImageFileNameW(han_proc, nameproc, FULLPATH_SIZE) > 0){
                 tabla[i].path_proc = nameproc;
-                //PRINT("NAMEPROC %ws\n", nameproc);
+                
             }
             else {
                 PRINT("Error nameproc \n");
             }
 
             tabla[i].flag = 1;
-            //PRINT("En OPEN tabla[%d].pathproc %ws\n", i, (tabla[i].path_proc) == NULL ? "null" : tabla[i].path_proc);
-            //PRINT("En OPEN tabla[%d].hanFile %p\n", i, (tabla[i].hand_file) == NULL ? "null" : tabla[i].hand_file);
+            
             break;
         }
     }
@@ -604,7 +582,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 
     GetFinalPathNameByHandleW(Handle, file_path, FULLPATH_SIZE -1, 8);
 
-    //printf("Offset despues Getfinalpath %llu\n", Offset);
+    
     han_file = HandleFromContext(FileContext);
     PRINT("HANDLE %p\n", han_file);
 
@@ -756,7 +734,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 
     for (int i = 0; i < 100; i++)
     {
-        PRINT("tabla[%d].hand_file %p\n",i, tabla[i].hand_file);
+        //PRINT("tabla[%d].hand_file %p\n",i, tabla[i].hand_file);
         if (tabla[i].hand_file == han_file) {
             full_app_path = (WCHAR*)malloc(wcslen(tabla[i].path_proc) * sizeof(WCHAR));
             wcscpy(full_app_path, tabla[i].path_proc);
