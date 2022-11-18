@@ -68,3 +68,5 @@ void formatCtxPaths();
 void convertSyncFolderPaths();
 
 void convertParentalFolderPaths();
+
+DWORD writeParentalFoldersFile();

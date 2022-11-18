@@ -141,6 +141,7 @@ extern "C" {
 		DOKAN = 0,
 		WINFSP
 	};
+	static const char* DRIVER_STRINGS[] = { "DOKAN", "WINFSP" };
 
 	struct Protection {
 		struct OpTable* op_table;

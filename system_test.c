@@ -365,27 +365,25 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 	// App type is fixed. Change operative asociated to the operation READ or WRITE
 	if (irp_op == IRP_OP_READ) {
 		my_op_table->tuples[0]->on_read = ciphering_op;
-		//test_operative.on_read = ciphering_op;
 	}
 	else if (irp_op == IRP_OP_WRITE) {
 		my_op_table->tuples[0]->on_write = ciphering_op;
-		if (ciphering_op== NOTHING)
-		    my_op_table->tuples[0]->on_read = NOTHING;//Para las lecturas extras de WINFSP despues de la escrituras.
+
+		// This code makes the WinFSP reads that occur after a write operation not fail
+		if (ciphering_op == NOTHING)
+			my_op_table->tuples[0]->on_read = NOTHING;
 		else if (ciphering_op == CIPHER) {
 			if (stream_lvl == BIG_CLEARTEXT)
-				my_op_table->tuples[0]->on_read = DECIPHER;//Para las lecturas extras de WINFSP despues de la escrituras.
+				my_op_table->tuples[0]->on_read = DECIPHER;
 			else if (stream_lvl == BIG_DECIPHERED)
 				my_op_table->tuples[0]->on_read = CIPHER;
 		}
-				
 		else if (ciphering_op == DECIPHER) {
 			if (stream_lvl == BIG_CLEARTEXT)
-				my_op_table->tuples[0]->on_read = NOTHING;//Para las lecturas extras de WINFSP despues de la escrituras.
+				my_op_table->tuples[0]->on_read = NOTHING;
 			else if (stream_lvl == BIG_CIPHERED)
 				my_op_table->tuples[0]->on_read = CIPHER;
 		}
-			
-		//test_operative.on_write = ciphering_op;
 	}
 
 	// Remove the file and recreate the starting file in monitored drive (through C: for READ  and through M: for WRITE to have it in the mark_table)
@@ -723,6 +721,11 @@ void printTestTableResults(BOOL use_codes_instead_of_results) {
 	uint32_t max_len_op_str = 0;
 	uint32_t max_len_op_pos_str = 0;
 	uint32_t max_len_verdict_or_stream_lvl = 0;
+	uint32_t input_stream_string_title_len = 0;
+
+	char WRAPPER_INPUT_STREAM_STRING[] = "INPUT STREAM FOR THE WRAPPER";
+	struct Folder* test_folder = ctx.folders[0];
+	char* input_stream_string_title = NULL;
 
 	char code[5] = "0000";
 
@@ -757,6 +760,14 @@ void printTestTableResults(BOOL use_codes_instead_of_results) {
 		max_len_verdict_or_stream_lvl = MAX(max_len_verdict_or_stream_lvl, (uint32_t)strlen(FILE_SIZE_AND_LEVEL_STRINGS[i]));
 	}
 
+	// Concatenate the title (string) of the wrapper input stream
+	input_stream_string_title_len = strlen(WRAPPER_INPUT_STREAM_STRING) + 3 + strlen(DRIVER_STRINGS[test_folder->driver]) + 1;  // +3 for 2 parentheses and space. +1 for the last '/0'
+	input_stream_string_title = malloc(input_stream_string_title_len * sizeof(char));
+
+	strcpy_s(input_stream_string_title, input_stream_string_title_len * sizeof(char), WRAPPER_INPUT_STREAM_STRING);
+	strcat_s(input_stream_string_title, input_stream_string_title_len * sizeof(char), " (");
+	strcat_s(input_stream_string_title, input_stream_string_title_len * sizeof(char), DRIVER_STRINGS[test_folder->driver]);
+	strcat_s(input_stream_string_title, input_stream_string_title_len * sizeof(char), ")");
 
 	// The left part (columns c1, c2, c3) of the (6) upper rows is blank (so they are only calculated once)
 	getCenteredString(c1, max_len_irp_op_str, "");
@@ -773,7 +784,7 @@ void printTestTableResults(BOOL use_codes_instead_of_results) {
 	getCenteredString(c4, max_len_verdict_or_stream_lvl * 4 + 8 + 3 -2, "");
 	printf("  %s   %s   %s | %s | \n", c1, c2, c3, c4);
 
-	getCenteredString(c4, max_len_verdict_or_stream_lvl * 4 + 8 + 3 -2, "INPUT STREAM FOR THE WRAPPER");
+	getCenteredString(c4, max_len_verdict_or_stream_lvl * 4 + 8 + 3 -2, input_stream_string_title);
 	printf("  %s   %s   %s | %s | \n", c1, c2, c3, c4);
 
 	getCenteredString(c4, max_len_verdict_or_stream_lvl, underscores);
