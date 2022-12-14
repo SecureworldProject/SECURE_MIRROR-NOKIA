@@ -585,7 +585,7 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWOR
 	PRINT("dst_buf = %p, src_buf = %p, buf_size = %d, frn = %lu\n", dst_buf, src_buf, buf_size, frn);
 
 	if (frn == INVALID_FRN) {
-		PRINT("ERROR: cannot cipher with INVALID_FRN\n");
+		fprintf(stderr, "ERROR: cannot cipher with INVALID_FRN\n");
 	}
 
 	// FOR TESTING
@@ -598,7 +598,7 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWOR
 
 	struct KeyData* final_key = createFileBufferKey(composed_key, frn);
 	if (final_key == NULL) {
-		PRINT("ERROR: could not allocate memory for the Key\n");
+		fprintf(stderr, "ERROR: could not allocate memory for the Key\n");
 		return;
 	}
 
@@ -606,7 +606,7 @@ void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWOR
 	if (dst_buf == src_buf) {
 		src_buf_copy = malloc(buf_size);
 		if (src_buf_copy == NULL) {
-			PRINT("ERROR: could not allocate memory for the buffer\n");
+			printf("WARNING: could not allocate memory for the buffer to cipher\n");
 			return;		// If copy of the buffer cannot be allocated, skip ciphering
 		} else {
 			memcpy(src_buf_copy, src_buf, buf_size);
@@ -642,7 +642,7 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DW
 	PRINT("dst_buf = %p, src_buf = %p, buf_size = %d, frn = %lu\n", dst_buf, src_buf, buf_size, frn);
 
 	if (frn == INVALID_FRN) {
-		PRINT("ERROR: cannot decipher with INVALID_FRN\n");
+		fprintf(stderr, "ERROR: cannot decipher with INVALID_FRN\n");
 	}
 
 	// FOR TESTING
@@ -656,7 +656,7 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DW
 
 	struct KeyData* final_key = createFileBufferKey(composed_key, frn);
 	if (final_key == NULL) {
-		PRINT("ERROR: could not allocate memory for the Key\n");
+		fprintf(stderr, "ERROR: could not allocate memory for the Key\n");
 		return;
 	}
 
@@ -664,6 +664,7 @@ void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DW
 	if (dst_buf == src_buf) {
 		src_buf_copy = malloc(buf_size);
 		if (src_buf_copy == NULL) {
+			printf("WARNING: could not allocate memory for the buffer to decipher\n");
 			return;		// If copy of the buffer cannot be allocated, skip deciphering
 		} else {
 			memcpy(src_buf_copy, src_buf, buf_size);
@@ -902,7 +903,7 @@ BOOL getLogonFromTokenHandle(HANDLE token_handle, char* str_user, char* str_doma
 		if (dwResult == ERROR_NONE_MAPPED)
 			strcpy(p_name, "NONE_MAPPED");
 		else {
-			printf("LookupAccountSid Error %u\n", GetLastError());
+			fprintf(stderr, "LookupAccountSid Error %u\n", GetLastError());
 		}
 	} else {
 		//printf("Current user is  %s\\%s\n", p_domain, p_name);
@@ -1000,7 +1001,7 @@ BOOL preCreateLogic(WCHAR file_path_param[], WCHAR* full_app_path, ULONG pid) {
 				return TRUE;		// Block due to not being able to allocate memory for the domain
 			}
 			getUsernameByPID(pid, p_usr, p_dom);
-			PRINT("CON LA NUEVA FUNCION --> %s  -  %s\n", p_usr, p_dom);
+			PRINT("Obtained username and domain --> %s  -  %s\n", p_usr, p_dom);
 			WCHAR p_w_usr[MAX_NAME] = { 0 };
 			mbstowcs(p_w_usr, p_usr, MAX_NAME);
 			free(p_usr);
@@ -1165,7 +1166,7 @@ int postReadLogic(
 			// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
 			if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 				error_code = GetLastError();
-				PRINT("ERROR handle seeking in postWrite (error=%lu)\n", error_code);
+				fprintf(stderr, "ERROR handle seeking in postWrite (error=%lu)\n", error_code);
 				goto POST_READ_CLEANUP;
 			}
 
@@ -1184,7 +1185,7 @@ int postReadLogic(
 				&extra_bytes_read,
 				&overlapped)
 				) {
-				printf("ERROR reading mark in postWrite!!!\n");
+				fprintf(stderr, "ERROR reading mark in postWrite!!!\n");
 				error_code = ERROR_READ_FAULT;
 				goto POST_READ_CLEANUP;
 			}
@@ -1233,13 +1234,18 @@ int postReadLogic(
 			// Offset within the mark  (inicio < MARK_LENGTH)
 			else {
 				// Set the mark as it was
-				mark(*aux_buffer, fmi->buffer_mark_lvl, fmi->buffer_frn);
+				if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, fmi->buffer_mark_lvl, fmi->buffer_frn)) {
+					fprintf(stderr, "ERROR: could not mark buffer");
+					error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+					goto POST_READ_CLEANUP;
+				}
 			}
 			break;
 		case CIPHER:
 			switch (fmi->file_mark_lvl) {
 				case 1:		// This should never happen
 					printf("WARNING in postReadLogic: this should never happen (operation = %d, file_mark_lvl = %d)\n", op, fmi->file_mark_lvl);
+					fprintf(stderr, "ERROR: cannot cipher a ciphered file");
 					error_code = -4;	// Avoid BROWSER to upload cleartext files with fake mark
 					goto POST_READ_CLEANUP;
 				case 0:		// Cipher (and mark buffer if before MARK_LENGTH)
@@ -1259,7 +1265,11 @@ int postReadLogic(
 					// Offset within the mark  (inicio < MARK_LENGTH)
 					else {
 						// Set the mark to level 1
-						mark(*aux_buffer, 1, fmi->buffer_frn);
+						if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, 1, fmi->buffer_frn)) {
+							fprintf(stderr, "ERROR: could not mark buffer");
+							error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+							goto POST_READ_CLEANUP;
+						}
 					}
 					break;
 				case -1:	// Cipher (and leave without mark)
@@ -1331,7 +1341,7 @@ int postReadLogic(
 	distanceToMove.QuadPart = *orig_offset + **orig_read_length;
 	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 		error_code = GetLastError();
-		PRINT("ERROR: SetFilePointerEx in postRead (error_code = %lu)\n", error_code);
+		fprintf(stderr, "ERROR: SetFilePointerEx in postRead (error_code = %lu)\n", error_code);
 		goto POST_READ_CLEANUP;
 	}
 
@@ -1453,7 +1463,7 @@ int preWriteLogic(
 			// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
 			if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 				error_code = GetLastError();
-				PRINT("ERROR handle seeking (error=%lu)\n", error_code);
+				fprintf(stderr, "ERROR handle seeking (error=%lu)\n", error_code);
 				goto READ_INSIDE_WRITE_CLEANUP;
 			}
 
@@ -1472,7 +1482,7 @@ int preWriteLogic(
 				&bytes_read,
 				NULL)//&overlapped)
 				) {
-				printf("ERROR reading mark inside preWrite!!!\n");
+				fprintf(stderr, "ERROR reading mark inside preWrite!!!\n");
 				error_code = ERROR_READ_FAULT;
 				goto READ_INSIDE_WRITE_CLEANUP;
 			}
@@ -1508,7 +1518,7 @@ int preWriteLogic(
 		// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
 		if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 			error_code = GetLastError();
-			PRINT("ERROR handle seeking (error=%lu)\n", error_code);
+			fprintf(stderr, "ERROR handle seeking (error=%lu)\n", error_code);
 			goto READ_INSIDE_WRITE_CLEANUP;
 		}
 
@@ -1527,7 +1537,7 @@ int preWriteLogic(
 			&bytes_read,
 			NULL)//&overlapped)
 			) {
-			printf("ERROR reading mark inside preWrite!!!\n");
+			fprintf(stderr, "ERROR reading mark inside preWrite!!!\n");
 			error_code = ERROR_READ_FAULT;
 			goto READ_INSIDE_WRITE_CLEANUP;
 		}
@@ -1622,7 +1632,11 @@ int preWriteLogic(
 			// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
 			if (*orig_offset < MARK_LENGTH) {
 				// Set the mark level to 'fmi->buffer_mark_lvl' (that should be the same than it was in the file)
-				mark(*aux_buffer, fmi->file_mark_lvl, fmi->file_frn);
+				if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, fmi->file_mark_lvl, fmi->file_frn)) {
+					fprintf(stderr, "ERROR: could not mark buffer");
+					error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+					goto PRE_WRITE_CLEANUP;
+				}
 			}
 
 			break;
@@ -1649,6 +1663,7 @@ int preWriteLogic(
 
 					break;*/
 					printf("WARNING in preWriteLogic: this should never happen (operation = %d, buffer_mark_lvl = %d)\n", op, fmi->buffer_mark_lvl);
+					fprintf(stderr, "ERROR: cannot cipher a ciphered file");
 					error_code = -1;		// Avoid writting cleartext files in pendrive/syncfolder with fake marks
 					goto PRE_WRITE_CLEANUP;
 				case 0:		// Cipher (and mark buffer if before MARK_LENGTH)
@@ -1666,7 +1681,11 @@ int preWriteLogic(
 						invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), &(((byte*)*aux_buffer)[*orig_offset]), *orig_bytes_to_write, *orig_offset, composed_key, fmi->file_frn);
 
 						// Set the mark to level 1
-						mark(*aux_buffer, 1, fmi->file_frn);
+						if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, 1, fmi->file_frn)) {
+							fprintf(stderr, "ERROR: could not mark buffer");
+							error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+							goto PRE_WRITE_CLEANUP;
+						}
 					}
 
 					break;
@@ -1797,7 +1816,7 @@ int postWriteLogic(
 	// Get the new file size
 	error_code = getFileSize(&new_file_size, handle, file_path);
 	if (error_code != 0) {
-		PRINT("ERROR getting file size in postWrite (error_code = %d)\n", error_code);
+		fprintf(stderr, "ERROR getting file size in postWrite (error_code = %d)\n", error_code);
 		return error_code;
 	}
 
@@ -1812,7 +1831,7 @@ int postWriteLogic(
 		// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
 		if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 			error_code = GetLastError();
-			PRINT("ERROR handle seeking in postWrite (error=%lu)\n", error_code);
+			fprintf(stderr, "ERROR handle seeking in postWrite (error=%lu)\n", error_code);
 			goto POST_WRITE_CLEANUP;
 		}
 
@@ -1831,7 +1850,7 @@ int postWriteLogic(
 			&bytes_done,
 			NULL)//&overlapped_first_part)
 			) {
-			printf("ERROR reading mark in postWrite!!!\n");
+			fprintf(stderr, "ERROR reading mark in postWrite!!!\n");
 			error_code = ERROR_READ_FAULT;
 			goto POST_WRITE_CLEANUP;
 		}
@@ -1882,7 +1901,7 @@ int postWriteLogic(
 					&bytes_done,
 					NULL)//&overlapped_second_part)
 					) {
-					printf("ERROR reading mark in postWrite!!!\n");
+					fprintf(stderr, "ERROR reading mark in postWrite!!!\n");
 					error_code = ERROR_READ_FAULT;
 					goto POST_WRITE_CLEANUP;
 				}
@@ -1914,13 +1933,18 @@ int postWriteLogic(
 					NOOP;
 				}*/
 				if (fmi->buffer_mark_lvl == 0) {
-					mark(buffer3, fmi->file_mark_lvl, fmi->file_frn);
+					
+					if (UNKNOWN_MARK_LEVEL == mark(buffer3, fmi->file_mark_lvl, fmi->file_frn)) {
+						fprintf(stderr, "ERROR: could not mark buffer");
+						error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+						goto POST_WRITE_CLEANUP;
+					}
 				}
 
 				// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
 				if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 					error_code = GetLastError();
-					PRINT("ERROR handle seeking in postWrite (error=%lu)\n", error_code);
+					fprintf(stderr, "ERROR handle seeking in postWrite (error=%lu)\n", error_code);
 					goto POST_WRITE_CLEANUP;
 				}
 
@@ -1932,7 +1956,7 @@ int postWriteLogic(
 					&bytes_done,
 					(use_overlapped ? &overlapped_write : NULL))
 					) {
-					printf("ERROR writing mark in postWrite!!!\n");
+					fprintf(stderr, "ERROR writing mark in postWrite!!!\n");
 					error_code = ERROR_WRITE_FAULT;
 					goto POST_WRITE_CLEANUP;
 				}
@@ -1941,7 +1965,8 @@ int postWriteLogic(
 					goto POST_WRITE_CLEANUP;
 				}
 			} else {
-				printf("ERROR: cannot cipher a ciphered file");
+				printf("WARNING in postWriteLogic: this should never happen (operation = %d, buffer_mark_lvl = %d)\n", op, fmi->buffer_mark_lvl);
+				fprintf(stderr, "ERROR: cannot cipher a ciphered file");
 				error_code = ERROR_WRITE_FAULT;
 				goto POST_WRITE_CLEANUP;
 			}
@@ -1975,7 +2000,7 @@ int postWriteLogic(
 					&bytes_done,
 					NULL)//&overlapped_second_part)
 					) {
-					printf("ERROR reading mark in postWrite!!!\n");
+					fprintf(stderr, "ERROR reading mark in postWrite!!!\n");
 					error_code = ERROR_READ_FAULT;
 					goto POST_WRITE_CLEANUP;
 				}
@@ -2002,7 +2027,7 @@ int postWriteLogic(
 				// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
 				if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 					error_code = GetLastError();
-					PRINT("ERROR handle seeking in postWrite (error=%lu)\n", error_code);
+					fprintf(stderr, "ERROR handle seeking in postWrite (error=%lu)\n", error_code);
 					goto POST_WRITE_CLEANUP;
 				}
 
@@ -2014,7 +2039,7 @@ int postWriteLogic(
 					&bytes_done,
 					(use_overlapped ? &overlapped_write : NULL))
 					) {
-					printf("ERROR writing mark in postWrite!!!\n");
+					fprintf(stderr, "ERROR writing mark in postWrite!!!\n");
 					error_code = ERROR_WRITE_FAULT;
 					goto POST_WRITE_CLEANUP;
 				}
@@ -2029,7 +2054,7 @@ int postWriteLogic(
 					fmi->file_frn = INVALID_FRN;
 				}
 				if (fmi->buffer_mark_lvl == -1) {
-					printf("ERROR: cannot decipher a deciphered file\n");
+					fprintf(stderr, "ERROR: cannot decipher a deciphered file\n");
 					error_code = ERROR_WRITE_FAULT;
 					goto POST_WRITE_CLEANUP;
 				}
@@ -2058,7 +2083,7 @@ int postWriteLogic(
 	distanceToMove.QuadPart = *orig_offset + **orig_bytes_written;
 	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
 		error_code = GetLastError();
-		PRINT("ERROR: SetFilePointerEx in postWrite(error_code = %lu)\n", error_code);
+		fprintf(stderr, "ERROR: SetFilePointerEx in postWrite(error_code = %lu)\n", error_code);
 	}
 
 	PRINT("Postwrite returns with error_code = %d \n", error_code);

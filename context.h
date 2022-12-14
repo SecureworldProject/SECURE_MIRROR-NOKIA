@@ -72,6 +72,8 @@ extern "C" {
 	void formatPathOLD(char** full_path);
 	void formatPath(WCHAR** full_path);
 	int fromDeviceToLetter(WCHAR** full_path);
+	WCHAR* getDevicePathFromFormattedDosPath(WCHAR* dos_path);
+
 
 	static void printContext();
 	static void printChallengeGroups();

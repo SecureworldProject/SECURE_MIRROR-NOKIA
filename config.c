@@ -799,7 +799,7 @@ void loadContext() {
 	// Assign space for the file contents
 	file_contents = (char*)malloc(file_status.st_size);
 	if (file_contents == NULL) {
-		fprintf(stderr, "Memory error: unable to allocate %d bytes\n", file_size);
+		fprintf(stderr, "Memory error_code: unable to allocate %d bytes\n", file_size);
 		exit(1);
 	}
 
@@ -953,7 +953,7 @@ void translateIdsToPointers() {
 
 
 	// Fix ids from:	Third Parties  -->  Cipher
-	//PRINT("Translating ids to pointers: Parental Control  -->  ChallengeEqGroups: \n");
+	//PRINT("Translating ids to pointers: Third Parties  -->  Cipher: \n");
 	for (int i = 0; i < _msize(ctx.third_parties) / sizeof(struct ThirdParty*); i++) {
 		//PRINT1("ID before changes: %s\n", (char*)ctx.third_parties[i]->cipher);
 		tmp_ptr = getCipherById((char*)ctx.third_parties[i]->cipher);			// Get true pointer
@@ -1176,18 +1176,19 @@ void convertParentalFolderPaths() {
 }
 
 DWORD writeParentalFoldersFile() {
-	PRINT("STARTING writeParentalFoldersFile()\n");
+	PRINT("\nWriting parental folders in a file for the minifilter...\n");
 	if (ctx.parentals == NULL) {
 		return ERROR_SUCCESS;
 	}
 
 	HANDLE handle = INVALID_HANDLE_VALUE;
 	size_t result = 0;
-	DWORD error = ERROR_SUCCESS;
+	DWORD error_code = ERROR_SUCCESS;
 	LARGE_INTEGER distanceToMove = { 0 };
 	DWORD bytes_written = 0;
 	DWORD bytes_to_write = 0;
 	struct ParentalFolder *pf = NULL;
+	WCHAR* pf_path_device_form = NULL;
 	WCHAR* file_path = L"parental_folders.txt";
 	LPCVOID buffer_to_write = NULL;
 
@@ -1197,8 +1198,8 @@ DWORD writeParentalFoldersFile() {
 	// Open the file with a wide character path/filename. Creates a new file always (replaces if exists)
 	handle = CreateFileW(file_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (handle == INVALID_HANDLE_VALUE) {
-		error = ERROR_OPEN_FAILED;
-		fprintf(stderr, "ERROR: could not create (write) file (%ws) (error=%lu).\n", file_path, error);
+		error_code = ERROR_OPEN_FAILED;
+		fprintf(stderr, "ERROR: could not create (write) file (%ws) (error_code=%lu).\n", file_path, error_code);
 		goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
 	}
 	PRINT("File %ws created\n", file_path);
@@ -1206,8 +1207,8 @@ DWORD writeParentalFoldersFile() {
 	// Point to desired offset (0)
 	distanceToMove.QuadPart = 0;
 	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
-		error = GetLastError();
-		fprintf(stderr, "ERROR: could not point handle to the desired offset for writting file (%ws) (error=%lu).\n", file_path, error);
+		error_code = GetLastError();
+		fprintf(stderr, "ERROR: could not point handle to the desired offset for writting file (%ws) (error_code=%lu).\n", file_path, error_code);
 		goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
 	}
 
@@ -1215,20 +1216,27 @@ DWORD writeParentalFoldersFile() {
 
 	// Write each parental folder in the file
 	for (size_t i = 0; i < _msize(ctx.parentals)/sizeof(struct ParentalFolder*); i++) {
+		// Get parental folder path translated to /Device/Harddisk/ syntax
+		pf_path_device_form = getDevicePathFromFormattedDosPath(ctx.parentals[i]->folder);
+		if (pf_path_device_form == NULL) {
+			fprintf(stderr, "ERROR: could not transform dos path into device path\n");
+			continue;
+		}
+
 		// Write new content to file
 		bytes_written = 0;
-		bytes_to_write = wcslen(ctx.parentals[i]->folder) * sizeof(WCHAR);
-		buffer_to_write = (LPCVOID)ctx.parentals[i]->folder;
+		bytes_to_write = wcslen(pf_path_device_form) * sizeof(WCHAR);
+		buffer_to_write = (LPCVOID)pf_path_device_form;
 
 		PRINT("\t for-loop i=%llu: \tbuffer_to_write = %ws\n", i, (WCHAR*)buffer_to_write);
 
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
-			error = ERROR_WRITE_FAULT;
+			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
 			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
 		}
 		if (bytes_written != bytes_to_write) {
-			error = ERROR_WRITE_FAULT;
+			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
 			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
 		}
@@ -1238,32 +1246,30 @@ DWORD writeParentalFoldersFile() {
 		bytes_to_write = 1 * sizeof(WCHAR);
 		buffer_to_write = (LPCVOID)L"\n";
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
-			error = ERROR_WRITE_FAULT;
+			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
 			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
 		}
 		if (bytes_written != bytes_to_write) {
-			error = ERROR_WRITE_FAULT;
+			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
 			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
 		}
 	}
-	PRINT("Everything written\n");
 
-	// If no errors, close the handle and return success
-	CloseHandle(handle);
-	handle = INVALID_HANDLE_VALUE;
-	PRINT("Ending writeParentalFoldersFile() (error_code = %lu)\n", ERROR_SUCCESS);
-	return ERROR_SUCCESS;
-
-	// TODO: close the file
-	// Close file handle if necessary and return corresponding error
+	// Close file handle if necessary and return corresponding error_code
 	WRITE_PARENTAL_FOLDERS_FILE_CLEANUP:
 	if (handle != INVALID_HANDLE_VALUE) {
 		CloseHandle(handle);
 		handle = INVALID_HANDLE_VALUE;
 	}
+	if (pf_path_device_form != NULL) {
+		free(pf_path_device_form);
+		pf_path_device_form = NULL;
+	}
 
-	PRINT("Ending writeParentalFoldersFile() (error_code = %lu)\n", error);
-	return error;
+	PRINT("\nParental folders' file %s completed (error_code = %lu)\n", (error_code == ERROR_SUCCESS) ? "" : "could not be", error_code);
+
+	// Return corresponding error_code or success code
+	return error_code;
 }

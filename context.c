@@ -378,6 +378,32 @@ __declspec(deprecated) void formatPathOLD(char** full_path) {
 	// Other possibility is to open a handle with the path and use function GetFinalPathNameByHandle()
 }
 
+/**
+ * Returns a newly allocated WCHAR* with the path in the device form equivalent to the already formatted dos path passed as parameter.
+ * Note: remember to free after use.
+ * 
+ * @param WCHAR*
+ *		The path in the DOS form.
+ * 
+ * @return WCHAR*
+ *		The newly allocated WCHAR* with the path in the device form.
+ */
+WCHAR* getDevicePathFromFormattedDosPath(WCHAR* dos_path) {
+	WCHAR* device_path = NULL;
+	DWORD error_code = ERROR_SUCCESS;
+	if (dos_path == NULL) return NULL;
+
+	// TO DO
+
+	GET_DEVICE_PATH_CLEANUP:
+	if (error_code != ERROR_SUCCESS) {
+		free(device_path);
+		device_path = NULL;
+	}
+
+	return device_path;
+}
+
 int fromDeviceToLetter(WCHAR** full_path) {
 	WCHAR* tmp_str = NULL;
 	WCHAR* match_ptr;

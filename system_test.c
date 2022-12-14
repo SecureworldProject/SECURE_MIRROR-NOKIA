@@ -1008,7 +1008,7 @@ void printTestTableLegend() {
 	printf("The possible results are:\n");
 	printf("  * PASS: test successfully executed and passed.\n");
 	printf("  * FAIL: test executed and failed.\n");
-	printf("  * ABORT (OK): test executeed and the wrapper aborted the operation, what was expected. Counts as a success value.\n");
+	printf("  * ABORT (OK): test executed and the wrapper aborted the operation, what was expected. Counts as a success value.\n");
 	printf("  * N/A (OK): test not executed because it has no valid meaning. Counts as a success value.\n");
 	printf("  * NOT DONE: test not executed. This is the default value and should never appear in the tests. Indicates a bug in the testing code and not in the wrapper\n");
 	printf("\n\n");
