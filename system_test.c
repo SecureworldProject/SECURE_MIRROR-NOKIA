@@ -263,8 +263,8 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 
 	// Check special cases where the test makes no sense itself, and mark them as N/A (which has a success meaning)
 	if ((stream_lvl == SMALL && op_position != INSIDE_MARK)
-		|| (IRP_OP_WRITE == irp_op && CIPHER == ciphering_op && OUTSIDE_MARK != op_position && BIG_DECIPHERED == stream_lvl)	// cases 1101 and 1111
-		|| (IRP_OP_WRITE == irp_op && DECIPHER == ciphering_op && OUTSIDE_MARK != op_position && BIG_CIPHERED == stream_lvl)	// cases 1203 and 1213
+		//|| (IRP_OP_WRITE == irp_op && CIPHER == ciphering_op && OUTSIDE_MARK != op_position && BIG_DECIPHERED == stream_lvl)	// cases 1101 and 1111
+		//|| (IRP_OP_WRITE == irp_op && DECIPHER == ciphering_op && OUTSIDE_MARK != op_position && BIG_CIPHERED == stream_lvl)	// cases 1203 and 1213
 		) {
 		current_test->verdict = TEST_VERDICT_NOT_APPLICABLE_OK;
 		return;
@@ -335,6 +335,9 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 					break;
 				case BIG_DECIPHERED:
 					current_test->desired_output_stream = big_cleartext_stream;
+					if (IRP_OP_WRITE == irp_op && OUTSIDE_MARK != op_position) {
+						current_test->desired_output_stream = NULL;
+					}
 					break;
 				case BIG_CLEARTEXT:
 					current_test->desired_output_stream = big_ciphered_stream;
@@ -357,6 +360,9 @@ void unitTest(enum IrpOperation irp_op, enum Operation ciphering_op, enum Operat
 					break;
 				case BIG_CIPHERED:
 					current_test->desired_output_stream = big_cleartext_stream;
+					if (IRP_OP_WRITE == irp_op && OUTSIDE_MARK != op_position) {
+						current_test->desired_output_stream = NULL;
+					}
 					break;
 			}
 			break;

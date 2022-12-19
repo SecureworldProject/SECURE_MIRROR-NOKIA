@@ -3,7 +3,7 @@
 		{
 			"Path": "C:/Users/Pepito/TEST/",
 			"MountPoint": "E",
-			"Name": "TEST (dokan)",
+			"Name": "TEST (Dokan)",
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "TableTEST",
@@ -18,7 +18,7 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
-				"ChallengeEqGroups": ["Group1", "Group2"],
+				"ChallengeEqGroups": ["Group3", "Group2"],
 				"Cipher": "simple"
 			}
 		},
@@ -29,7 +29,7 @@
 			"Driver": "WinFSP",
 			"Protection": {
 				"OpTable": "Table1",
-				"ChallengeEqGroups": ["Group1"],
+				"ChallengeEqGroups": ["Group3"],
 				"Cipher": "simple"
 			}
 		},
@@ -40,7 +40,7 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
-				"ChallengeEqGroups": ["Group1"],
+				"ChallengeEqGroups": ["Group3"],
 				"Cipher": "simple"
 			}
 		},
@@ -51,7 +51,7 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
-				"ChallengeEqGroups": ["Group1","Group2"],
+				"ChallengeEqGroups": ["Group3","Group2"],
 				"Cipher": "simple"
 			}
 		}

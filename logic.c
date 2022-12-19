@@ -1234,11 +1234,12 @@ int postReadLogic(
 			// Offset within the mark  (inicio < MARK_LENGTH)
 			else {
 				// Set the mark as it was
-				if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, fmi->buffer_mark_lvl, fmi->buffer_frn)) {
-					fprintf(stderr, "ERROR: could not mark buffer");
-					error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
-					goto POST_READ_CLEANUP;
-				}
+				mark(*aux_buffer, fmi->buffer_mark_lvl, fmi->buffer_frn);
+				//if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, fmi->buffer_mark_lvl, fmi->buffer_frn) && NOTHING != op) {
+				//	fprintf(stderr, "ERROR: could not mark buffer");
+				//	error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+				//	goto POST_READ_CLEANUP;
+				//}
 			}
 			break;
 		case CIPHER:
@@ -1265,11 +1266,12 @@ int postReadLogic(
 					// Offset within the mark  (inicio < MARK_LENGTH)
 					else {
 						// Set the mark to level 1
-						if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, 1, fmi->buffer_frn)) {
-							fprintf(stderr, "ERROR: could not mark buffer");
-							error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
-							goto POST_READ_CLEANUP;
-						}
+						mark(*aux_buffer, 1, fmi->buffer_frn);
+						//if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, 1, fmi->buffer_frn) && NOTHING != op) {
+						//	fprintf(stderr, "ERROR: could not mark buffer");
+						//	error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+						//	goto POST_READ_CLEANUP;
+						//}
 					}
 					break;
 				case -1:	// Cipher (and leave without mark)
@@ -1441,9 +1443,40 @@ int preWriteLogic(
 	if (op == DECIPHER) {	// FMI must have been created in postWrite of small file that grew into a big file
 		if (fmi == NULL) {
 			printf("WARNING in preWriteLogic: this should never happen (operation = %d, fmi = NULL)\n", op);
+			error_code = ERROR_WRITE_FAULT;
+			goto PRE_WRITE_CLEANUP;
 		} else {
 			if (fmi->buffer_mark_lvl == UNKNOWN_MARK_LEVEL) {
 				printf("WARNING in preWriteLogic: this should never happen (operation = %d, mark_lvl = %d)\n", op, fmi->buffer_mark_lvl);
+				error_code = ERROR_WRITE_FAULT;
+				goto PRE_WRITE_CLEANUP;
+			}
+			if (fmi->buffer_mark_lvl == 1) {
+				if ((*orig_offset < MARK_LENGTH && *orig_offset > 0)					// Only seccond part of the mark
+					|| (*orig_offset == 0 && *orig_bytes_to_write < MARK_LENGTH)) {		// Only first part of the mark
+					error_code = ERROR_WRITE_FAULT;
+					goto PRE_WRITE_CLEANUP;
+				}
+			}
+		}
+	}
+	if (op == CIPHER) {		// FMI must have been created in postWrite of small file that grew into a big file
+		if (fmi == NULL) {
+			printf("WARNING in preWriteLogic: this should never happen (operation = %d, fmi = NULL)\n", op);
+			error_code = ERROR_WRITE_FAULT;
+			goto PRE_WRITE_CLEANUP;
+		} else {
+			if (fmi->buffer_mark_lvl == UNKNOWN_MARK_LEVEL) {
+				printf("WARNING in preWriteLogic: this should never happen (operation = %d, mark_lvl = %d)\n", op, fmi->buffer_mark_lvl);
+				error_code = ERROR_WRITE_FAULT;
+				goto PRE_WRITE_CLEANUP;
+			}
+			if (fmi->buffer_mark_lvl == -1) {
+				if ((*orig_offset < MARK_LENGTH && *orig_offset > 0)					// Only seccond part of the mark
+					|| (*orig_offset == 0 && *orig_bytes_to_write < MARK_LENGTH)) {		// Only first part of the mark
+					error_code = ERROR_WRITE_FAULT;
+					goto PRE_WRITE_CLEANUP;
+				}
 			}
 		}
 	}
@@ -1632,11 +1665,12 @@ int preWriteLogic(
 			// Only if Offset is within the mark  (*orig_offset < MARK_LENGTH)
 			if (*orig_offset < MARK_LENGTH) {
 				// Set the mark level to 'fmi->buffer_mark_lvl' (that should be the same than it was in the file)
-				if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, fmi->file_mark_lvl, fmi->file_frn)) {
-					fprintf(stderr, "ERROR: could not mark buffer");
-					error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
-					goto PRE_WRITE_CLEANUP;
-				}
+				mark(*aux_buffer, fmi->file_mark_lvl, fmi->file_frn);
+				//if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, fmi->file_mark_lvl, fmi->file_frn) && NOTHING != op) {
+				//	fprintf(stderr, "ERROR: could not mark buffer");
+				//	error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+				//	goto PRE_WRITE_CLEANUP;
+				//}
 			}
 
 			break;
@@ -1681,11 +1715,12 @@ int preWriteLogic(
 						invokeCipher(protection->cipher, &(((byte*)*aux_buffer)[*orig_offset]), &(((byte*)*aux_buffer)[*orig_offset]), *orig_bytes_to_write, *orig_offset, composed_key, fmi->file_frn);
 
 						// Set the mark to level 1
-						if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, 1, fmi->file_frn)) {
-							fprintf(stderr, "ERROR: could not mark buffer");
-							error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
-							goto PRE_WRITE_CLEANUP;
-						}
+						mark(*aux_buffer, 1, fmi->file_frn);
+						//if (UNKNOWN_MARK_LEVEL == mark(*aux_buffer, 1, fmi->file_frn && NOTHING != op)) {
+						//	fprintf(stderr, "ERROR: could not mark buffer");
+						//	error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+						//	goto PRE_WRITE_CLEANUP;
+						//}
 					}
 
 					break;
@@ -1933,12 +1968,12 @@ int postWriteLogic(
 					NOOP;
 				}*/
 				if (fmi->buffer_mark_lvl == 0) {
-					
-					if (UNKNOWN_MARK_LEVEL == mark(buffer3, fmi->file_mark_lvl, fmi->file_frn)) {
-						fprintf(stderr, "ERROR: could not mark buffer");
-						error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
-						goto POST_WRITE_CLEANUP;
-					}
+					mark(buffer3, fmi->file_mark_lvl, fmi->file_frn);
+					//if (UNKNOWN_MARK_LEVEL == mark(buffer3, fmi->file_mark_lvl, fmi->file_frn) && NOTHING != op) {
+					//	fprintf(stderr, "ERROR: could not mark buffer");
+					//	error_code = -5;	// Avoid BROWSER to upload cleartext unmarkable files
+					//	goto POST_WRITE_CLEANUP;
+					//}
 				}
 
 				// Make handle point to the beginning of the file (distanceToMove = 0, FILE_BEGIN)		//distanceToMove.QuadPart = 0;
