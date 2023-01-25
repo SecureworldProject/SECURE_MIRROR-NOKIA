@@ -12,6 +12,50 @@
 			}
 		},
 		{
+			"Path": "C:/Users/Pepito/Documents/",
+			"MountPoint": "F",
+			"Name": "PepitoDocuments (dokan)",
+			"Driver": "Dokan",
+			"Protection": {
+				"OpTable": "Table1",
+				"ChallengeEqGroups": ["Group3", "Group2"],
+				"Cipher": "simple"
+			}
+		},
+		{
+			"Path": "C:/Users/Pepito/",
+			"MountPoint": "G",
+			"Name": "Pepito (winfsp)",
+			"Driver": "WinFSP",
+			"Protection": {
+				"OpTable": "Table1",
+				"ChallengeEqGroups": ["Group3"],
+				"Cipher": "simple"
+			}
+		},
+		{
+			"Path": "C:/Users/Pepito/OneDrive/cosa1/",
+			"MountPoint": "H",
+			"Name": "Cosa1 (dokan)",
+			"Driver": "Dokan",
+			"Protection": {
+				"OpTable": "Table1",
+				"ChallengeEqGroups": ["Group3"],
+				"Cipher": "simple"
+			}
+		},
+		{
+			"Path": "C:/Users/Pepito/OneDrive/cosa2/",
+			"MountPoint": "I",
+			"Name": "Cosa2 (dokan)",
+			"Driver": "Dokan",
+			"Protection": {
+				"OpTable": "Table1",
+				"ChallengeEqGroups": ["Group3","Group2"],
+				"Cipher": "simple"
+			}
+		},
+		{
 			"Path": "C:/Users/Pepito/Documents/TestB2B/",
 			"MountPoint": "J",
 			"Name": "PepitoDocuments (dokan)",
@@ -226,34 +270,20 @@
 				}
 			]
 		},
-		"GroupTestB2B2": {
+		"GroupTestB2B": {
 			"ChallengeList": [
 				{
-					"FileName": "simple_challenge.dll",
-					"Description": "Replicates the string param1 as many times as param2 indicates.",
+					"FileName": "challenge_loader_python.dll",
+					"Description": "Loads a python challenge.",
 					"Props": {
-						"validity_time": 20,
-						"refresh_time": 3000,
-						"param1": "texto",
-						"param2": 3
+						"module_python": "chpass",
+						"validity_time": 120,
+						"refresh_time": 60,
+						"mode": "normal",
+						"parental_key": "1234"
 					},
 					"Requirements": "none"
 				},
-				{
-					"FileName": "challenge_loader_python.dll",
-					"Description": "challenge de hostname de organizacion",
-					"Props": {
-						"module_python": "hostname",
-						"validity_time": 20,
-						"refresh_time": 1000,
-						"hostname_len": 2
-					},
-					"Requirements": "none"
-				}
-			]
-		},
-		"GroupTestB2B": {
-			"ChallengeList": [
 				{
 					"FileName": "challenge_loader_python.dll",
 					"Description": "This challenge looks for a certain pattern in the wall using a python code.",
@@ -265,18 +295,6 @@
 						"param3": "https://pics.filmaffinity.com/the_pink_panther-805664537-large.jpg"
 					},
 					"Requirements": "mobile-camera"
-				},
-				{
-					"FileName": "challenge_loader_python.dll",
-					"Description": "Loads a python challenge.",
-					"Props": {
-						"module_python": "chpass",
-						"refresh_time": 1000,
-						"validity_time": 30,
-						"mode": "normal",
-						"parental_key": "1234"
-					},
-					"Requirements": "none"
 				}
 			]
 		},
@@ -324,6 +342,7 @@
 				}
 			]
 		},
+
 	},
 
 	"Ciphers": {

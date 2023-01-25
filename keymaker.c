@@ -85,10 +85,15 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	time_t current_time = 0;
 	int group_length = 0;
+	typedef int(__stdcall* init_func_type)(struct ChallengeEquivalenceGroup*, struct Challenge*);
 	typedef int(__stdcall* exec_ch_func_type)();
+	typedef void(__stdcall* set_per_exec_func_type)(BOOL);
+	BOOL need_to_reinit = FALSE;
 
 	int result = 0;
+	init_func_type init_func;
 	exec_ch_func_type exec_ch_func;
+	set_per_exec_func_type set_per_exec_func;
 
 
 	// In fact, it is irrelevant if it cannot be obtained. It just forces compute key in that case
@@ -107,40 +112,61 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	if (difftime(current_time, challenge_group->subkey->expires) > 0) {		// Means: current_time > challenge_group->subkey->expires
 
 		// TODO: start on the challenge that executed correctly on the init() instead of always starting on index 0
+
 		// Iterate over challenges until one returns that it could be executed
 		group_length = _msize(challenge_group->challenges) / sizeof(struct Challenge*);
 		printf("group_length: %d\n", group_length);
-		for (size_t j = 0; j < group_length; j++) {
-			printf("j: %d\n", j);
+		for (size_t ch_idx = 0; ch_idx < group_length; ch_idx++) {
+			printf("ch_idx: %d\n", ch_idx);
 			// Check library was loaded
-			if (INVALID_HANDLE_VALUE != challenge_group->challenges[j]->lib_handle) {
-				// Define function pointer corresponding with executeChallenge() input and output types
-				printf("VALID handle value\n");
-				exec_ch_func = (exec_ch_func_type)GetProcAddress(challenge_group->challenges[j]->lib_handle, "executeChallenge");
-				printf("exec_ch_func holds now the addr of the func executeChallenge\n");
+			if (INVALID_HANDLE_VALUE != challenge_group->challenges[ch_idx]->lib_handle) {
 
-				// Add parameters if necessary
-				if (exec_ch_func != NULL) {
-					printf("exec_ch_func holds now the addr of the func executeChallenge\n");
-					result = exec_ch_func();
-					printf("result of exec_ch_func is %d\n", result);
+				// To ensure everything is working, run init() function
+				init_func = (init_func_type)GetProcAddress(challenge_group->challenges[ch_idx]->lib_handle, "init");
+				if (init_func != NULL) {
+					printf("init_func is NOT null\n");
+					result = init_func(challenge_group, challenge_group->challenges[ch_idx]);
 					if (result != 0) {
-						PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[j]->file_name);
+						PRINT("WARNING: error trying to init the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
 					} else {
-						break;		// Stop executing more challenges in the group when one is already working
+						// Run executeChallenge() function
+						printf("VALID handle value\n");
+						exec_ch_func = (exec_ch_func_type)GetProcAddress(challenge_group->challenges[ch_idx]->lib_handle, "executeChallenge");
+						printf("exec_ch_func holds now the addr of the func executeChallenge\n");
+						if (exec_ch_func != NULL) {
+							printf("exec_ch_func is NOT null\n");
+							result = exec_ch_func();
+							printf("result of exec_ch_func is %d\n", result);
+							if (result != 0) {
+								PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
+							} else {
+								break;		// Stop executing more challenges in the group when one is already working
+							}
+						} else {
+							PRINT("WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", challenge_group->challenges[ch_idx]->file_name, GetLastError());
+						}
 					}
 				} else {
-					PRINT("WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", challenge_group->challenges[j]->file_name, GetLastError());
+					PRINT("WARNING: error accessing the address to the init() function of the challenge '%ws' (error: %d)\n", challenge_group->challenges[ch_idx]->file_name, GetLastError());
 				}
 
-				// At this point, current challenge did not work. Check if it is the last challenge in the group and reset j to restart the loop
-				if (j == group_length - 1) {
-					printf("update j\n");
-					j = -1;		// J will become 0 With the update in the loop (j++)
-					Sleep(1);	// Sleep 1ms so process does not starve others
+				// To ensure challenge thread does not execute again, set periodic execution to false
+				set_per_exec_func = (set_per_exec_func_type)GetProcAddress(challenge_group->challenges[ch_idx]->lib_handle, "setPeriodicExecution");
+				if (set_per_exec_func != NULL) {
+					printf("set_per_exec_func is NOT null\n");
+					set_per_exec_func(FALSE);
+				} else {
+					PRINT("WARNING: error accessing the address to the setPeriodicExecution() function of the challenge '%ws' (error: %d)\n", challenge_group->challenges[ch_idx]->file_name, GetLastError());
 				}
 			} else {
 				printf("INVALID HANDLE VALUE for the dll!!\n");
+			}
+
+			// Check if it is the last challenge in the group and reset ch_idx to restart the loop
+			if (ch_idx == group_length - 1) {
+				printf("update ch_idx\n");
+				ch_idx = -1;        // ch_idx will become 0 With the update in the loop (ch_idx++)
+				Sleep(1);           // sleep 1ms so process does not starve others
 			}
 		}
 	}
