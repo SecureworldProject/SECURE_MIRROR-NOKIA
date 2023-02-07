@@ -14,8 +14,8 @@
 		{
 			"Path": "C:/Users/Pepito/DEMO/",
 			"MountPoint": "J",
-			"Name": "DEMO HITO 2 (WinFSP)",
-			"Driver": "WinFSP",
+			"Name": "DEMO HITO 2 (Dokan)",
+			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1", "Group2", "Group3"],
@@ -170,7 +170,7 @@
 						"refresh_time": 1000,
 						"process_list": "chrome.exe,notepad.exe,Teams.exe,ccSvcHst.exe,sisipsutil.exe,vpnui.exe,ibmpmsvc.exe"
 					},
-					"Requirements": "none" 
+					"Requirements": "none"
 				}
 			]
 		},
