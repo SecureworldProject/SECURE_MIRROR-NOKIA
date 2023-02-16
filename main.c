@@ -235,8 +235,6 @@ void initCiphers() {
 			result = init_func(ctx.ciphers[i]);
 			if (result != 0) {
 				PRINT("WARNING: error trying to initialize the cipher '%ws'\n", ctx.ciphers[i]->file_name);
-			} else {
-				break;		// Stop initializing more challenges in the group when one is already working
 			}
 		} else {
 			PRINT("WARNING: error accessing the address to the init() function of the cipher '%ws' (error: %d)\n", ctx.ciphers[i]->file_name, GetLastError());
