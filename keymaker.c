@@ -8,6 +8,7 @@ Nokia mayo 2021
 /////  FILE INCLUDES  /////
 
 #include "keymaker.h"
+#include "main.h"
 
 
 
@@ -104,8 +105,8 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	// Get current time
 	time(&current_time);
 
-	printf("Current time: %d\n", current_time);
-	printf("Expiration time: %d\n", challenge_group->subkey->expires);
+	printf("Current time: %lld\n", current_time);
+	printf("Expiration time: %lld\n", challenge_group->subkey->expires);
 	printf("Difftime(a, b): %f\n", difftime(current_time, challenge_group->subkey->expires));
 	EnterCriticalSection(&(challenge_group->subkey->critical_section));
 	// Check if key expired and needs to be computed now
@@ -117,17 +118,36 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 		group_length = _msize(challenge_group->challenges) / sizeof(struct Challenge*);
 		printf("group_length: %d\n", group_length);
 		for (size_t ch_idx = 0; ch_idx < group_length; ch_idx++) {
-			printf("ch_idx: %d\n", ch_idx);
+			printf("ch_idx: %lld\n", ch_idx);
 			// Check library was loaded
 			if (INVALID_HANDLE_VALUE != challenge_group->challenges[ch_idx]->lib_handle) {
 
 				// To ensure everything is working, run init() function
+				initCritSectPyIfNeeded(challenge_group->challenges[ch_idx]->lib_handle);
 				init_func = (init_func_type)GetProcAddress(challenge_group->challenges[ch_idx]->lib_handle, "init");
 				if (init_func != NULL) {
 					printf("init_func is NOT null\n");
 					result = init_func(challenge_group, challenge_group->challenges[ch_idx]);
-					if (result != 0) {
-						PRINT("WARNING: error trying to init the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
+					if (result == 0) {
+						EnterCriticalSection(&camera_thread_section);
+						launch_execute_challenge_from_main_group = challenge_group;
+						launch_execute_challenge_from_main_ch_index = ch_idx;
+						launch_execute_challenge_from_main = TRUE;
+						printf("Keymaker waiting for the challenge to be executed\n");
+						while (launch_execute_challenge_from_main) {
+							Sleep(10);
+						}
+						LeaveCriticalSection(&camera_thread_section);
+						printf("launch_execute_challenge_from_main_result: %d\n", launch_execute_challenge_from_main_result);
+						if (launch_execute_challenge_from_main_result != 0) {
+							PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
+						}
+						else {
+							break;		// Stop executing more challenges in the group when one is already working
+						}
+
+					} else if (result != 0) {
+							PRINT("WARNING: error trying to init the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
 					} else {
 						// Run executeChallenge() function
 						printf("VALID handle value\n");
@@ -151,13 +171,13 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 				}
 
 				// To ensure challenge thread does not execute again, set periodic execution to false
-				set_per_exec_func = (set_per_exec_func_type)GetProcAddress(challenge_group->challenges[ch_idx]->lib_handle, "setPeriodicExecution");
+				/*set_per_exec_func = (set_per_exec_func_type)GetProcAddress(challenge_group->challenges[ch_idx]->lib_handle, "setPeriodicExecution");
 				if (set_per_exec_func != NULL) {
 					printf("set_per_exec_func is NOT null\n");
 					set_per_exec_func(FALSE);
 				} else {
 					PRINT("WARNING: error accessing the address to the setPeriodicExecution() function of the challenge '%ws' (error: %d)\n", challenge_group->challenges[ch_idx]->file_name, GetLastError());
-				}
+				}*/
 			} else {
 				printf("INVALID HANDLE VALUE for the dll!!\n");
 			}

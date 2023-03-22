@@ -19,7 +19,7 @@
 			"Protection": {
 				"OpTable": "Table1",
 				"ChallengeEqGroups": ["Group1", "Group2", "Group3"],
-				"Cipher": "Cipher_N"
+				"Cipher": "N"
 			}
 		}
 	],
@@ -127,8 +127,8 @@
 					"Description": "Loads a python challenge. This challenge uses as key the first hostname_len characters of the organization.",
 					"Props": {
 						"module_python": "hostname",
-						"validity_time": 3600,
-						"refresh_time": 100,
+						"validity_time": 60,
+						"refresh_time": 30,
 						"hostname_len": 2
 					},
 					"Requirements": "none"
@@ -162,13 +162,13 @@
 		"Group3": {
 			"ChallengeList": [
 				{
-					"FileName": "challenge_loader_python.dll",
+					"FileName": "challenge_loader_python2.dll",
 					"Description": "Loads a python challenge. This challenge uses as key a stream of 0s and 1s that represent the openness of some programs.",
 					"Props": {
 						"module_python": "openprogs",
-						"validity_time": 3600,
-						"refresh_time": 1000,
-						"process_list": "chrome.exe,notepad.exe,Teams.exe,ccSvcHst.exe,sisipsutil.exe,vpnui.exe,ibmpmsvc.exe"
+						"validity_time": 60,
+						"refresh_time": 20,
+						"process_list": "chrome.exe,Teams.exe,ccSvcHst.exe,sublime_text.exe,sisipsutil.exe,vpnui.exe,ibmpmsvc.exe"
 					},
 					"Requirements": "none"
 				}
@@ -177,38 +177,26 @@
 		"Group4": {
 			"ChallengeList": [
 				{
-					"FileName": "challenge_loader_python.dll",
+					"FileName": "challenge_loader_python3.dll",
 					"Description": "Loads a python challenge. This challenge uses the PC or phone camera to get a photo and compares it with an AI model.",
 					"Props": {
 						"module_python": "Reco_Facial",
-						"validity_time": 3600,
-						"refresh_time": 3000
+						"validity_time": 30,
+						"refresh_time": 0
 					},
 					"Requirements": "none"
 				}
 			]
 		},
-		"GroupTestB2B": {
+		"Group5": {
 			"ChallengeList": [
 				{
-					"FileName": "challenge_loader_python.dll----------",
-					"Description": "This challenge looks for a certain pattern in the wall using a python code.",
-					"Props": {
-						"module_python": "RGB_plus",
-						"validity_time": 300,
-						"refresh_time": 180,
-						"param1": "Por favor haz una captura de la imagen que visualizas en la pantalla de la pared",
-						"param3": "https://pics.filmaffinity.com/the_pink_panther-805664537-large.jpg"
-					},
-					"Requirements": "camera OR mobile-camera"
-				},
-				{
-					"FileName": "challenge_loader_python.dll----------",
+					"FileName": "challenge_loader_python4.dll----------",
 					"Description": "Loads a python challenge.",
 					"Props": {
 						"module_python": "chpass",
-						"refresh_time": 1000,
-						"validity_time": 30,
+						"validity_time": 36,
+						"refresh_time": 0,
 						"mode": "normal",
 						"parental_key": "1234"
 					},
@@ -216,37 +204,10 @@
 				}
 			]
 		},
-		"GroupTestB2B2": {
-			"ChallengeList": [
-				{
-					"FileName": "simple_challenge.dll----------",
-					"Description": "Replicates the string param1 as many times as param2 indicates.",
-					"Props": {
-						"validity_time": 20,
-						"refresh_time": 3000,
-						"param1": "texto",
-						"param2": 3
-					},
-					"Requirements": "none"
-				},
-				{
-					"FileName": "challenge_loader_python.dll----------",
-					"Description": "challenge de hostname de organizacion",
-					"Props": {
-						"module_python": "hostname",
-						"validity_time": 20,
-						"refresh_time": 1000,
-						"hostname_len": 2
-					},
-					"Requirements": "none"
-				}
-			]
-		},
-
 		"GroupParental1": {
 			"ChallengeList": [
 				{
-					"FileName": "challenge_loader_python.dll----------",
+					"FileName": "challenge_loader_python5.dll--------",
 					"Description": "Loads a python challenge.",
 					"Props": {
 						"module_python": "chpass",
@@ -262,7 +223,7 @@
 	},
 
 	"Ciphers": {
-		"Cipher_N": {
+		"N": {
 			"FileName": "Securecipher_N.dll",
 			"BlockSize": 0,
 			"Custom": ""

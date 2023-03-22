@@ -120,6 +120,7 @@ void sharingMainMenu() {
 			}
 		}
 	} while (!quit_menu);
+	exit(0);
 }
 
 /**

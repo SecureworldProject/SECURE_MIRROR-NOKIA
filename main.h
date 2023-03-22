@@ -79,6 +79,13 @@ struct LetterDeviceMap {
 
 extern struct LetterDeviceMap* letter_device_table;
 extern BOOL testing_mode_on;
+extern struct ChallengeEquivalenceGroup* launch_execute_challenge_from_main_group;
+extern int launch_execute_challenge_from_main_ch_index;
+extern BOOL launch_execute_challenge_from_main;
+extern int launch_execute_challenge_from_main_result;
+extern CRITICAL_SECTION camera_thread_section;
+
+
 
 
 
@@ -93,5 +100,8 @@ void uvaFileMenu();
 void initLetterDeviceMapping();
 void initChallenges();
 void initCiphers();
+void initCritSectPyIfNeeded(HMODULE lib_handle);
+int threadChallengeExecutor();
+
 
 #endif // !__MAIN_H
