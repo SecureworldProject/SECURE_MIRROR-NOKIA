@@ -23,12 +23,9 @@
 struct LetterDeviceMap* letter_device_table;
 BOOL testing_mode_on = FALSE;
 CRITICAL_SECTION py_critical_section;
+struct ExecuteChallengeData main_thread_ch_exec_data = { 0 };
 
-struct ChallengeEquivalenceGroup* launch_execute_challenge_from_main_group = NULL;
-int launch_execute_challenge_from_main_ch_index = 0;
-BOOL launch_execute_challenge_from_main = FALSE;
-int launch_execute_challenge_from_main_result = 0;
-CRITICAL_SECTION camera_thread_section = { 0 };
+
 
 
 
@@ -121,73 +118,28 @@ int main(int argc, char* argv[]) {
 		volume_mounter_thread = CreateThread(NULL, 0, volumeMounterThread, &vol_mount_th_data, 0, NULL);
 	#endif //RUN_VOLUME_MOUNTER
 
-	// Initialize the parameters for the challenges
+	// Initialize the critical section associated to the challenge executions
 	InitializeCriticalSection(&py_critical_section);
-	InitializeCriticalSection(&camera_thread_section);
-	launch_execute_challenge_from_main = FALSE;
+	InitializeCriticalSection(&main_thread_ch_exec_data.critical_section);
+	main_thread_ch_exec_data.ch_group = NULL;
+	main_thread_ch_exec_data.ch_index = 0;
+	main_thread_ch_exec_data.request_running = FALSE;
+	main_thread_ch_exec_data.result = 0;
 
-
-	///////////////////////////////////////////////
-	//PSECURITY_DESCRIPTOR* ppSecurityDescriptor = NULL;
-	//GetSecurityInfo(GetCurrentThread(), SE_UNKNOWN_OBJECT_TYPE, ATTRIBUTE_SECURITY_INFORMATION, NULL, NULL, NULL, NULL, ppSecurityDescriptor);
-
-
-	///////////////////////////////////////////////
-	//SECURITY_ATTRIBUTES sec_attr = { 0 };
-	//sec_attr.nLength = sizeof(DWORD) + sizeof(LPVOID) + sizeof(BOOL);
-	//sec_attr.bInheritHandle = TRUE;
-	//sec_attr.lpSecurityDescriptor = ppSecurityDescriptor;//(PSECURITY_DESCRIPTOR)LocalAlloc(LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH);
-	////if (NULL == sec_attr.lpSecurityDescriptor) {
-	////	fprintf(stderr, "LocalAlloc Error %u\n", GetLastError());
-	////}
-	////else if (!InitializeSecurityDescriptor(sec_attr.lpSecurityDescriptor, SECURITY_DESCRIPTOR_REVISION)) {
-	////	fprintf(stderr, "InitializeSecurityDescriptor Error %u\n", GetLastError());
-	////}
-	////CreateThread(&sec_attr, 0, threadChallengeExecutor, NULL, 0, NULL);
-	///////////////////////////////////////////////
-
-	//CreateThread(NULL, 0, threadChallengeExecutor, NULL, 0, NULL);
+	// Initialize the parameters for the challenges
 	initChallenges();
 
 	// Initialize the parameters for the ciphers
 	initCiphers();
 
 	// Forever loop checking for new pendrives
-	Sleep(2000);
+	//Sleep(2000);
 
 	// Sharing menu
-	//sharingMainMenu();
 	CreateThread(NULL, 0, sharingMainMenu, NULL, 0, NULL);
 
-
-	typedef int(__stdcall* exec_ch_func_type)();
-
-	int result = 0;
-	exec_ch_func_type exec_ch_func;
-
-	while (TRUE) {
-		if (launch_execute_challenge_from_main) {
-			exec_ch_func = (exec_ch_func_type)GetProcAddress(launch_execute_challenge_from_main_group->challenges[launch_execute_challenge_from_main_ch_index]->lib_handle, "executeChallenge");
-			printf("threadChallengeExecutor -->exec_ch_func holds now the addr of the func executeChallenge\n");
-			if (exec_ch_func != NULL) {
-				printf("exec_ch_func is NOT null\n");
-				result = exec_ch_func();
-				printf("threadChallengeExecutor --> result of exec_ch_func is %d\n", result);
-				launch_execute_challenge_from_main_result = result;
-				if (result != 0) {
-					PRINT("threadChallengeExecutor --> WARNING: error trying to execute the challenge '%ws'\n", launch_execute_challenge_from_main_group->challenges[launch_execute_challenge_from_main_ch_index]->file_name);
-				}
-				else {
-					// Stop executing more challenges in the group when one is already working
-				}
-			}
-			else {
-				PRINT("threadChallengeExecutor --> WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", launch_execute_challenge_from_main_group->challenges[launch_execute_challenge_from_main_ch_index]->file_name, GetLastError());
-			}
-		}
-		launch_execute_challenge_from_main = FALSE;
-		Sleep(10);
-	}
+	// Loop to execute challenges when the requests are made
+	challengeExecutorLoop();
 }
 
 
@@ -207,35 +159,52 @@ int threadWinFSP(struct ThreadData *th_data) {
 	return 0;
 }
 
-int threadChallengeExecutor() {
+void challengeExecutorLoop() {
 	typedef int(__stdcall* exec_ch_func_type)();
 
-	int result = 0;
 	exec_ch_func_type exec_ch_func;
 
+	struct ExecuteChallengeData data = main_thread_ch_exec_data;
+
 	while (TRUE) {
-		if (launch_execute_challenge_from_main) {
-			exec_ch_func = (exec_ch_func_type)GetProcAddress(launch_execute_challenge_from_main_group->challenges[launch_execute_challenge_from_main_ch_index]->lib_handle, "executeChallenge");
-			printf("threadChallengeExecutor -->exec_ch_func holds now the addr of the func executeChallenge\n");
+		if (data.request_running) {
+			exec_ch_func = (exec_ch_func_type)GetProcAddress(data.ch_group->challenges[data.ch_index]->lib_handle, "executeChallenge");
+			printf("threadChallengeExecutor --> exec_ch_func holds now the addr of the func executeChallenge\n");
 			if (exec_ch_func != NULL) {
 				printf("exec_ch_func is NOT null\n");
-				result = exec_ch_func();
-				printf("threadChallengeExecutor --> result of exec_ch_func is %d\n", result);
-				launch_execute_challenge_from_main_result = result;
-				if (result != 0) {
-					PRINT("threadChallengeExecutor --> WARNING: error trying to execute the challenge '%ws'\n", launch_execute_challenge_from_main_group->challenges[launch_execute_challenge_from_main_ch_index]->file_name);
+				data.result = exec_ch_func();
+				printf("threadChallengeExecutor --> result of exec_ch_func is %d\n", data.result);
+				if (data.result != 0) {
+					PRINT("threadChallengeExecutor --> WARNING: error trying to execute the challenge '%ws'\n", data.ch_group->challenges[data.ch_index]->file_name);
 				}
 				else {
 					// Stop executing more challenges in the group when one is already working
 				}
 			}
 			else {
-				PRINT("threadChallengeExecutor --> WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", launch_execute_challenge_from_main_group->challenges[launch_execute_challenge_from_main_ch_index]->file_name, GetLastError());
+				PRINT("threadChallengeExecutor --> WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", data.ch_group->challenges[data.ch_index]->file_name, GetLastError());
 			}
+			data.request_running = FALSE;
 		}
-		launch_execute_challenge_from_main = FALSE;
 		Sleep(10);
 	}
+}
+
+int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, int ch_index) {
+
+	EnterCriticalSection(&main_thread_ch_exec_data.critical_section);
+	main_thread_ch_exec_data.ch_group = ch_group;
+	main_thread_ch_exec_data.ch_index = ch_index;
+	main_thread_ch_exec_data.request_running = TRUE;
+	printf("Challenge execution requested\n");
+	while (main_thread_ch_exec_data.request_running) {
+		Sleep(10);
+	}
+	LeaveCriticalSection(&main_thread_ch_exec_data.critical_section);
+
+	printf("Challenge execution result: %d\n", main_thread_ch_exec_data.result);
+
+	return main_thread_ch_exec_data.result;
 }
 
 
@@ -303,52 +272,14 @@ void initChallenges() {
 			init_func = (init_func_type)GetProcAddress(ctx.groups[i]->challenges[j]->lib_handle, "init");
 
 			// Add parameters if necessary
-			if (init_func!=NULL) {
+			if (init_func != NULL) {
 				result = init_func(ctx.groups[i], ctx.groups[i]->challenges[j]);
 				if (result != 0) {
 					PRINT("WARNING: error trying to initialize the challenge '%ws'\n", ctx.groups[i]->challenges[j]->file_name);
 				} else {
-
-
-					//printf("MAINNNNNNNNNNN PRE CRITICAL SECTION\n");
-					//EnterCriticalSection(&camera_thread_section);
-					//launch_execute_challenge_from_main_group = ctx.groups[i];
-					//launch_execute_challenge_from_main_ch_index = j;
-					//launch_execute_challenge_from_main = TRUE;
-					//while (launch_execute_challenge_from_main) {
-					//	Sleep(10);
-					//}
-					//printf("MAINNNNNNNNNNN launch_execute_challenge_from_main_result: %d\n", launch_execute_challenge_from_main_result);
-					//LeaveCriticalSection(&camera_thread_section);
-
-
-					//// Run executeChallenge() function
-					//printf("Run executeChallenge() function inside MAIN!!!!!!!!!!!!!!!!!!!!!\n");
-					//exec_ch_func = (exec_ch_func_type)GetProcAddress(ctx.groups[i]->challenges[j]->lib_handle, "executeChallenge");
-					//printf("exec_ch_func holds now the addr of the func executeChallenge\n");
-					//if (exec_ch_func != NULL) {
-					//	printf("exec_ch_func is NOT null\n");
-					//	result = exec_ch_func();
-					//	printf("result of exec_ch_func is %d\n", result);
-					//	if (result != 0) {
-					//		PRINT("WARNING: error trying to execute the challenge '%ws'\n", ctx.groups[i]->challenges[j]->file_name);
-					//	}
-					//	else {
-					//		break;		// Stop executing more challenges in the group when one is already working
-					//	}
-					//}
-					//else {
-					//	PRINT("WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", ctx.groups[i]->challenges[j]->file_name, GetLastError());
-					//}
-
-
-
-
-
-
 					break;		// Stop initializing more challenges in the group when one is already working
 				}
-			} else{
+			} else {
 				PRINT("WARNING: error accessing the address to the init() function of the challenge '%ws' (error: %d)\n", ctx.groups[i]->challenges[j]->file_name, GetLastError());
 			}
 		}

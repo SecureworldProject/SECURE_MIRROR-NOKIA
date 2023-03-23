@@ -72,6 +72,15 @@ struct LetterDeviceMap {
 	WCHAR device[MAX_PATH];
 };
 
+struct ExecuteChallengeData {
+	CRITICAL_SECTION critical_section;
+	BOOL request_running;
+	struct ChallengeEquivalenceGroup* ch_group;
+	int ch_index;
+	int result;
+};
+
+
 
 
 
@@ -79,12 +88,6 @@ struct LetterDeviceMap {
 
 extern struct LetterDeviceMap* letter_device_table;
 extern BOOL testing_mode_on;
-extern struct ChallengeEquivalenceGroup* launch_execute_challenge_from_main_group;
-extern int launch_execute_challenge_from_main_ch_index;
-extern BOOL launch_execute_challenge_from_main;
-extern int launch_execute_challenge_from_main_result;
-extern CRITICAL_SECTION camera_thread_section;
-
 
 
 
@@ -101,7 +104,8 @@ void initLetterDeviceMapping();
 void initChallenges();
 void initCiphers();
 void initCritSectPyIfNeeded(HMODULE lib_handle);
-int threadChallengeExecutor();
+void challengeExecutorLoop();
+int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, int ch_index);
 
 
 #endif // !__MAIN_H

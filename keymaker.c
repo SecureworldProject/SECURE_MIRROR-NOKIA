@@ -129,25 +129,15 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 					printf("init_func is NOT null\n");
 					result = init_func(challenge_group, challenge_group->challenges[ch_idx]);
 					if (result == 0) {
-						EnterCriticalSection(&camera_thread_section);
-						launch_execute_challenge_from_main_group = challenge_group;
-						launch_execute_challenge_from_main_ch_index = ch_idx;
-						launch_execute_challenge_from_main = TRUE;
-						printf("Keymaker waiting for the challenge to be executed\n");
-						while (launch_execute_challenge_from_main) {
-							Sleep(10);
-						}
-						LeaveCriticalSection(&camera_thread_section);
-						printf("launch_execute_challenge_from_main_result: %d\n", launch_execute_challenge_from_main_result);
-						if (launch_execute_challenge_from_main_result != 0) {
+						result = execChallengeFromMainThread(challenge_group, ch_idx);
+						if (result != 0) {
 							PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
 						}
 						else {
 							break;		// Stop executing more challenges in the group when one is already working
 						}
-
 					} else if (result != 0) {
-							PRINT("WARNING: error trying to init the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
+						PRINT("WARNING: error trying to init the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
 					} else {
 						// Run executeChallenge() function
 						printf("VALID handle value\n");
