@@ -15,7 +15,7 @@ Nokia mayo 2021
 
 /////  FUNCTION PROTOTYPES  /////
 
-struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group);
+struct KeyData getSubkey(struct ChallengeEquivalenceGroup* challenge_group);
 
 
 
@@ -37,7 +37,7 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 	// Idea 3: remove keys local var and assume subkey sizes are fixed and already initialized. Compute the size directly and then call getSubkey() once.
 	// Idea 4: fill critical_section and expires fields and allow to save it in folders struct.
 
-	struct KeyData** keys = NULL;
+	struct KeyData* keys = NULL;
 	int num_groups = 0;
 	int index = 0;
 
@@ -48,8 +48,8 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 	num_groups = _msize(challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*);
 	if (num_groups <= 0)			return -2;						// There are no groups, cannot make a key
 
-	// Allocate local variable keys to hold pointers to all subkeys
-	keys = malloc(sizeof(struct KeyData*) * num_groups);			// Can be changed to array limmiting the maximum number of challenge groups
+	// Allocate local variable keys to hold copies of all subkeys
+	keys = malloc(sizeof(struct KeyData) * num_groups);			// Can be changed to array limmiting the maximum number of challenge groups
 	if (keys == NULL)				return ERROR_NOT_ENOUGH_MEMORY;	// Cannot allocate memory
 
 	if (composed_key->data != NULL) {
@@ -60,15 +60,15 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 	// Get composed key size and allocate corresponding memory in data member
 	for (size_t i = 0; i < num_groups; i++) {
 		keys[i] = getSubkey(challenge_groups[i]);
-		composed_key->size += keys[i]->size;
+		composed_key->size += keys[i].size;
 	}
 	composed_key->data = calloc(composed_key->size, sizeof(byte));
 	if (composed_key->data == NULL)	return ERROR_NOT_ENOUGH_MEMORY;	// Cannot allocate memory
 
 	// Compose the key
 	for (size_t i = 0; i < num_groups; i++) {
-		memcpy(&(composed_key->data[index]), keys[i]->data, keys[i]->size);
-		index += keys[i]->size;
+		memcpy(&(composed_key->data[index]), keys[i].data, keys[i].size);
+		index += keys[i].size;
 	}
 
 	// Free local variable keys
@@ -83,7 +83,8 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 /**
  Returns a time-valid subkey for the given challenge group. In case key expired, forces computation at the moment.
  */
-struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
+struct KeyData getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
+	struct KeyData keydata = { 0 };
 	time_t current_time = 0;
 	int group_length = 0;
 	typedef int(__stdcall* init_func_type)(struct ChallengeEquivalenceGroup*, struct Challenge*);
@@ -105,12 +106,16 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	// Get current time
 	time(&current_time);
 
-	printf("Current time: %lld\n", current_time);
-	printf("Expiration time: %lld\n", challenge_group->subkey->expires);
-	printf("Difftime(a, b): %f\n", difftime(current_time, challenge_group->subkey->expires));
+	// Get a copy of the key data struct
 	EnterCriticalSection(&(challenge_group->subkey->critical_section));
+	keydata = *(challenge_group->subkey);
+	LeaveCriticalSection(&(challenge_group->subkey->critical_section));
+
+	printf("Current time: %lld\n", current_time);
+	printf("Expiration time: %lld\n", keydata.expires);
+	printf("Difftime(a, b): %f\n", difftime(current_time, keydata.expires));
 	// Check if key expired and needs to be computed now
-	if (difftime(current_time, challenge_group->subkey->expires) > 0) {		// Means: current_time > challenge_group->subkey->expires
+	if (difftime(current_time, keydata.expires) > 0) {		// Means: current_time > keydata.expires
 
 		// TODO: start on the challenge that executed correctly on the init() instead of always starting on index 0
 
@@ -123,13 +128,12 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 			if (INVALID_HANDLE_VALUE != challenge_group->challenges[ch_idx]->lib_handle) {
 
 				// To ensure everything is working, run init() function
-				initCritSectPyIfNeeded(challenge_group->challenges[ch_idx]->lib_handle);
 				init_func = (init_func_type)GetProcAddress(challenge_group->challenges[ch_idx]->lib_handle, "init");
 				if (init_func != NULL) {
 					printf("init_func is NOT null\n");
 					result = init_func(challenge_group, challenge_group->challenges[ch_idx]);
 					if (result == 0) {
-						result = execChallengeFromMainThread(challenge_group, ch_idx);
+						result = execChallengeFromMainThread(challenge_group, challenge_group->challenges[ch_idx]);
 						if (result != 0) {
 							PRINT("WARNING: error trying to execute the challenge '%ws'\n", challenge_group->challenges[ch_idx]->file_name);
 						}
@@ -180,10 +184,13 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 			}
 		}
 	}
-	printf("before leaving crit sect\n");
+
+	// Get a copy of the (updated) key data struct
+	EnterCriticalSection(&(challenge_group->subkey->critical_section));
+	keydata = *(challenge_group->subkey);
 	LeaveCriticalSection(&(challenge_group->subkey->critical_section));
 
-	return challenge_group->subkey;
+	return keydata;
 }
 
 
@@ -193,7 +200,7 @@ struct KeyData* getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *block_access) {
 	int num_groups = 0;
 	int index = 0;
-	struct KeyData* curr_key = 0;
+	struct KeyData curr_key = { 0 };
 	*block_access = FALSE;
 
 	if (block_access == NULL)		return ERROR_INVALID_PARAMETER;	// block_access is NULL
@@ -207,8 +214,8 @@ int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *b
 	for (size_t i = 0; i < num_groups; i++) {
 		PRINT("challenge_group->id = %s\n", challenge_groups[i]->id);
 		curr_key = getSubkey(challenge_groups[i]);
-		PRINT("curr_key = %d \n", curr_key->data[0]);
-		*block_access |= curr_key->data[0];
+		PRINT("curr_key = %d \n", curr_key.data[0]);
+		*block_access |= curr_key.data[0];
 	}
 
 	return ERROR_SUCCESS;	// Success

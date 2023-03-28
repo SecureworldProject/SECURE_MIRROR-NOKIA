@@ -22,7 +22,6 @@
 
 struct LetterDeviceMap* letter_device_table;
 BOOL testing_mode_on = FALSE;
-CRITICAL_SECTION py_critical_section;
 struct ExecuteChallengeData main_thread_ch_exec_data = { 0 };
 
 
@@ -119,10 +118,9 @@ int main(int argc, char* argv[]) {
 	#endif //RUN_VOLUME_MOUNTER
 
 	// Initialize the critical section associated to the challenge executions
-	InitializeCriticalSection(&py_critical_section);
 	InitializeCriticalSection(&main_thread_ch_exec_data.critical_section);
 	main_thread_ch_exec_data.ch_group = NULL;
-	main_thread_ch_exec_data.ch_index = 0;
+	main_thread_ch_exec_data.ch = NULL;
 	main_thread_ch_exec_data.request_running = FALSE;
 	main_thread_ch_exec_data.result = 0;
 
@@ -164,47 +162,64 @@ void challengeExecutorLoop() {
 
 	exec_ch_func_type exec_ch_func;
 
-	struct ExecuteChallengeData data = main_thread_ch_exec_data;
-
 	while (TRUE) {
-		if (data.request_running) {
-			exec_ch_func = (exec_ch_func_type)GetProcAddress(data.ch_group->challenges[data.ch_index]->lib_handle, "executeChallenge");
-			printf("threadChallengeExecutor --> exec_ch_func holds now the addr of the func executeChallenge\n");
+		if (main_thread_ch_exec_data.request_running) {
+			exec_ch_func = (exec_ch_func_type)GetProcAddress(main_thread_ch_exec_data.ch->lib_handle, "executeChallenge");
+			printf("Main Loop --> exec_ch_func holds now the addr of the func executeChallenge\n");
 			if (exec_ch_func != NULL) {
-				printf("exec_ch_func is NOT null\n");
-				data.result = exec_ch_func();
-				printf("threadChallengeExecutor --> result of exec_ch_func is %d\n", data.result);
-				if (data.result != 0) {
-					PRINT("threadChallengeExecutor --> WARNING: error trying to execute the challenge '%ws'\n", data.ch_group->challenges[data.ch_index]->file_name);
-				}
-				else {
+				printf("Main Loop --> exec_ch_func is NOT null\n");
+				main_thread_ch_exec_data.result = exec_ch_func();
+				printf("Main Loop --> result of exec_ch_func is %d\n", main_thread_ch_exec_data.result);
+				if (main_thread_ch_exec_data.result != 0) {
+					PRINT("Main Loop --> WARNING: error trying to execute the challenge '%ws'\n", main_thread_ch_exec_data.ch->file_name);
+				} else {
 					// Stop executing more challenges in the group when one is already working
 				}
+			} else {
+				PRINT("Main Loop --> WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", main_thread_ch_exec_data.ch->file_name, GetLastError());
 			}
-			else {
-				PRINT("threadChallengeExecutor --> WARNING: error accessing the address to the executeChallenge() function of the challenge '%ws' (error: %d)\n", data.ch_group->challenges[data.ch_index]->file_name, GetLastError());
-			}
-			data.request_running = FALSE;
+			main_thread_ch_exec_data.request_running = FALSE;
 		}
 		Sleep(10);
 	}
 }
 
-int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, int ch_index) {
+int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, struct Challenge* ch) {
 
+	printf("execChallengeFromMainThread --> Entering critical section\n");
 	EnterCriticalSection(&main_thread_ch_exec_data.critical_section);
+	printf("execChallengeFromMainThread --> Entered critical section\n");
 	main_thread_ch_exec_data.ch_group = ch_group;
-	main_thread_ch_exec_data.ch_index = ch_index;
+	main_thread_ch_exec_data.ch = ch;
 	main_thread_ch_exec_data.request_running = TRUE;
-	printf("Challenge execution requested\n");
+	printf("execChallengeFromMainThread --> Challenge execution requested\n");
 	while (main_thread_ch_exec_data.request_running) {
+		//printf("execChallengeFromMainThread --> Still waiting...\n");
 		Sleep(10);
 	}
+	printf("execChallengeFromMainThread --> Leaving critical section\n");
 	LeaveCriticalSection(&main_thread_ch_exec_data.critical_section);
 
-	printf("Challenge execution result: %d\n", main_thread_ch_exec_data.result);
+	printf("execChallengeFromMainThread --> Challenge execution result: %d\n", main_thread_ch_exec_data.result);
 
 	return main_thread_ch_exec_data.result;
+}
+
+
+void configureExecChFromMain(struct Challenge ch) {
+
+	typedef int(__stdcall* ExecChFromMain_func_type)(struct ChallengeEquivalenceGroup*, struct Challenge*);
+	typedef void(__stdcall* setExecChFromMain_func_type)(ExecChFromMain_func_type);
+	setExecChFromMain_func_type setExecChFromMain = NULL;
+
+	setExecChFromMain = (ExecChFromMain_func_type)GetProcAddress(ch.lib_handle, "setExecChFromMain");
+	if (setExecChFromMain != NULL) {
+		PRINT("Setting pointer to execChallengeFromMainThread inside challenge '%ws'\n", ch.file_name);
+		setExecChFromMain(execChallengeFromMainThread);
+	}
+	else {
+		fprintf(stderr, "ERROR: could not access 'setExecChFromMain()' function inside challenge '%ws'\n", ch.file_name);
+	}
 }
 
 
@@ -267,8 +282,7 @@ void initChallenges() {
 
 	for (size_t i = 0; i < _msize(ctx.groups) / sizeof(struct ChallengeEquivalenceGroup*); i++) {
 		for (size_t j = 0; j < _msize(ctx.groups[i]->challenges) / sizeof(struct Challenge*); j++) {
-			// define function pointer corresponding with init() input and output types
-			initCritSectPyIfNeeded(ctx.groups[i]->challenges[j]->lib_handle);
+			// Define function pointer corresponding with init() input and output types
 			init_func = (init_func_type)GetProcAddress(ctx.groups[i]->challenges[j]->lib_handle, "init");
 
 			// Add parameters if necessary
@@ -283,24 +297,6 @@ void initChallenges() {
 				PRINT("WARNING: error accessing the address to the init() function of the challenge '%ws' (error: %d)\n", ctx.groups[i]->challenges[j]->file_name, GetLastError());
 			}
 		}
-	}
-}
-
-void initCritSectPyIfNeeded(HMODULE lib_handle) {
-	if (lib_handle == NULL)
-		return;
-
-	typedef int(__stdcall* setPyCriticalSection_func_type)(CRITICAL_SECTION*);
-
-	setPyCriticalSection_func_type set_py_critical_section;
-
-	set_py_critical_section = (setPyCriticalSection_func_type)GetProcAddress(lib_handle, "setPyCriticalSection");
-	if (set_py_critical_section != NULL) {
-		PRINT("Initializing critical section for python...\n");
-		set_py_critical_section(&py_critical_section);
-	}
-	else {
-		PRINT("Critical section for python has already been initialized\n");
 	}
 }
 

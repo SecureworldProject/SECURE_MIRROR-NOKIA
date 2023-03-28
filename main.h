@@ -76,7 +76,7 @@ struct ExecuteChallengeData {
 	CRITICAL_SECTION critical_section;
 	BOOL request_running;
 	struct ChallengeEquivalenceGroup* ch_group;
-	int ch_index;
+	struct Challenge* ch;
 	int result;
 };
 
@@ -103,9 +103,9 @@ void uvaFileMenu();
 void initLetterDeviceMapping();
 void initChallenges();
 void initCiphers();
-void initCritSectPyIfNeeded(HMODULE lib_handle);
 void challengeExecutorLoop();
-int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, int ch_index);
+int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, struct Challenge* ch);
+void configureExecChFromMain(struct Challenge);
 
 
 #endif // !__MAIN_H

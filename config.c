@@ -547,6 +547,8 @@ static void processChallenge(int group_index, int challenge_index, json_value* v
 						#ifndef SECUREMIRROR_DEBUG_MODE
 						exit(1);
 						#endif
+					} else {
+						configureExecChFromMain(*ctx.groups[group_index]->challenges[challenge_index]);
 					}
 				} // else --> The pointer is null because it was not possible to allocate memory
 			}
