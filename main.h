@@ -7,7 +7,7 @@
 #define ENABLE_WINFSP
 
 // Uncomment to launch volume mounter thread
-#define RUN_VOLUME_MOUNTER
+//#define RUN_VOLUME_MOUNTER
 
 // Uncomment to launch fmi table test at the beginning
 //#define RUN_FMI_TABLE_TEST
@@ -105,7 +105,7 @@ void initChallenges();
 void initCiphers();
 void challengeExecutorLoop();
 int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, struct Challenge* ch);
-void configureExecChFromMain(struct Challenge);
+int configureExecChFromMain(struct Challenge);
 
 
 #endif // !__MAIN_H

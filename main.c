@@ -194,8 +194,8 @@ int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, stru
 	main_thread_ch_exec_data.request_running = TRUE;
 	printf("execChallengeFromMainThread --> Challenge execution requested\n");
 	while (main_thread_ch_exec_data.request_running) {
-		//printf("execChallengeFromMainThread --> Still waiting...\n");
-		Sleep(10);
+		printf("execChallengeFromMainThread --> Still waiting...\n");
+		Sleep(100);
 	}
 	printf("execChallengeFromMainThread --> Leaving critical section\n");
 	LeaveCriticalSection(&main_thread_ch_exec_data.critical_section);
@@ -206,20 +206,20 @@ int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, stru
 }
 
 
-void configureExecChFromMain(struct Challenge ch) {
+int configureExecChFromMain(struct Challenge ch) {
 
 	typedef int(__stdcall* ExecChFromMain_func_type)(struct ChallengeEquivalenceGroup*, struct Challenge*);
 	typedef void(__stdcall* setExecChFromMain_func_type)(ExecChFromMain_func_type);
 	setExecChFromMain_func_type setExecChFromMain = NULL;
 
 	setExecChFromMain = (ExecChFromMain_func_type)GetProcAddress(ch.lib_handle, "setExecChFromMain");
-	if (setExecChFromMain != NULL) {
-		PRINT("Setting pointer to execChallengeFromMainThread inside challenge '%ws'\n", ch.file_name);
-		setExecChFromMain(execChallengeFromMainThread);
-	}
-	else {
+	if (NULL == setExecChFromMain) {
 		fprintf(stderr, "ERROR: could not access 'setExecChFromMain()' function inside challenge '%ws'\n", ch.file_name);
+		return -1;
 	}
+	PRINT("Setting pointer to execChallengeFromMainThread inside challenge '%ws'\n", ch.file_name);
+	setExecChFromMain(execChallengeFromMainThread);
+	return 0;
 }
 
 
