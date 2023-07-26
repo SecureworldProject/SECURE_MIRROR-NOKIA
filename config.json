@@ -7,8 +7,8 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "TableTEST",
-				"ChallengeEqGroups": ["Group1"],
-				"Cipher": "simple"
+				"ChallengeEqGroups": ["Group1", "Group2", "Group3"],
+				"Cipher": "N"
 			}
 		},
 		{
@@ -18,7 +18,7 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
-				"ChallengeEqGroups": ["Group1", "Group2", "Group3"],
+				"ChallengeEqGroups": ["Group1", "Group2", "Group3", "Group4"],
 				"Cipher": "N"
 			}
 		}

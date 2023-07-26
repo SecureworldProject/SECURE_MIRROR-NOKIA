@@ -12,7 +12,8 @@
 #include "logic.h"
 #include "keymaker.h"
 #include "system_test.h"
-#include "qrcodegen.h"
+//#include "qrcodegen.h"
+#include "securemirror_rsa.h"
 
 
 
@@ -24,6 +25,8 @@
 #define DECIPHERED_SUFFIX_WCS L"_deciphered"
 #define DECIPHERED_SUFFIX_WCS_LEN wcslen(DECIPHERED_SUFFIX_WCS)
 #define MAX_LINK_LENGTH 500
+#define PRIV_KEY_PEM_SUFFIX L"_priv.pem"
+#define PUB_KEY_PEM_SUFFIX L"_pub.pem"
 
 
 
@@ -31,8 +34,9 @@
 void printMenuHelp();
 void decipherFileMenu();
 void uvaFileMenu();
+void newRSAKeypairMenu();
 void printQr(const uint8_t qrcode[]);
-void showQRDeepLink();
+//void showQRDeepLink();
 int createDecipheredFileCopy(WCHAR* file_path);
 int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party);
 
@@ -58,7 +62,8 @@ void sharingMainMenu() {
 		printf("  0) Exit (also closes mirrored disks)\n");
 		printf("  1) Decipher mode (share with anyone)\n");
 		printf("  2) Create .uva file (share with third party)\n");
-		printf("  3) Show QR code (link android device)\n");
+		//printf("  3) Show QR code (link android device)\n");
+		printf("  3) Genrate third party rsa key pair and save it somewhere\n");
 		#ifdef SECUREMIRROR_DEBUG_MODE
 		printf("  4) (Debug only) Print the File Mark Info Table\n");
 		printf("  5) (Debug only) Test System\n");
@@ -81,8 +86,11 @@ void sharingMainMenu() {
 					case 2:
 						uvaFileMenu();
 						break;
+					//case 3:
+					//	showQRDeepLink();
+					//	break;
 					case 3:
-						showQRDeepLink();
+						newRSAKeypairMenu();
 						break;
 					case 4:
 						#ifdef SECUREMIRROR_DEBUG_MODE
@@ -340,6 +348,137 @@ void uvaFileMenu() {
 	return;
 }
 
+/**
+* Starts a text-based dialog with the user to gather all the necessary information to generate and save a new RSA keypair.
+*
+* @return
+**/
+void newRSAKeypairMenu() {
+	WCHAR* keypair_directory = NULL;
+	WCHAR* keypair_filename = NULL;
+	size_t keypair_directory_length = 0;
+	size_t keypair_filename_length = 0;
+
+	size_t priv_key_pem_suffix_length = wcslen(PRIV_KEY_PEM_SUFFIX);
+	size_t pub_key_pem_suffix_length = wcslen(PUB_KEY_PEM_SUFFIX);
+
+	//RSA* rsa_keypair = NULL;
+	WCHAR* priv_key_filepath = NULL;
+	WCHAR* pub_key_filepath = NULL;
+
+	keypair_directory = malloc(MAX_PATH * sizeof(WCHAR));
+	if (keypair_directory == NULL) {
+		printf("\tError: cannot allocate memory.\n");
+		goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+	}
+
+	printf("\n\tYou have entered the RSA Keypair generation option.\n");
+	printf("\tA private and a public file will be created in the given folder appending '%ws' and '%ws' respectively to the filename given.\n", PRIV_KEY_PEM_SUFFIX, PUB_KEY_PEM_SUFFIX);
+
+	// Get the directory
+	printf("\n\tEnter below the folder in which you want the keypair to be created.\n");
+	printf("\t--> ");
+	if (fgetws(keypair_directory, MAX_PATH, stdin)) {		// fgets() ensures that string ends with '\0'
+		// Ensure of trailing '/' for the directory and remove trailing /n due to console input
+		keypair_directory_length = wcscspn(keypair_directory, L"\n");	// Returns the position of first '\n' or the length of the string if it is not contained
+		if (MAX_PATH > keypair_directory_length) {
+			if (keypair_directory[keypair_directory_length - 1] != L'/' || keypair_directory[keypair_directory_length - 1] != L'\\') {
+				keypair_directory[keypair_directory_length] = L'/';
+				keypair_directory_length++;
+			}
+		}
+		keypair_directory[keypair_directory_length] = L'\0';
+
+		// Check directory length and existence
+		if (MAX_PATH <= keypair_directory_length + 1 + priv_key_pem_suffix_length || MAX_PATH <= keypair_directory_length + 1 + pub_key_pem_suffix_length) {
+			printf("\tThe specified directory is too long.\n");
+			goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+		}
+		if (!PathFileExistsW(keypair_directory)) {
+			printf("\tThe specified path does not exist.\n");
+			goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+		}
+		if (!PathIsDirectoryW(keypair_directory)) {
+			printf("\tThe specified path matches a file not a directory.\n");
+			goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+		}
+
+		// Get the filename
+		keypair_filename = malloc((MAX_PATH - keypair_directory_length) * sizeof(WCHAR));
+		if (keypair_filename == NULL) {
+			printf("\tError: cannot allocate memory.\n");
+			goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+		}
+
+		printf("\n\tEnter below the filename (no extension) for the keypair files. Remember two files with distinguishable suffixes will be created.\n");
+		printf("\t--> ");
+		if (fgetws(keypair_filename, (MAX_PATH - keypair_directory_length), stdin)) {		// fgets() ensures that string ends with '\0'
+			keypair_filename_length = wcscspn(keypair_filename, L"\n");	// Returns the position of first '\n' or the length of the string if it is not contained
+			keypair_filename[wcscspn(keypair_filename, L"\n")] = L'\0';		// Remove trailing '\n' if exists
+
+			if (MAX_PATH <= keypair_directory_length + keypair_filename_length + priv_key_pem_suffix_length) {
+				printf("\tThe specified path is too long to append %ws.\n", PRIV_KEY_PEM_SUFFIX);
+				goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+			}
+			if (MAX_PATH <= keypair_directory_length + keypair_filename_length + pub_key_pem_suffix_length) {
+				printf("\tThe specified path is too long to append %ws.\n", PUB_KEY_PEM_SUFFIX);
+				goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+			}
+		}
+	}
+
+	priv_key_filepath = malloc((keypair_directory_length + keypair_filename_length + priv_key_pem_suffix_length + 1) * sizeof(WCHAR));
+	if (priv_key_filepath == NULL) {
+		printf("\tError: cannot allocate memory.\n");
+		goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+	}
+	pub_key_filepath = malloc((keypair_directory_length + keypair_filename_length + pub_key_pem_suffix_length + 1) * sizeof(WCHAR));
+	if (pub_key_filepath == NULL) {
+		printf("\tError: cannot allocate memory.\n");
+		goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+	}
+	//rsa_keypair = (RSA*)malloc(1 * sizeof(RSA*));
+	//if (rsa_keypair == NULL) {
+	//	printf("\tError: cannot allocate memory.\n");
+	//	goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+	//}
+
+	wcscpy_s(priv_key_filepath, keypair_directory_length, keypair_directory);
+	wcscat_s(priv_key_filepath, keypair_filename_length, keypair_filename);
+	wcscat_s(priv_key_filepath, priv_key_pem_suffix_length, PRIV_KEY_PEM_SUFFIX);
+
+	wcscpy_s(pub_key_filepath, keypair_directory_length, keypair_directory);
+	wcscat_s(pub_key_filepath, keypair_filename_length, keypair_filename);
+	wcscat_s(pub_key_filepath, pub_key_pem_suffix_length, PUB_KEY_PEM_SUFFIX);
+
+
+	if (ERROR_SUCCESS != generate_and_write_key(RSA_F4, KEY_BYTES_SIZE * 8, priv_key_filepath, pub_key_filepath, NULL)) { //&rsa_keypair)) {
+		printf("ERROR generating the keys\n");
+		goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
+	}
+
+	printf("\tThe RSA keypair files have been sucessfully generated:\n\t%ws\n\t%ws\n", priv_key_filepath, pub_key_filepath);
+
+NEW_RSA_KEY_PAIR_MENU_CLEANUP:
+	if (NULL != keypair_directory) {
+		free(keypair_directory);
+	}
+	if (NULL != keypair_filename) {
+		free(keypair_filename);
+	}
+	if (NULL != priv_key_filepath) {
+		free(priv_key_filepath);
+	}
+	if (NULL != pub_key_filepath) {
+		free(pub_key_filepath);
+	}
+	//if (NULL != rsa_keypair) {
+	//	free(rsa_keypair);
+	//}
+
+	return;
+}
+
 
 /**
 * Prints the given QR Code to the console.
@@ -366,19 +505,19 @@ void printQr(const uint8_t qrcode[]) {
 *
 * @return
 **/
-void showQRDeepLink() {
-	const char* text = "secureworld://test/esto_es_un_qr_de_la_cmd";	// TO DO: change this with the real code including all necessary data
-
-	printf("\n\tYou have entered the QR linking option.\n");
-
-	// Make and print the QR Code symbol
-	uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX] = { 0 };
-	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX] = { 0 };
-	BOOL ok = qrcodegen_encodeText(text, tempBuffer, qrcode, qrcodegen_Ecc_LOW,
-		qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
-	if (ok)
-		printQr(qrcode);
-}
+//void showQRDeepLink() {
+//	const char* text = "secureworld://test/esto_es_un_qr_de_la_cmd";	// TO DO: change this with the real code including all necessary data
+//
+//	printf("\n\tYou have entered the QR linking option.\n");
+//
+//	// Make and print the QR Code symbol
+//	uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX] = { 0 };
+//	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX] = { 0 };
+//	BOOL ok = qrcodegen_encodeText(text, tempBuffer, qrcode, qrcodegen_Ecc_LOW,
+//		qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+//	if (ok)
+//		printQr(qrcode);
+//}
 
 
 /**
@@ -664,6 +803,16 @@ int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begi
 	// - Check the file is a ".pdf" file.
 	// - Create a file in the same path changing the extension to ".uva".
 	// - Fill the .uva header with necessary metadata.
+	//     - Look for the public RSA key of the third party and read it
+	//     - Create a random key of 8 Bytes (=64 bits) for pdf ciphering
+	//     - Create a 0-filled buffer of 470 bytes. This will become 512 Bytes (= uva header size) when ciphered with RSA
+	//     - Write a uva version number to the buffer
+	//     - Write the file ciphering key to the buffer
+	//     - Write the allowed visualization frame to the buffer
+	//     - The rest of the buffer is left as is (with 0s)
+	//     - Cipher the buffer with the public RSA key previously read
+	//     - Ensure new ciphered buffer length is 512 Bytes (= uva header size)
+	//     - Write the new ciphered buffer to the .uva file
 	// - Read the original file and call decipher() followed by cipherTP() for all the content while writting to the ".uva" file.
 	// - Add blockchain traces
 	// - If everything goes well, returns 0. In case something goes wrong, removes newly created file and returns -1.
