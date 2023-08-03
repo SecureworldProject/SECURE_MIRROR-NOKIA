@@ -7,7 +7,7 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "TableTEST",
-				"ChallengeEqGroups": ["Group1", "Group2", "Group3"],
+				"ChallengeEqGroups": ["Group1", "Group3"],
 				"Cipher": "N"
 			}
 		},
@@ -18,7 +18,7 @@
 			"Driver": "Dokan",
 			"Protection": {
 				"OpTable": "Table1",
-				"ChallengeEqGroups": ["Group1", "Group2", "Group3", "Group4"],
+				"ChallengeEqGroups": ["Group1", "Group3", "Group4"],
 				"Cipher": "N"
 			}
 		}
@@ -29,7 +29,7 @@
 		"Driver": "Dokan",
 		"Protection": {
 			"OpTable": "Table2",
-			"ChallengeEqGroups": ["Group1", "Group2", "Group3", "Group4"],
+			"ChallengeEqGroups": ["Group1", "Group3", "Group4"],
 			"Cipher": "simple"
 		}
 	},
@@ -127,8 +127,8 @@
 					"Description": "Loads a python challenge. This challenge uses as key the first hostname_len characters of the organization.",
 					"Props": {
 						"module_python": "hostname",
-						"validity_time": 60,
-						"refresh_time": 30,
+						"validity_time": 600,
+						"refresh_time": 300,
 						"hostname_len": 2
 					},
 					"Requirements": "none"
@@ -138,7 +138,7 @@
 		"Group2": {
 			"ChallengeList": [
 				{
-					"FileName": "CHALLENGE_INTRANET.dll",
+					"FileName": "CHALLENGE_INTRANET.dll------------",
 					"Description": "This challenge uses as key a stream of 0s and 1s that represent the accessibility to different urls.",
 					"Props": {
 						"validity_time": 3600,
@@ -166,8 +166,8 @@
 					"Description": "Loads a python challenge. This challenge uses as key a stream of 0s and 1s that represent the openness of some programs.",
 					"Props": {
 						"module_python": "openprogs",
-						"validity_time": 60,
-						"refresh_time": 20,
+						"validity_time": 600,
+						"refresh_time": 200,
 						"process_list": "chrome.exe,Teams.exe,ccSvcHst.exe,sublime_text.exe,sisipsutil.exe,vpnui.exe,ibmpmsvc.exe"
 					},
 					"Requirements": "none"

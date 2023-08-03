@@ -5,6 +5,15 @@
 
 
 
+/////  DEFINITIONS  /////
+#define DEFAULT_PRIV_KEY_FILENAME "priv.pem"
+#define DEFAULT_PUB_KEY_FILENAME "pub.pem"
+#define DEFAULT_PRIV_KEY_FILENAME_W L"priv.pem"
+#define DEFAULT_PUB_KEY_FILENAME_W L"pub.pem"
+
+
+
+
 /////  FUNCTION PROTOTYPES  /////
 RSA* read_public_key(const char* public_key_filename);
 RSA* read_private_key(const char* private_key_filename);
@@ -22,7 +31,7 @@ RSA* read_private_key(const char* private_key_filename);
 //     public_key_filename: "public_key"
 //     rsa_key_to_return: if it is NULL, it is not used. If not, if it filled with a pointer to the RSA keypair.
 // Returns 0 if OK. Other value if an error ocurred
-int generate_and_write_key(unsigned long public_exponent, int key_bitsize, const char* private_key_filename, const char* public_key_filename, RSA** rsa_key_to_return) {
+int generate_and_write_key(unsigned long public_exponent, int key_bitsize, const WCHAR* private_key_filename, const WCHAR* public_key_filename, RSA** rsa_key_to_return) {
 	int ret = 0;
 	int error = ERROR_SUCCESS;
 	RSA* rsa_keypair = NULL;
@@ -46,6 +55,7 @@ int generate_and_write_key(unsigned long public_exponent, int key_bitsize, const
 	ret = BN_set_word(bne, public_exponent);
 	if (1 != ret) {
 		error = -1;
+		fprintf(stderr, "ERROR: could not generate big num for the RSA keypair.\n");
 		goto GEN_KEY_CLEANUP;
 	}
 
@@ -55,35 +65,59 @@ int generate_and_write_key(unsigned long public_exponent, int key_bitsize, const
 	ret = RSA_generate_key_ex(rsa_keypair, key_bitsize, bne, NULL);
 	if (1 != ret) {
 		error = -2;
+		fprintf(stderr, "ERROR: could not generate RSA keypair.\n");
 		goto GEN_KEY_CLEANUP;
 	}
 
+
 	// Save public key
-	bio_public = BIO_new_file(public_key_filename, "w+");
+	bio_public = BIO_new_file(DEFAULT_PUB_KEY_FILENAME, "w+");
 #pragma warning(suppress : 4996)
 	ret = PEM_write_bio_RSAPublicKey(bio_public, rsa_keypair);
 	if (1 != ret) {
 		error = -3;
+		fprintf(stderr, "ERROR: could not write public RSA key.\n");
 		goto GEN_KEY_CLEANUP;
 	}
+	BIO_free_all(bio_public);
+	bio_public = NULL;
+	if (0 == MoveFileW(DEFAULT_PUB_KEY_FILENAME_W, public_key_filename)) {
+		fprintf(stderr, "ERROR (err = %lu): the public key could not be moved to the desired destination. Note it can still be found next to the SecureMirror.exe executable.\n", GetLastError());
+	}
+
 
 	// Save private key
-	bio_private = BIO_new_file(private_key_filename, "w+");
+	bio_private = BIO_new_file(DEFAULT_PRIV_KEY_FILENAME, "w+");
 #pragma warning(suppress : 4996)
 	ret = PEM_write_bio_RSAPrivateKey(bio_private, rsa_keypair, NULL, NULL, 0, NULL, NULL);
 	if (1 != ret) {
 		error = -4;
+		fprintf(stderr, "ERROR: could not write private RSA key.\n");
 		goto GEN_KEY_CLEANUP;
 	}
-
 #pragma warning(suppress : 4996)
-	printf("RSA_size dentro: %d\n", RSA_size(rsa_keypair));
+	BIO_free_all(bio_private);
+	bio_private = NULL;
+	if (0 == MoveFileW(DEFAULT_PRIV_KEY_FILENAME_W, private_key_filename)) {
+		fprintf(stderr, "ERROR (err = %lu): the private key could not be moved to the desired destination. Note it can still be found next to the SecureMirror.exe executable.\n", GetLastError());
+	}
+
+	//printf("RSA_size: %d\n", RSA_size(rsa_keypair));
 
 	// Cleanup
 GEN_KEY_CLEANUP:
-	BIO_free_all(bio_public);
-	BIO_free_all(bio_private);
-	BN_free(bne);
+	if (NULL != bio_public) {
+		BIO_free_all(bio_public);
+		bio_public = NULL;
+	}
+	if (NULL != bio_private) {
+		BIO_free_all(bio_private);
+		bio_private = NULL;
+	}
+	if (NULL != bne) {
+		BN_free(bne);
+		bne = NULL;
+	}
 	if (ERROR_SUCCESS == error && NULL != rsa_key_to_return) {
 		*rsa_key_to_return = rsa_keypair;
 	} else {

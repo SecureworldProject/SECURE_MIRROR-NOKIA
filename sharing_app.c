@@ -63,7 +63,7 @@ void sharingMainMenu() {
 		printf("  1) Decipher mode (share with anyone)\n");
 		printf("  2) Create .uva file (share with third party)\n");
 		//printf("  3) Show QR code (link android device)\n");
-		printf("  3) Genrate third party rsa key pair and save it somewhere\n");
+		printf("  3) Generate and save third party RSA keypair\n");
 		#ifdef SECUREMIRROR_DEBUG_MODE
 		printf("  4) (Debug only) Print the File Mark Info Table\n");
 		printf("  5) (Debug only) Test System\n");
@@ -207,7 +207,7 @@ void decipherFileMenu() {
 **/
 void uvaFileMenu() {
 	WCHAR line[500] = { 0 };
-	time_t current_time;
+	time_t current_time = 0;
 	struct tm* time_info = NULL;
 	int integer_user_input = 0;
 	char formatted_time[22] = "";
@@ -223,8 +223,8 @@ void uvaFileMenu() {
 	// Get the path
 	printf("\n\tEnter the full path of the file from which you want to create a .uva file below.\n");
 	printf("\t--> ");
-	if (fgetws(file_path, MAX_PATH, stdin)) {
-		file_path[wcslen(file_path) - 1] = '\0';		// End the buffer with null character for the case in which fgets() filled it completely
+	if (fgetws(file_path, MAX_PATH, stdin)) {		// fgets() ensures that string ends with '\0'
+		file_path[wcscspn(file_path, L"\n")] = L'\0';		// Remove trailing '\n'
 		if (!PathFileExistsW(file_path)) {
 			printf("\tThe specified path does not exist.\n");
 			return;
@@ -361,13 +361,15 @@ void newRSAKeypairMenu() {
 
 	size_t priv_key_pem_suffix_length = wcslen(PRIV_KEY_PEM_SUFFIX);
 	size_t pub_key_pem_suffix_length = wcslen(PUB_KEY_PEM_SUFFIX);
+	size_t priv_key_filepath_length = 0;
+	size_t pub_key_filepath_length = 0;
 
 	//RSA* rsa_keypair = NULL;
 	WCHAR* priv_key_filepath = NULL;
 	WCHAR* pub_key_filepath = NULL;
 
 	keypair_directory = malloc(MAX_PATH * sizeof(WCHAR));
-	if (keypair_directory == NULL) {
+	if (NULL == keypair_directory) {
 		printf("\tError: cannot allocate memory.\n");
 		goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
 	}
@@ -382,8 +384,8 @@ void newRSAKeypairMenu() {
 		// Ensure of trailing '/' for the directory and remove trailing /n due to console input
 		keypair_directory_length = wcscspn(keypair_directory, L"\n");	// Returns the position of first '\n' or the length of the string if it is not contained
 		if (MAX_PATH > keypair_directory_length) {
-			if (keypair_directory[keypair_directory_length - 1] != L'/' || keypair_directory[keypair_directory_length - 1] != L'\\') {
-				keypair_directory[keypair_directory_length] = L'/';
+			if (keypair_directory[keypair_directory_length - 1] != L'/' && keypair_directory[keypair_directory_length - 1] != L'\\') {
+				keypair_directory[keypair_directory_length] = L'\\';
 				keypair_directory_length++;
 			}
 		}
@@ -402,10 +404,11 @@ void newRSAKeypairMenu() {
 			printf("\tThe specified path matches a file not a directory.\n");
 			goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
 		}
+		PRINT("\tThe specified directory is: '%ws' (%llu wchars)\n", keypair_directory, keypair_directory_length);
 
 		// Get the filename
 		keypair_filename = malloc((MAX_PATH - keypair_directory_length) * sizeof(WCHAR));
-		if (keypair_filename == NULL) {
+		if (NULL == keypair_filename) {
 			printf("\tError: cannot allocate memory.\n");
 			goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
 		}
@@ -424,16 +427,18 @@ void newRSAKeypairMenu() {
 				printf("\tThe specified path is too long to append %ws.\n", PUB_KEY_PEM_SUFFIX);
 				goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
 			}
+			PRINT("\tThe specified filename is: '%ws' (%llu wchars)\n", keypair_filename, keypair_filename_length);
 		}
 	}
-
-	priv_key_filepath = malloc((keypair_directory_length + keypair_filename_length + priv_key_pem_suffix_length + 1) * sizeof(WCHAR));
-	if (priv_key_filepath == NULL) {
+	priv_key_filepath_length = keypair_directory_length + keypair_filename_length + priv_key_pem_suffix_length + 1;
+	priv_key_filepath = malloc((priv_key_filepath_length) * sizeof(WCHAR));
+	if (NULL == priv_key_filepath) {
 		printf("\tError: cannot allocate memory.\n");
 		goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
 	}
-	pub_key_filepath = malloc((keypair_directory_length + keypair_filename_length + pub_key_pem_suffix_length + 1) * sizeof(WCHAR));
-	if (pub_key_filepath == NULL) {
+	pub_key_filepath_length = (keypair_directory_length + keypair_filename_length + pub_key_pem_suffix_length + 1);
+	pub_key_filepath = malloc(pub_key_filepath_length *sizeof(WCHAR));
+	if (NULL == pub_key_filepath) {
 		printf("\tError: cannot allocate memory.\n");
 		goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
 	}
@@ -443,14 +448,13 @@ void newRSAKeypairMenu() {
 	//	goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
 	//}
 
-	wcscpy_s(priv_key_filepath, keypair_directory_length, keypair_directory);
-	wcscat_s(priv_key_filepath, keypair_filename_length, keypair_filename);
-	wcscat_s(priv_key_filepath, priv_key_pem_suffix_length, PRIV_KEY_PEM_SUFFIX);
+	wcscpy_s(priv_key_filepath, priv_key_filepath_length, keypair_directory);
+	wcscat_s(priv_key_filepath, priv_key_filepath_length, keypair_filename);
+	wcscat_s(priv_key_filepath, priv_key_filepath_length, PRIV_KEY_PEM_SUFFIX);
 
-	wcscpy_s(pub_key_filepath, keypair_directory_length, keypair_directory);
-	wcscat_s(pub_key_filepath, keypair_filename_length, keypair_filename);
-	wcscat_s(pub_key_filepath, pub_key_pem_suffix_length, PUB_KEY_PEM_SUFFIX);
-
+	wcscpy_s(pub_key_filepath, pub_key_filepath_length, keypair_directory);
+	wcscat_s(pub_key_filepath, pub_key_filepath_length, keypair_filename);
+	wcscat_s(pub_key_filepath, pub_key_filepath_length, PUB_KEY_PEM_SUFFIX);
 
 	if (ERROR_SUCCESS != generate_and_write_key(RSA_F4, KEY_BYTES_SIZE * 8, priv_key_filepath, pub_key_filepath, NULL)) { //&rsa_keypair)) {
 		printf("ERROR generating the keys\n");
