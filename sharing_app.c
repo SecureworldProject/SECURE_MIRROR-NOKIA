@@ -27,6 +27,9 @@
 #define MAX_LINK_LENGTH 500
 #define PRIV_KEY_PEM_SUFFIX L"_priv.pem"
 #define PUB_KEY_PEM_SUFFIX L"_pub.pem"
+#define UVA_FILE_VERSION 1
+#define UVA_TIME_FORMAT "%Y-%m-%d - %H:%M:%S"
+
 
 
 
@@ -35,10 +38,10 @@ void printMenuHelp();
 void decipherFileMenu();
 void uvaFileMenu();
 void newRSAKeypairMenu();
-void printQr(const uint8_t qrcode[]);
+//void printQr(const uint8_t qrcode[]);
 //void showQRDeepLink();
 int createDecipheredFileCopy(WCHAR* file_path);
-int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party);
+int createUvaFileCopy(WCHAR* file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party);
 
 
 
@@ -208,11 +211,13 @@ void decipherFileMenu() {
 void uvaFileMenu() {
 	WCHAR line[500] = { 0 };
 	time_t current_time = 0;
-	struct tm* time_info = NULL;
+	struct tm* current_time_info = NULL;
+	struct tm* time_info[2] = { NULL, NULL };
 	int integer_user_input = 0;
 	char formatted_time[22] = "";
 
 	WCHAR file_path[MAX_PATH] = { 0 };
+	size_t file_path_len = 0;
 	time_t allowed_visualization_period_begin = 0;
 	time_t allowed_visualization_period_end = 0;
 	struct ThirdParty* third_party = NULL;
@@ -224,38 +229,49 @@ void uvaFileMenu() {
 	printf("\n\tEnter the full path of the file from which you want to create a .uva file below.\n");
 	printf("\t--> ");
 	if (fgetws(file_path, MAX_PATH, stdin)) {		// fgets() ensures that string ends with '\0'
-		file_path[wcscspn(file_path, L"\n")] = L'\0';		// Remove trailing '\n'
+		//file_path[wcscspn(file_path, L"\n")] = L'\0';		// Remove trailing '\n'
+		file_path_len = wcscspn(file_path, L"\n");	// Returns the position of first '\n' or the length of the string if it is not contained
+		file_path[file_path_len] = L'\0';			// Remove trailing '\n' if exists
 		if (!PathFileExistsW(file_path)) {
-			printf("\tThe specified path does not exist.\n");
+			fprintf(stderr, "\tError: the specified path does not exist.\n");
 			return;
 		}
 		if (PathIsDirectoryW(file_path)) {
-			printf("\tThe specified path matches a directory not a file.\n");
+			fprintf(stderr, "\tError: the specified path matches a directory not a file.\n");
+			return;
+		}
+		if (0 != wcscmp(&(file_path[file_path_len - 4]), L".pdf")) {
+			fprintf(stderr, "\tError: the specified path does not match a .pdf file.\n");
 			return;
 		}
 	}
 
 	// Get current time
 	if (time(&current_time) == -1) {
-		printf("\tError while getting current time.\n");
+		fprintf(stderr, "\tError: could not retrieve current time.\n");
 		return;
 	}
+	current_time_info = localtime(&current_time);
 
 	// Get the allowed visualization period
 	for (size_t i = 0; i < 2; i++) {
-		time_info = localtime(&current_time);
-
-		strftime(formatted_time, 22, "%Y-%m-%d - %H:%M:%S", time_info);
-		printf("\n\tEnter the date %s which the file will be accesible. Skipped values default to current date/time (%s).\n", (i==0)?"from":"until", formatted_time);
+		time_info[i] = (struct tm*)malloc(1 * sizeof(struct tm));
+		if (NULL == time_info) {
+			fprintf(stderr, "\tError: could not allocate memory for the %s datetime.\n", (0 == i) ? "beginning" : "ending");
+			return;
+		}
+		memcpy(time_info[i], current_time_info, sizeof(struct tm));
+		strftime(formatted_time, 22, UVA_TIME_FORMAT, time_info[i]);
+		printf("\n\tEnter the date %s which the file will be accesible. Skipped values default to current date/time (%s).\n", (0 == i) ? "from" : "until", formatted_time);
 
 		// Get the year
 		printf("\t Year \t --> ");
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
-				time_info->tm_year = integer_user_input - 1900;
+				time_info[i]->tm_year = integer_user_input - 1900;
 			} else {
-				PRINT2("Value skipped, using current value %d.\n", time_info->tm_year + 1900);
+				PRINT2("Value skipped, using current value %d.\n", time_info[i]->tm_year + 1900);
 			}
 		}
 		// Get the month
@@ -263,9 +279,9 @@ void uvaFileMenu() {
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
-				time_info->tm_mon = integer_user_input - 1;
+				time_info[i]->tm_mon = integer_user_input - 1;
 			} else {
-				PRINT2("Value skipped, using current value %d.\n", time_info->tm_mon + 1);
+				PRINT2("Value skipped, using current value %d.\n", time_info[i]->tm_mon + 1);
 			}
 		}
 		// Get the day
@@ -273,9 +289,9 @@ void uvaFileMenu() {
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
-				time_info->tm_mday = integer_user_input;
+				time_info[i]->tm_mday = integer_user_input;
 			} else {
-				PRINT2("Value skipped, using current value %d.\n", time_info->tm_mday);
+				PRINT2("Value skipped, using current value %d.\n", time_info[i]->tm_mday);
 			}
 		}
 		// Get the hours
@@ -283,9 +299,9 @@ void uvaFileMenu() {
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
-				time_info->tm_hour = integer_user_input;
+				time_info[i]->tm_hour = integer_user_input;
 			} else {
-				PRINT2("Value skipped, using current value %d.\n", time_info->tm_hour);
+				PRINT2("Value skipped, using current value %d.\n", time_info[i]->tm_hour);
 			}
 		}
 		// Get the minutes
@@ -293,9 +309,9 @@ void uvaFileMenu() {
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
-				time_info->tm_min = integer_user_input;
+				time_info[i]->tm_min = integer_user_input;
 			} else {
-				PRINT2("Value skipped, using current value %d.\n", time_info->tm_min);
+				PRINT2("Value skipped, using current value %d.\n", time_info[i]->tm_min);
 			}
 		}
 		// Get the secconds
@@ -303,43 +319,66 @@ void uvaFileMenu() {
 		if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 			if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 				PRINT2("Detected the number %d.\n", integer_user_input);
-				time_info->tm_sec = integer_user_input;
+				time_info[i]->tm_sec = integer_user_input;
 			} else {
-				PRINT2("Value skipped, using current value %d.\n", time_info->tm_sec);
+				PRINT2("Value skipped, using current value %d.\n", time_info[i]->tm_sec);
 			}
 		}
+	}
 
-		// Fill weekday and day of the year and correct possible off-bound values in other fields (ie. tm_mon>11, tm_mday>31, etc.)
-		if (i == 0) allowed_visualization_period_begin = mktime(time_info);
-		if (i == 1) allowed_visualization_period_end = mktime(time_info);
+	// Fill weekday and day of the year and correct possible off-bound values in other fields (ie. tm_mon>11, tm_mday>31, etc.)
+	allowed_visualization_period_begin = mktime(time_info[0]);
+	allowed_visualization_period_end = mktime(time_info[1]);
+
+	// Check that values are valid
+	if (-1 == allowed_visualization_period_begin) {
+		fprintf(stderr, "\tError: the beginning of the allowed visualization period is not valid.\n");
+		return;
+	}
+	if (-1 == allowed_visualization_period_end) {
+		fprintf(stderr, "\tError: the ending of the allowed visualization period is not valid.\n");
+		return;
 	}
 
 	// Check that allowed_visualization_period ending is later than beginning
 	if (difftime(allowed_visualization_period_end, allowed_visualization_period_begin) <= 0) {
-		printf("\tError: the ending of the allowed visualization period must be a later time than the beginning.\n");
+		fprintf(stderr, "\tError: the ending of the allowed visualization period must be a later time than the beginning.\n");
 		return;
 	}
 
 	// Get the third party to share with
 	printf("\n\tSelect the third party you want to share the .uva file with:\n");
-	for (size_t i = 0; i < _msize(ctx.third_parties)/sizeof(struct ThirdParty*); i++) {
+	for (size_t i = 0; i < _msize(ctx.third_parties) / sizeof(struct ThirdParty*); i++) {
 		printf("\t  %llu) %s\n", i, ctx.third_parties[i]->id);
 	}
 	if (fgetws(line, MAX_INPUT_LENGTH, stdin)) {
 		if (1 == swscanf_s(line, L"%d", &integer_user_input)) {
 			if (integer_user_input < 0 || integer_user_input > _msize(ctx.third_parties) / sizeof(struct ThirdParty*)) {
-				printf("\tThere is no third party asigned to that number.\n");
+				fprintf(stderr, "\tError: there is no third party asigned to that number.\n");
 				return;
 			}
+			third_party = ctx.third_parties[integer_user_input];
 		}
 	}
+	if (NULL == third_party) {
+		fprintf(stderr, "\tError: the third party is NULL.\n");
+		return;
+	}
 
-	printf("\tThe .uva file is being created...\n");
+	PRINT1("The .uva file is being created with the following information:\n");
+	PRINT2("- Version:             %d\n", UVA_FILE_VERSION);
+	strftime(formatted_time, 22, UVA_TIME_FORMAT, time_info[0]);
+	PRINT2("- Access period start: %s\n", formatted_time);
+	strftime(formatted_time, 22, UVA_TIME_FORMAT, time_info[1]);
+	PRINT2("- Access period end:   %s\n", formatted_time);
+	PRINT2("- Third party:         %s\n", third_party->id);
+	PRINT2("- File payload:        '%ws'\n", file_path);
+	PRINT("\n");
 
-	result = createUvaFileCopy(file_path, allowed_visualization_period_begin, allowed_visualization_period_end, third_party);
+	result = createUvaFileCopy(file_path, time_info[0], time_info[1], third_party);
 
 	if (result != 0) {
-		printf("\tThere was an error while trying to create the .uva file. (errcode: %d)\n", result);
+		fprintf(stderr, "\tError: there was an error while trying to create the .uva file. (errcode: %d)\n", result);
 		// Possible error: specify that only .pdf files can be transformed into .uva
 	} else {
 		printf("\tThe .uva file was successfully created.\n");
@@ -417,7 +456,7 @@ void newRSAKeypairMenu() {
 		printf("\t--> ");
 		if (fgetws(keypair_filename, (MAX_PATH - keypair_directory_length), stdin)) {		// fgets() ensures that string ends with '\0'
 			keypair_filename_length = wcscspn(keypair_filename, L"\n");	// Returns the position of first '\n' or the length of the string if it is not contained
-			keypair_filename[wcscspn(keypair_filename, L"\n")] = L'\0';		// Remove trailing '\n' if exists
+			keypair_filename[keypair_filename_length] = L'\0';			// Remove trailing '\n' if exists
 
 			if (MAX_PATH <= keypair_directory_length + keypair_filename_length + priv_key_pem_suffix_length) {
 				printf("\tThe specified path is too long to append %ws.\n", PRIV_KEY_PEM_SUFFIX);
@@ -491,18 +530,18 @@ NEW_RSA_KEY_PAIR_MENU_CLEANUP:
 *		The QR code (in uint8_t array format) to be printed.
 * @return
 **/
-void printQr(const uint8_t qrcode[]) {
-	int size = qrcodegen_getSize(qrcode);
-	int border = 4;
-	char str_filled_block[2] = { 219, 219 };
-	for (int y = -border; y < size + border; y++) {
-		for (int x = -border; x < size + border; x++) {
-			fputs((qrcodegen_getModule(qrcode, x, y) ? str_filled_block : "  "), stdout);
-		}
-		fputs("\n", stdout);
-	}
-	fputs("\n", stdout);
-}
+//void printQr(const uint8_t qrcode[]) {
+//	int size = qrcodegen_getSize(qrcode);
+//	int border = 4;
+//	char str_filled_block[2] = { 219, 219 };
+//	for (int y = -border; y < size + border; y++) {
+//		for (int x = -border; x < size + border; x++) {
+//			fputs((qrcodegen_getModule(qrcode, x, y) ? str_filled_block : "  "), stdout);
+//		}
+//		fputs("\n", stdout);
+//	}
+//	fputs("\n", stdout);
+//}
 
 /**
 * Creates and shows in the console the QR code generated from the necessary data (API key, client ID, app ID, etc.)
@@ -791,9 +830,9 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 *
 * @param WCHAR* file_path
 *		The full path of the original file (e.g.: "M:/OpticFiber/Datasheet.pdf").
-* @param time_t allowed_visualization_period_begin
+* @param struct tm* access_period_start
 *		Date and time of the beginning of the allowed visualization period.
-* @param time_t allowed_visualization_period_end
+* @param struct tm* access_period_end
 *		Date and time of the end of the allowed visualization period.
 * @param struct ThirdParty* third_party
 *		The struct containing information (including the public key) of the third party with which the file will be shared.
@@ -801,7 +840,7 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 * @return int
 *		0 if everything is ok, other value if not.
 **/
-int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begin, time_t allowed_visualization_period_end, struct ThirdParty* third_party) {
+int createUvaFileCopy(WCHAR* file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party) {
 	printf("\t TO DO\n");
 	// This function will:
 	// - Check the file is a ".pdf" file.
@@ -810,7 +849,7 @@ int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begi
 	//     - Look for the public RSA key of the third party and read it
 	//     - Create a random key of 8 Bytes (=64 bits) for pdf ciphering
 	//     - Create a 0-filled buffer of 470 bytes. This will become 512 Bytes (= uva header size) when ciphered with RSA
-	//     - Write a uva version number to the buffer
+	//     - Write a uva version number to the buffer (UVA_FILE_VERSION)
 	//     - Write the file ciphering key to the buffer
 	//     - Write the allowed visualization frame to the buffer
 	//     - The rest of the buffer is left as is (with 0s)
@@ -820,5 +859,8 @@ int createUvaFileCopy(WCHAR* file_path, time_t allowed_visualization_period_begi
 	// - Read the original file and call decipher() followed by cipherTP() for all the content while writting to the ".uva" file.
 	// - Add blockchain traces
 	// - If everything goes well, returns 0. In case something goes wrong, removes newly created file and returns -1.
+
+
+
 	return 0;
 }

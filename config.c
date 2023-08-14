@@ -711,10 +711,10 @@ static void processThirdParty(int index, json_value* value, int depth) {
 			} // else --> The pointer is null because it was not possible to allocate memory
 		}
 
-		else if (strcmp(value->u.object.values[i].name, "Key") == 0) {
-			ctx.third_parties[index]->key = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
-			if (ctx.third_parties[index]->key) {
-				strcpy(ctx.third_parties[index]->key, value->u.object.values[i].value->u.string.ptr);
+		else if (strcmp(value->u.object.values[i].name, "KeyFile") == 0) {
+			ctx.third_parties[index]->key_file = (char*)malloc(sizeof(char) * ((value->u.object.values[i].value->u.string.length) + 1));
+			if (ctx.third_parties[index]->key_file) {
+				strcpy(ctx.third_parties[index]->key_file, value->u.object.values[i].value->u.string.ptr);
 			} // else --> The pointer is null because it was not possible to allocate memory
 		}
 	}

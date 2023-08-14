@@ -227,7 +227,7 @@ extern "C" {
 	struct ThirdParty {
 		char* id;
 		struct Cipher* cipher;
-		char* key;
+		char* key_file;
 	};
 
 	#pragma endregion
@@ -354,7 +354,7 @@ extern "C" {
 			PRINT1("Third Party:\n");
 			PRINT2("Id: %s \n", ctx.third_parties[i]->id);
 			PRINT2("Cipher: %s \n", ctx.third_parties[i]->cipher->id);
-			PRINT2("Key: '%s' \n", ctx.third_parties[i]->key);
+			PRINT2("Key file: '%s' \n", ctx.third_parties[i]->key_file);
 		}
 
 		PRINT("\n");
