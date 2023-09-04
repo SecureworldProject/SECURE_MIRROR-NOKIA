@@ -15,8 +15,7 @@
 
 
 /////  FUNCTION PROTOTYPES  /////
-RSA* read_public_key(const char* public_key_filename);
-RSA* read_private_key(const char* private_key_filename);
+RSA* readPrivateKey(const char* private_key_filename);
 
 
 
@@ -31,7 +30,7 @@ RSA* read_private_key(const char* private_key_filename);
 //     public_key_filename: "public_key"
 //     rsa_key_to_return: if it is NULL, it is not used. If not, if it filled with a pointer to the RSA keypair.
 // Returns 0 if OK. Other value if an error ocurred
-int generate_and_write_key(unsigned long public_exponent, int key_bitsize, const WCHAR* private_key_filename, const WCHAR* public_key_filename, RSA** rsa_key_to_return) {
+int generateAndWriteKey(unsigned long public_exponent, int key_bitsize, const WCHAR* private_key_filename, const WCHAR* public_key_filename, RSA** rsa_key_to_return) {
 	int ret = 0;
 	int error = ERROR_SUCCESS;
 	RSA* rsa_keypair = NULL;
@@ -129,7 +128,7 @@ GEN_KEY_CLEANUP:
 }
 
 // Reads a public key. The returned pointer must be freed after use with "RSA_free()"
-RSA* read_public_key(const char* public_key_filename) {
+RSA* readPublicKey(const char* public_key_filename) {
 	int ret = 0;
 
 	RSA* rsa_key = NULL;
@@ -150,7 +149,7 @@ RSA* read_public_key(const char* public_key_filename) {
 }
 
 // Reads a private key. The returned pointer must be freed after use with "RSA_free()"
-RSA* read_private_key(const char* private_key_filename) {
+RSA* readPrivateKey(const char* private_key_filename) {
 	int ret = 0;
 
 	RSA* rsa_key = NULL;
@@ -191,11 +190,11 @@ int example() {
 	size_t result = 0;
 
 	RSA* rsa_keypair = (RSA*)malloc(1 * sizeof(RSA*));
-	if (ERROR_SUCCESS != generate_and_write_key(RSA_F4, KEY_BYTES_SIZE * 8, priv_key_filename, pub_key_filename, &rsa_keypair)) {
+	if (ERROR_SUCCESS != generateAndWriteKey(RSA_F4, KEY_BYTES_SIZE * 8, priv_key_filename, pub_key_filename, &rsa_keypair)) {
 		printf("ERROR...\n");
 	}
 
-	/*rsa_pub_key = read_public_key(pub_key_filename);
+	/*rsa_pub_key = readPublicKey(pub_key_filename);
 	if (NULL == rsa_pub_key) {
 		printf("ERROR: could not read pub key (%s)\n", pub_key_filename);
 		return 1;

@@ -54,6 +54,7 @@ DWORD getFileSize(uint64_t* file_size, HANDLE handle, WCHAR* file_path);
 void invokeCipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn);
 void invokeDecipher(struct Cipher* p_cipher, LPVOID dst_buf, LPCVOID src_buf, DWORD buf_size, size_t offset, struct KeyData* composed_key, uint32_t frn);
 uint32_t createFRN();
+void getRandom(uint8_t* buffer, int buf_size);
 
 int8_t mark(uint8_t* input, int8_t level, uint32_t frn);
 int8_t unmark(uint8_t* input, uint32_t* frn);

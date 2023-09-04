@@ -30,7 +30,8 @@
 
 
 /////  FUNCTION PROTOTYPES  /////
-int generate_and_write_key(unsigned long public_exponent, int key_bitsize, const char* private_key_filename, const char* public_key_filename, RSA** rsa_key_to_return);
+int generateAndWriteKey(unsigned long public_exponent, int key_bitsize, const WCHAR* private_key_filename, const WCHAR* public_key_filename, RSA** rsa_key_to_return);
+RSA* readPublicKey(const char* public_key_filename);
 
 
 

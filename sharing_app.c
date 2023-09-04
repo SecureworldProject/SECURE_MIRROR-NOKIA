@@ -28,7 +28,10 @@
 #define PRIV_KEY_PEM_SUFFIX L"_priv.pem"
 #define PUB_KEY_PEM_SUFFIX L"_pub.pem"
 #define UVA_FILE_VERSION 1
-#define UVA_TIME_FORMAT "%Y-%m-%d - %H:%M:%S"
+#define DATETIME_FORMAT "%Y-%m-%d - %H:%M:%S"
+#define DATETIME_FORMAT_SIZE 22		// 4+1+2+1+2 +3+ 2+1+2+1+2 +1 for the '\0'
+#define DATE_FORMAT "%d/%m/%Y"
+#define DATE_FORMAT_SIZE 11			// 2+1+2+1+4 +1 for the '\0'
 
 
 
@@ -41,8 +44,9 @@ void newRSAKeypairMenu();
 //void printQr(const uint8_t qrcode[]);
 //void showQRDeepLink();
 int createDecipheredFileCopy(WCHAR* file_path);
-int createUvaFileCopy(WCHAR* file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party);
-
+int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party);
+void setBlockchainTrace(const char* trace);
+void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_size, uint64_t pdf_key);
 
 
 
@@ -205,6 +209,7 @@ void decipherFileMenu() {
 
 /**
 * Starts a text-based dialog with the user to gather all the necessary information to make a .uva copy of a .pdf file.
+* Note: the resulting .uva file will allways be in a ciphering lvl of -1. This is not operative-dependant.It is assumed that pulling the file out of the system will cipher it.
 *
 * @return
 **/
@@ -214,9 +219,9 @@ void uvaFileMenu() {
 	struct tm* current_time_info = NULL;
 	struct tm* time_info[2] = { NULL, NULL };
 	int integer_user_input = 0;
-	char formatted_time[22] = "";
+	char formatted_time[DATETIME_FORMAT_SIZE] = "";
 
-	WCHAR file_path[MAX_PATH] = { 0 };
+	WCHAR* file_path = NULL;
 	size_t file_path_len = 0;
 	time_t allowed_visualization_period_begin = 0;
 	time_t allowed_visualization_period_end = 0;
@@ -225,6 +230,11 @@ void uvaFileMenu() {
 
 	printf("\n\tYou have entered the .uva creation option.\n");
 
+	file_path = malloc(MAX_PATH * sizeof(WCHAR));
+	if (NULL == file_path) {
+		fprintf(stderr, "\tError: could not allocate space for the path.\n");
+		return;
+	}
 	// Get the path
 	printf("\n\tEnter the full path of the file from which you want to create a .uva file below.\n");
 	printf("\t--> ");
@@ -244,6 +254,8 @@ void uvaFileMenu() {
 			fprintf(stderr, "\tError: the specified path does not match a .pdf file.\n");
 			return;
 		}
+		// TO DO: ENSURE THE PATH IS WRITTEN WITH A LETTER FROM THE SET OF MIRRORED FOLDERS
+		// This way the function createUvaFileCopy can just check the letter on the path to know the corresponding key and protections
 	}
 
 	// Get current time
@@ -261,7 +273,7 @@ void uvaFileMenu() {
 			return;
 		}
 		memcpy(time_info[i], current_time_info, sizeof(struct tm));
-		strftime(formatted_time, 22, UVA_TIME_FORMAT, time_info[i]);
+		strftime(formatted_time, DATETIME_FORMAT_SIZE, DATETIME_FORMAT, time_info[i]);
 		printf("\n\tEnter the date %s which the file will be accesible. Skipped values default to current date/time (%s).\n", (0 == i) ? "from" : "until", formatted_time);
 
 		// Get the year
@@ -367,9 +379,9 @@ void uvaFileMenu() {
 
 	PRINT1("The .uva file is being created with the following information:\n");
 	PRINT2("- Version:             %d\n", UVA_FILE_VERSION);
-	strftime(formatted_time, 22, UVA_TIME_FORMAT, time_info[0]);
+	strftime(formatted_time, DATETIME_FORMAT_SIZE, DATETIME_FORMAT, time_info[0]);
 	PRINT2("- Access period start: %s\n", formatted_time);
-	strftime(formatted_time, 22, UVA_TIME_FORMAT, time_info[1]);
+	strftime(formatted_time, DATETIME_FORMAT_SIZE, DATETIME_FORMAT, time_info[1]);
 	PRINT2("- Access period end:   %s\n", formatted_time);
 	PRINT2("- Third party:         %s\n", third_party->id);
 	PRINT2("- File payload:        '%ws'\n", file_path);
@@ -495,7 +507,7 @@ void newRSAKeypairMenu() {
 	wcscat_s(pub_key_filepath, pub_key_filepath_length, keypair_filename);
 	wcscat_s(pub_key_filepath, pub_key_filepath_length, PUB_KEY_PEM_SUFFIX);
 
-	if (ERROR_SUCCESS != generate_and_write_key(RSA_F4, KEY_BYTES_SIZE * 8, priv_key_filepath, pub_key_filepath, NULL)) { //&rsa_keypair)) {
+	if (ERROR_SUCCESS != generateAndWriteKey(RSA_F4, KEY_BYTES_SIZE * 8, priv_key_filepath, pub_key_filepath, NULL)) { //&rsa_keypair)) {
 		printf("ERROR generating the keys\n");
 		goto NEW_RSA_KEY_PAIR_MENU_CLEANUP;
 	}
@@ -605,6 +617,7 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 
 	LARGE_INTEGER distance_to_move = { 0 };
 
+	char blockchain_trace[300] = "";
 	DWORD error_code = ERROR_SUCCESS;
 	DWORD result = ERROR_SUCCESS;
 
@@ -670,7 +683,7 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 	// Make sure read handle points to the beginning of the file
 	if (!SetFilePointerEx(read_file_handle, distance_to_move, NULL, FILE_BEGIN)) {
 		error_code = GetLastError();
-		fprintf(stderr, "ERROR in createDecipheredFileCopy: read handle seeking position FILE_BEGIN (error=%lu)\n", error_code);
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: read handle seeking position FILE_BEGIN (error = %lu)\n", error_code);
 		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
@@ -702,7 +715,7 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 	// Make sure write handle points to the beginning of the file
 	if (!SetFilePointerEx(write_file_handle, distance_to_move, NULL, FILE_BEGIN)) {
 		error_code = GetLastError();
-		fprintf(stderr, "ERROR in createDecipheredFileCopy: write handle seeking position FILE_BEGIN (error=%lu)\n", error_code);
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: write handle seeking position FILE_BEGIN (error = %lu)\n", error_code);
 		goto DECIPHERED_FILE_COPY_CLEANUP;
 	}
 
@@ -800,6 +813,10 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 		}
 	}
 
+	// Register the potentially harmful operation in blockchain
+	sprintf_s(blockchain_trace, 300, "New unprotected file created (%ws)", file_path_write);
+	setBlockchainTrace(blockchain_trace);
+
 
 	// Make sure of freeing everything before leaving the function
 	DECIPHERED_FILE_COPY_CLEANUP:
@@ -826,7 +843,9 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 }
 
 /**
-* If the input file is a .pdf, creates a .uva version of the file given as parameter as saves it in the same path but changing the extension to ".uva".
+* Assummes the file provided is a .pdf, the time structs are correct, and the third party is a valid pointer.
+* Creates a .uva version of the file with the corresponding data and saves it in the same path but changing the extension to ".uva".
+* If some error occurs during this function, the uva file is deleted.
 *
 * @param WCHAR* file_path
 *		The full path of the original file (e.g.: "M:/OpticFiber/Datasheet.pdf").
@@ -840,27 +859,513 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 * @return int
 *		0 if everything is ok, other value if not.
 **/
-int createUvaFileCopy(WCHAR* file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party) {
-	printf("\t TO DO\n");
+int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party) {
 	// This function will:
-	// - Check the file is a ".pdf" file.
 	// - Create a file in the same path changing the extension to ".uva".
 	// - Fill the .uva header with necessary metadata.
-	//     - Look for the public RSA key of the third party and read it
+	//     - Check that the public RSA key file of the third party exists
+	//     - Read the public RSA key of the third party
 	//     - Create a random key of 8 Bytes (=64 bits) for pdf ciphering
 	//     - Create a 0-filled buffer of 470 bytes. This will become 512 Bytes (= uva header size) when ciphered with RSA
-	//     - Write a uva version number to the buffer (UVA_FILE_VERSION)
-	//     - Write the file ciphering key to the buffer
+	//     - Write the uva version number (UVA_FILE_VERSION) to the buffer
+	//     - Write the pdf-ciphering key to the buffer
 	//     - Write the allowed visualization frame to the buffer
 	//     - The rest of the buffer is left as is (with 0s)
 	//     - Cipher the buffer with the public RSA key previously read
 	//     - Ensure new ciphered buffer length is 512 Bytes (= uva header size)
-	//     - Write the new ciphered buffer to the .uva file
-	// - Read the original file and call decipher() followed by cipherTP() for all the content while writting to the ".uva" file.
-	// - Add blockchain traces
-	// - If everything goes well, returns 0. In case something goes wrong, removes newly created file and returns -1.
+	//     - Get the protections associated to the file path and compose the key
+	//     - Decrypt the header buffer with the folder protections
+	//     - Mark the header buffer with the lvl (-1) and frn
+	//     - Write the final uva header buffer (folder-deciphered and previously RSA-ciphered) to the .uva file
+	// - Open pdf file
+	// - Get pdf file size
+	// - Ensure that the read handle points to the beginning of the file (maybe getting file size could have moved it?)
+	// - Allocate read, ciphering and write buffers
+	// - Process the pdf file in chunks (of READ_BUF_SIZE bytes) until all the file is processed
+	//     - Read the pdf file
+	//     - Ensure that pdf file is cleartext
+	//     - Cipher chunk with the pdf key
+	//     - Decipher chunk with the folder key
+	//     - Append the result to the ".uva" file and check all the bytes read from this iteration have been written
+	// - Register the potentially harmful operation in blockchain
+	// - Clear the buffers and close the handles used. In the case that something went wrong, remove the uva file (if created)
+	// Note: if everything goes well, returns 0. In case something goes wrong, removes newly created file and returns an error code.
 
 
+	size_t file_path_len = 0;
+	WCHAR* uva_file_path = NULL;
+	HANDLE write_file_handle = NULL;
+	uint8_t* rand_buf = NULL;
+	uint64_t pdf_key = 0;
+	RSA* rsa_pub_key = NULL;
+
+	uint8_t* cleartext_header_buf = NULL;
+	size_t cleartext_header_buf_size = KEY_BYTES_SIZE - PADDING_BYTES_SIZE; //512-42 = 470
+	uint8_t* encrypted_header_buf = NULL;
+	size_t encrypted_header_buf_size = 0;
+	uint8_t* final_uva_header_buf = NULL;
+	size_t final_uva_header_buf_size = 0;
+	uint8_t* extra_header_buf = NULL;
+	size_t extra_header_buf_size = 0;
+
+	struct Protection* protection = NULL;
+	struct KeyData* composed_key = NULL;
+	int8_t mark_lvl = 0;
+	uint32_t frn = 0;
+
+	char* formatted_date = NULL;
+
+	HANDLE read_file_handle = INVALID_HANDLE_VALUE;
+	size_t file_size = 0;
+	LARGE_INTEGER distance_to_move = { 0 };
+
+	LPVOID read_buf = NULL;
+	LPVOID ciph_buf = NULL;
+	LPVOID write_buf = NULL;
+	DWORD rw_buf_size = 0;
+	DWORD bytes_read = 0;
+	DWORD bytes_written = 0;
+	uint32_t unsused_frn = 0;
+
+
+	char blockchain_trace[300] = "";
+	size_t result = 0;
+	DWORD err_code = ERROR_SUCCESS;
+
+
+	printf("\n\t ----------------------------------\n");
+	printf("\t THIS IS A WORK IN PROGRESS FEATURE\n");
+	printf("\n\t ----------------------------------\n");
+
+	// Create the uva path (same as the pdf but different extension)
+	file_path_len = wcslen(pdf_file_path);
+	PRINT("00000000000000aaaaaaaaaaaaa wcslen = %llu\n", file_path_len);
+
+	uva_file_path = malloc((file_path_len + 1) * sizeof(WCHAR));	// +1 for '\0'
+	if (NULL == uva_file_path) {
+		fprintf(stderr, "ERROR: could not allocate space for the uva file path\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	wcscpy_s(uva_file_path, file_path_len + 1, pdf_file_path);
+	wcscpy_s(&(uva_file_path[file_path_len - 3]), 4, L"uva");
+	PRINT("11111111111111111aaaaaaaaaa uva_file_path='%ws'\n", uva_file_path);
+
+	// Create a file in the same path changing the extension to ".uva".
+
+	write_file_handle = CreateFileW(uva_file_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (NULL == write_file_handle) {
+		fprintf(stderr, "ERROR: could not create the empty uva file\n");
+		err_code = ERROR_OPEN_FAILED;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("aaaaaaaaaaaaaaaaaaaaaaaaaaaa\n");
+
+	// Check that the public RSA key file of the third party exists
+	FILE* tmp_file;
+	PRINT("aaaaaaaaaaaaaaaaaaaaaaaaaa third_party->key_file='%s'\n", third_party->key_file);
+	tmp_file = fopen(third_party->key_file, "r");
+	if (NULL == tmp_file) {
+		fprintf(stderr, "ERROR: the RSA key file does not exist\n");
+		err_code = ERROR_OPEN_FAILED;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	fclose(tmp_file);
+	PRINT("bbbbbbbbbbbbbbbbbbbbbbbbbbb\n");
+
+
+	// Read the public RSA key of the third party
+	rsa_pub_key = readPublicKey(third_party->key_file);
+	if (NULL == rsa_pub_key) {
+		printf("ERROR: could not read pub key (%s)\n", third_party->key_file);
+		err_code = ERROR_READ_FAULT;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("File with public key read.\n");
+#pragma warning(suppress : 4996)
+	PRINT("RSA_size: %d\n", RSA_size(rsa_pub_key));
+	PRINT("ccccccccccccccccccccccccccc\n");
+
+
+	// Create a random key of 8 Bytes (=64 bits) for pdf ciphering
+	printf("\nWARNING: ASSUMMING A 64-BIT SYSTEM FROM THIS POINT\n\n");
+	rand_buf = malloc(8 * sizeof(uint8_t));
+	if (NULL == rand_buf) {
+		fprintf(stderr, "ERROR: could not allocate space for the random key\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	getRandom(rand_buf, 8);
+	pdf_key = (
+		((uint64_t)rand_buf[0]) << 56 |
+		((uint64_t)rand_buf[1]) << 48 |
+		((uint64_t)rand_buf[2]) << 40 |
+		((uint64_t)rand_buf[3]) << 32 |
+		((uint64_t)rand_buf[4]) << 24 |
+		((uint64_t)rand_buf[5]) << 16 |
+		((uint64_t)rand_buf[6]) << 8 |
+		((uint64_t)rand_buf[7])
+		);
+	PRINT("dddddddddddddddddddddddddd\n");
+
+
+	// Create a 0-filled buffer of 470 bytes. This will become 512 Bytes (= uva header size) when ciphered with RSA
+	cleartext_header_buf = (uint8_t*)calloc(cleartext_header_buf_size, sizeof(uint8_t));
+	if (NULL == cleartext_header_buf) {
+		fprintf(stderr, "ERROR: could not allocate space for the uva file header\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("eeeeeeeeeeeeeeeeeeeeeeeee\n");
+
+
+	// Write the uva version number (UVA_FILE_VERSION) to the buffer
+	cleartext_header_buf[0] = (uint8_t)UVA_FILE_VERSION;
+
+
+	// Write the pdf-ciphering key to the buffer
+	cleartext_header_buf[1] = rand_buf[0];
+	cleartext_header_buf[2] = rand_buf[1];
+	cleartext_header_buf[3] = rand_buf[2];
+	cleartext_header_buf[4] = rand_buf[3];
+	cleartext_header_buf[5] = rand_buf[4];
+	cleartext_header_buf[6] = rand_buf[5];
+	cleartext_header_buf[7] = rand_buf[6];
+	cleartext_header_buf[8] = rand_buf[7];
+
+	PRINT("fffffffffffffffffffffffffff\n");
+
+	// Write the allowed visualization frame to the buffer
+	formatted_date = malloc(DATE_FORMAT_SIZE * sizeof(uint8_t));
+	if (NULL == formatted_date) {
+		fprintf(stderr, "ERROR: could not allocate space for formatting the date\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	strftime(formatted_date, DATE_FORMAT_SIZE, DATE_FORMAT, access_period_start);
+	strcpy(&(cleartext_header_buf[9]), formatted_date);
+
+	PRINT("ggggggggggggggggggggggggggg\n");
+
+	// The rest of the buffer is left as is (with 0s)
+	// DO NOTHING because space was allocated with calloc() function, which already fills with zeros
+
+
+	// Cipher the buffer with the public RSA key previously read
+#pragma warning(suppress : 4996)
+	encrypted_header_buf = (unsigned char*)malloc(RSA_size(rsa_pub_key));
+	if (NULL == encrypted_header_buf) {
+		fprintf(stderr, "ERROR: could not allocate space for the RSA-encrypted uva file header\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+#pragma warning(suppress : 4996)
+	encrypted_header_buf_size = RSA_public_encrypt(cleartext_header_buf_size, cleartext_header_buf, encrypted_header_buf, rsa_pub_key, RSA_PKCS1_OAEP_PADDING); //RSA_NO_PADDING);
+	if (-1 == encrypted_header_buf_size) {
+		err_code = ERR_get_error();
+		printf("ERROR: could not encrypt the uva header with the RSA key --> %s\n", ERR_error_string(err_code, NULL));
+		err_code = -1;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("hhhhhhhhhhhhhhhhhhhhhhhhh\n");
+
+
+	// Ensure new ciphered buffer length is 512 Bytes (= uva header size)
+	if (KEY_BYTES_SIZE != encrypted_header_buf_size) {
+		printf("ERROR: encrypted_header_buf_size must always be %d\n", KEY_BYTES_SIZE);
+		err_code = -2;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("iiiiiiiiiiiiiiiiiiiiiiii\n");
+
+
+	// Get the protections associated to the file path and compose the key
+	PRINT("iiiiiiiiiiiiiiiiii uva_file_path='%ws'\n", uva_file_path == NULL ? L"NULL" : uva_file_path);
+	PRINT("iiiiiiiiiiiiiiiiii pdf_file_path='%ws'\n", pdf_file_path);
+	PRINT("iiiiiiiiii third_party->key_file='%s'\n", third_party->key_file);
+	protection = getProtectionFromFilePath(pdf_file_path);
+	if (protection == NULL) {
+		fprintf(stderr, "ERROR: could not get protection associated to the path.\n");
+		err_code = -3;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	composed_key = protection->key;
+	result = makeComposedKey(protection->challenge_groups, composed_key);
+	if (0 != result) {
+		fprintf(stderr, "ERROR: could not compose the key for deciphering (%llu)\n", result);
+		err_code = -4;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("jjjjjjjjjjjjjjjjjjjjjjjjj\n");
+
+
+	// Decrypt the header buffer with the folder protections
+	final_uva_header_buf_size = encrypted_header_buf_size; // The "folder/challenges" decryption does not change size, so it will stay 512 Bytes
+	final_uva_header_buf = malloc(final_uva_header_buf_size);
+	if (NULL == final_uva_header_buf) {
+		fprintf(stderr, "ERROR: could not allocate space for the folder-decrypted, RSA-encrypted uva file header\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT_HEX(encrypted_header_buf, encrypted_header_buf_size);
+	frn = createFRN();
+	invokeDecipher(protection->cipher, final_uva_header_buf, encrypted_header_buf, encrypted_header_buf_size, MARK_LENGTH, protection->key, frn);
+	PRINT("kkkkkkkkkkkkkkkkkkkkkkkkk\n");
+	PRINT("kkkkkkkkkkkkkkkkkkkkkkkkk encrypted_header_buf_size=%llu \n", encrypted_header_buf_size);
+
+
+	///// This part was changed becaused it was not possible to mark the ciphered buffer due to high entropy /////
+	// Mark the header buffer with the lvl (-1) and frn.
+	/*
+	PRINT_HEX(final_uva_header_buf, final_uva_header_buf_size);
+	mark_lvl = mark(final_uva_header_buf, -1, frn);
+	if (-1 != mark_lvl) {
+		fprintf(stderr, "ERROR: could not mark the folder-decrypted, RSA-encrypted uva file header. mark_lvl=%d\n", mark_lvl);
+		err_code = -5;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	*/
+
+	// Create an extra buffer with no info that can be marked. It was not possible to mark the ciphered buffer due to high entropy created by the RSA ciphering
+	extra_header_buf_size = MARK_LENGTH;
+	extra_header_buf = calloc(extra_header_buf_size, sizeof(uint8_t));
+	if (NULL == final_uva_header_buf) {
+		fprintf(stderr, "ERROR: could not allocate space for the markable extra header buffer for the uva file header\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT_HEX(extra_header_buf, extra_header_buf_size);
+	mark_lvl = mark(extra_header_buf, -1, frn);
+	if (-1 != mark_lvl) {
+		fprintf(stderr, "ERROR: could not mark the folder-decrypted, RSA-encrypted uva file header. mark_lvl=%d\n", mark_lvl);
+		err_code = -5;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("lllllllllllllllllllllllll\n");
+
+
+	// Write wextra header buffer
+	WriteFile(write_file_handle, extra_header_buf, extra_header_buf_size, &bytes_written, NULL);
+	if (MARK_LENGTH != bytes_written) {
+		printf("ERROR: could not write the expected %d bytes (%lu were written)\n", MARK_LENGTH, bytes_written);
+		err_code = ERROR_WRITE_FAULT;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+
+
+	// Write the final uva header buffer (folder-deciphered and previously RSA-ciphered) to the .uva file
+	WriteFile(write_file_handle, final_uva_header_buf, final_uva_header_buf_size, &bytes_written, NULL);
+	if (KEY_BYTES_SIZE != bytes_written) {
+		printf("ERROR: could not write the expected %d bytes (%lu were written)\n", KEY_BYTES_SIZE, bytes_written);
+		err_code = ERROR_WRITE_FAULT;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+
+	PRINT("mmmmmmmmmmmmmmmmmmmmmmmmm\n");
+
+	// Open pdf file
+	read_file_handle = CreateFileW(pdf_file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+	if (NULL == read_file_handle || INVALID_HANDLE_VALUE == read_file_handle) {
+		err_code = GetLastError();
+		fprintf(stderr, "ERROR: could not create handle (error = %lu)\n", err_code);
+		err_code = ERROR_OPEN_FAILED;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("nnnnnnnnnnnnnnnnnnnnnnnnn\n");
+
+	// Get pdf file size
+	err_code = getFileSize(&file_size, read_file_handle, pdf_file_path);
+	if (0 != err_code) {
+		fprintf(stderr, "ERROR: could not get file size (error = %lu)\n", err_code);
+		err_code = ERROR_READ_FAULT;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	if (0 == file_size) {
+		PRINT("File size is 0\n");
+		err_code = -6;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("ooooooooooooooooooooooooo\n");
+
+	// Ensure that the read handle points to the beginning of the file (maybe getting file size could have moved it?)
+	if (!SetFilePointerEx(read_file_handle, distance_to_move, NULL, FILE_BEGIN)) {
+		err_code = GetLastError();
+		fprintf(stderr, "ERROR: could not set read handle pointer to position FILE_BEGIN (error = %lu)\n", err_code);
+		err_code = -7;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("pppppppppppppppppppppppppp\n");
+
+	// Allocate read, ciphering and write buffers
+	rw_buf_size = (DWORD)MIN(READ_BUF_SIZE, file_size);
+	read_buf = malloc(rw_buf_size * sizeof(byte));
+	if (read_buf == NULL) {
+		fprintf(stderr, "ERROR: could not allocate memory for reading buffer.\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	ciph_buf = malloc(rw_buf_size * sizeof(byte));
+	if (ciph_buf == NULL) {
+		fprintf(stderr, "ERROR: could not allocate memory for the pdf-ciphered buffer.\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	write_buf = malloc(rw_buf_size * sizeof(byte));
+	if (write_buf == NULL) {
+		fprintf(stderr, "ERROR: could not allocate memory for writing buffer.\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto CREATE_UVA_FILE_COPY_CLEANUP;
+	}
+	PRINT("qqqqqqqqqqqqqqqqqqqqqqqqqqq\n");
+
+
+	// - Iterate enough times to process all the file
+	//     - Read original file
+	//     - Ensure that pdf file is cleartext
+	//     - Cipher chunk with the pdf key
+	//     - Decipher chunk with the folder key.
+	//     - Append the result to the ".uva" file.
+	for (size_t i = 0; i < 1 + (size_t)(file_size / READ_BUF_SIZE); i++) {
+		// Read the pdf file
+		if (!ReadFile(
+			read_file_handle,
+			read_buf,
+			rw_buf_size,
+			&bytes_read,
+			NULL)
+			) {
+			fprintf(stderr, "ERROR: trying to read the original file\n");
+			err_code = ERROR_READ_FAULT;
+			goto CREATE_UVA_FILE_COPY_CLEANUP;
+		}
+
+		// Ensure that pdf file is cleartext
+		if (file_size >= MARK_LENGTH) {
+
+			// If it is the first iteration, take care of the possible mark
+			if (i == 0) {
+				// Check if it is marked
+				mark_lvl = unmark(read_buf, &unsused_frn);
+			}
+
+			// If mark level is not 0. Abort
+			if (0 != mark_lvl) {
+				err_code = -10;
+				fprintf(stderr, "ERROR: the pdf file is not cleartext\n");
+				err_code = -8;
+				goto CREATE_UVA_FILE_COPY_CLEANUP;
+			}
+		}
+
+
+		// Cipher chunk with the pdf key
+		thirdPartyPdfBufferCipher(ciph_buf, read_buf, rw_buf_size, pdf_key);
+
+
+		// Decipher chunk with the folder key
+		invokeDecipher(protection->cipher, write_buf, ciph_buf, rw_buf_size, MARK_LENGTH + KEY_BYTES_SIZE + (i * READ_BUF_SIZE), composed_key, frn);
+
+
+		// Append the result to the ".uva" file and check all the bytes read from this iteration have been written
+		if (!WriteFile(
+			write_file_handle,
+			write_buf,
+			bytes_read,
+			&bytes_written,
+			NULL)
+			) {
+			fprintf(stderr, "ERROR: could not write the data\n");
+			err_code = ERROR_WRITE_FAULT;
+			goto CREATE_UVA_FILE_COPY_CLEANUP;
+		}
+		if (bytes_read != bytes_written) {
+			err_code = -9;
+			fprintf(stderr, "ERROR: could not write all the read bytes\n");
+			goto CREATE_UVA_FILE_COPY_CLEANUP;
+		}
+	}
+	PRINT("rrrrrrrrrrrrrrrrrrrrrr\n");
+
+
+	// Register the potentially harmful operation in blockchain
+	sprintf_s(blockchain_trace, 300, "New uva file created (%ws)", uva_file_path);
+	setBlockchainTrace(blockchain_trace);
+	err_code = ERROR_SUCCESS;
+	PRINT("ssssssssssssssssss\n");
+
+
+
+	// Clear all the buffers and handles used. In the case that something went wrong, remove the uva file (if created)
+CREATE_UVA_FILE_COPY_CLEANUP:
+	if (NULL != rand_buf) {
+		free(rand_buf);
+	}
+	if (NULL != formatted_date) {
+		free(formatted_date);
+	}
+
+	if (NULL != cleartext_header_buf) {
+		free(cleartext_header_buf);
+	}
+	if (NULL != encrypted_header_buf) {
+		free(encrypted_header_buf);
+	}
+	if (NULL != final_uva_header_buf) {
+		free(final_uva_header_buf);
+	}
+
+	if (NULL != read_buf) {
+		free(read_buf);
+	}
+	if (NULL != ciph_buf) {
+		free(ciph_buf);
+	}
+	if (NULL != write_buf) {
+		free(write_buf);
+	}
+
+	if (NULL != write_file_handle && INVALID_HANDLE_VALUE != write_file_handle) {
+		CloseHandle(write_file_handle);
+	}
+	if (NULL != read_file_handle && INVALID_HANDLE_VALUE != read_file_handle) {
+		CloseHandle(read_file_handle);
+	}
+
+	if (NULL != uva_file_path) {
+		if (ERROR_SUCCESS != err_code) { // Delete the file if there was an error
+			if (!PathFileExistsW(uva_file_path)) { // Only if file exists
+				if (0 == DeleteFileW(uva_file_path)) {
+					fprintf(stderr, "ERROR: could not remove the newly created file\n");
+				}
+			}
+		}
+		free(uva_file_path);
+	}
+	return err_code;
+}
+
+void setBlockchainTrace(const char* trace) {
+	printf("THIS HAS TO BE CHANGED WITH A REAL BLOCKCHAIN TRACE --> '%s'\n", trace);
+}
+
+void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_size, uint64_t pdf_key) {
+	uint64_t* u64_buff = NULL;
+	size_t u64_buff_size = 0;
+
+	// Copy the data, as this example does not need extra buffers
+	memcpy_s(dst_buf, buf_size, src_buf, buf_size);
+
+	// Cipher all complete blocks of 8 Bytes (64 bits)
+	u64_buff = (uint64_t)dst_buf;
+	u64_buff_size = buf_size / sizeof(uint64_t);
+	for (size_t i = 0; i < u64_buff_size; i++) {
+		u64_buff[i] += pdf_key;
+	}
+
+	// Cipher the remaining bytes. Actually, this will only happen at the end of the file
+	for (size_t j = 0; j < buf_size - u64_buff_size * sizeof(uint64_t); j++) {
+		((uint8_t*)dst_buf)[j + u64_buff_size * sizeof(uint64_t)] += ((uint8_t*)(&pdf_key))[j];
+	}
 
 	return 0;
 }

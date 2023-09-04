@@ -75,7 +75,6 @@ struct FileMarkInfo* addFMITableEntry(struct FileMarkInfo* file_mark_info);
 struct FileMarkInfo* createFMI(WCHAR* file_path, WCHAR* app_path, int8_t buffer_mark_lvl, uint32_t buffer_frn, int8_t file_mark_lvl, uint32_t file_frn, time_t last_closed);
 void destroyFMI(struct FileMarkInfo* fmi);
 void printFMI(struct FileMarkInfo* fmi);
-void getRandom(uint8_t* buffer, int buf_size);
 struct KeyData* createFileBufferKey(struct KeyData* composed_key, uint32_t frn);
 
 int getUsernameByPID(const DWORD procId, char* strUser, char* strdomain);
