@@ -47,6 +47,7 @@ int createDecipheredFileCopy(WCHAR* file_path);
 int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party);
 void setBlockchainTrace(const char* trace);
 void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_size, uint64_t pdf_key);
+void ensureUvaFileExtensionIconAssociation();
 
 
 
@@ -875,7 +876,9 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 	//     - Ensure new ciphered buffer length is 512 Bytes (= uva header size)
 	//     - Get the protections associated to the file path and compose the key
 	//     - Decrypt the header buffer with the folder protections
-	//     - Mark the header buffer with the lvl (-1) and frn
+	//     // Mark the header buffer with the lvl (-1) and frn. /// This part was changed becaused it was not possible to mark the ciphered buffer due to high entropy /////
+	//     - Create an extra buffer (with no info) that can be marked. It was not possible to mark the ciphered buffer due to high entropy created by the RSA ciphering
+	//     - Write extra header buffer
 	//     - Write the final uva header buffer (folder-deciphered and previously RSA-ciphered) to the .uva file
 	// - Open pdf file
 	// - Get pdf file size
@@ -995,7 +998,9 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 		err_code = ERROR_NOT_ENOUGH_MEMORY;
 		goto CREATE_UVA_FILE_COPY_CLEANUP;
 	}
-	getRandom(rand_buf, 8);
+	//getRandom(rand_buf, 8);
+	uint8_t testing_not_rand_buf[8] = { 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80 }; // In decimal: 578.721.382.704.613.384
+	memcpy(rand_buf, testing_not_rand_buf, 8 * sizeof(uint8_t));
 	pdf_key = (
 		((uint64_t)rand_buf[0]) << 56 |
 		((uint64_t)rand_buf[1]) << 48 |
@@ -1006,6 +1011,9 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 		((uint64_t)rand_buf[6]) << 8 |
 		((uint64_t)rand_buf[7])
 		);
+	PRINT_HEX(rand_buf, 8 * sizeof(uint8_t));
+	PRINT("As uint64_t, the value stored in pdf_key is: %llu\n", pdf_key);
+	PRINT("As uint64_t, the value stored in rand_buf is: %llu\n", ((uint64_t*)rand_buf)[0]);
 	PRINT("dddddddddddddddddddddddddd\n");
 
 
@@ -1044,12 +1052,17 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 	}
 	strftime(formatted_date, DATE_FORMAT_SIZE, DATE_FORMAT, access_period_start);
 	strcpy(&(cleartext_header_buf[9]), formatted_date);
+	strftime(formatted_date, DATE_FORMAT_SIZE, DATE_FORMAT, access_period_end);
+	strcpy(&(cleartext_header_buf[9+ DATE_FORMAT_SIZE]), formatted_date);
 
-	PRINT("ggggggggggggggggggggggggggg\n");
 
 	// The rest of the buffer is left as is (with 0s)
 	// DO NOTHING because space was allocated with calloc() function, which already fills with zeros
 
+
+	PRINT("ggggggggggggggggggggggggggg\n");
+	PRINT("from 512 to 1024 in cleartext and without RSA ciphering (470 Bytes only)\n");
+	PRINT_HEX(cleartext_header_buf, cleartext_header_buf_size);
 
 	// Cipher the buffer with the public RSA key previously read
 #pragma warning(suppress : 4996)
@@ -1077,6 +1090,9 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 		goto CREATE_UVA_FILE_COPY_CLEANUP;
 	}
 	PRINT("iiiiiiiiiiiiiiiiiiiiiiii\n");
+	PRINT("from 512 to 1024 which is cleartext ciphered with RSA (512 Bytes in total)\n");
+	PRINT_HEX(encrypted_header_buf, encrypted_header_buf_size);
+
 
 
 	// Get the protections associated to the file path and compose the key
@@ -1107,11 +1123,12 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 		err_code = ERROR_NOT_ENOUGH_MEMORY;
 		goto CREATE_UVA_FILE_COPY_CLEANUP;
 	}
-	PRINT_HEX(encrypted_header_buf, encrypted_header_buf_size);
 	frn = createFRN();
 	invokeDecipher(protection->cipher, final_uva_header_buf, encrypted_header_buf, encrypted_header_buf_size, MARK_LENGTH, protection->key, frn);
 	PRINT("kkkkkkkkkkkkkkkkkkkkkkkkk\n");
 	PRINT("kkkkkkkkkkkkkkkkkkkkkkkkk encrypted_header_buf_size=%llu \n", encrypted_header_buf_size);
+	PRINT("from 512 to 1024 cleartext, ciphered with RSA, and then deciphered with challenges (512 Bytes in total)\n");
+	PRINT_HEX(encrypted_header_buf, encrypted_header_buf_size);
 
 
 	///// This part was changed becaused it was not possible to mark the ciphered buffer due to high entropy /////
@@ -1126,7 +1143,7 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 	}
 	*/
 
-	// Create an extra buffer with no info that can be marked. It was not possible to mark the ciphered buffer due to high entropy created by the RSA ciphering
+	// Create an extra buffer (with no info) that can be marked. It was not possible to mark the ciphered buffer due to high entropy created by the RSA ciphering
 	extra_header_buf_size = MARK_LENGTH;
 	extra_header_buf = calloc(extra_header_buf_size, sizeof(uint8_t));
 	if (NULL == final_uva_header_buf) {
@@ -1134,6 +1151,7 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 		err_code = ERROR_NOT_ENOUGH_MEMORY;
 		goto CREATE_UVA_FILE_COPY_CLEANUP;
 	}
+	PRINT("from 0 to 512 cleartext (zeros)\n");
 	PRINT_HEX(extra_header_buf, extra_header_buf_size);
 	mark_lvl = mark(extra_header_buf, -1, frn);
 	if (-1 != mark_lvl) {
@@ -1142,9 +1160,11 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 		goto CREATE_UVA_FILE_COPY_CLEANUP;
 	}
 	PRINT("lllllllllllllllllllllllll\n");
+	PRINT("from 0 to 512 cleartext (zeros) but marked (note it is not deciphered because it contains no info)\n");
+	PRINT_HEX(extra_header_buf, extra_header_buf_size);
 
 
-	// Write wextra header buffer
+	// Write extra header buffer
 	WriteFile(write_file_handle, extra_header_buf, extra_header_buf_size, &bytes_written, NULL);
 	if (MARK_LENGTH != bytes_written) {
 		printf("ERROR: could not write the expected %d bytes (%lu were written)\n", MARK_LENGTH, bytes_written);
@@ -1246,14 +1266,13 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 			if (i == 0) {
 				// Check if it is marked
 				mark_lvl = unmark(read_buf, &unsused_frn);
-			}
 
-			// If mark level is not 0. Abort
-			if (0 != mark_lvl) {
-				err_code = -10;
-				fprintf(stderr, "ERROR: the pdf file is not cleartext\n");
-				err_code = -8;
-				goto CREATE_UVA_FILE_COPY_CLEANUP;
+				// If mark level is not 0. Abort
+				if (0 != mark_lvl) {
+					fprintf(stderr, "ERROR: the pdf file is not cleartext\n");
+					err_code = -8;
+					goto CREATE_UVA_FILE_COPY_CLEANUP;
+				}
 			}
 		}
 
@@ -1359,13 +1378,79 @@ void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_siz
 	u64_buff = (uint64_t)dst_buf;
 	u64_buff_size = buf_size / sizeof(uint64_t);
 	for (size_t i = 0; i < u64_buff_size; i++) {
-		u64_buff[i] += pdf_key;
+		u64_buff[i] ^= pdf_key;
 	}
 
 	// Cipher the remaining bytes. Actually, this will only happen at the end of the file
-	for (size_t j = 0; j < buf_size - u64_buff_size * sizeof(uint64_t); j++) {
-		((uint8_t*)dst_buf)[j + u64_buff_size * sizeof(uint64_t)] += ((uint8_t*)(&pdf_key))[j];
+	//for (size_t j = 0; j < buf_size - u64_buff_size * sizeof(uint64_t); j++) {
+	//	((uint8_t*)dst_buf)[j + u64_buff_size * sizeof(uint64_t)] ^= ((uint8_t*)(&pdf_key))[j];
+	//}
+
+	return;
+}
+
+/*
+BOOL ensureUvaFileExtensionIconAssociation() {
+
+	Open the registry : RegOpenKeyEx
+	Query the value : RegQueryValueEx
+	// do something with value
+	Set the value back : RegSetValueEx
+	close the registry : RegCloseKey
+
+
+	HKEY hkey = NULL;
+	DWORD result = ERROR_SUCCESS;
+
+	result = RegOpenKeyExW(HKEY_CLASSES_ROOT, L".uva", 0, KEY_READ, &hkey);
+	if (ERROR_SUCCESS != result) {
+
+	}
+	RegQueryValueExW(hkey, )
+		//    if (RegSetValueExW(hKey, _T("AllowRemoteDASD"), 0, REG_DWORD, (LPBYTE)&data1, sizeof(DWORD)))
+
+	LSTATUS RegCreateKeyExA(
+		[in]            HKEY                        hKey,
+		[in]            LPCSTR                      lpSubKey,
+		DWORD                       Reserved,
+		[in, optional]  LPSTR                       lpClass,
+		[in]            DWORD                       dwOptions,
+		[in]            REGSAM                      samDesired,
+		[in, optional]  const LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+		[out]           PHKEY                       phkResult,
+		[out, optional] LPDWORD                     lpdwDisposition
+	);
+
+
+
+	HKEY hKey;
+	HKEY resKey;
+	DWORD dataLen;
+	hKey = HKEY_LOCAL_MACHINE;
+
+	LPCTSTR subKey = ".uva";;
+	LPCTSTR subValue = ;
+
+	long key = RegOpenKeyExA(hKey, subKey, 0, KEY_READ | KEY_WRITE, &resKey);
+	if (key == ERROR_SUCCESS) {
+		subValue = "ProgramData";
+		long key = RegQueryValueExA(resKey, subValue, NULL, NULL, NULL, NULL);
+		if (key == ERROR_FILE_NOT_FOUND) {
+			return FALSE;
+		} else {
+			std::string data = "C:\\WINDOWS\\system32\\program.exe";
+			DWORD dataLen = data.size() + 1;
+
+			long key = RegSetValueExA(resKey, subValue, 0, REG_SZ, (const BYTE*)data.c_str(), dataLen);
+			if (key == ERROR_SUCCESS) {
+				return TRUE;
+			} else {
+				return FALSE;
+			}
+		}
+	} else {
+		return FALSE;
 	}
 
-	return 0;
-}
+
+}*/
