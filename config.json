@@ -278,6 +278,10 @@
 			"Cipher": "RSA",
 			"KeyFile": "C:/Users/Pepito/Documents/uva_file_test/keypair_mondragon_pub.pem"
 		},
+		"Tecnalia":{
+			"Cipher": "RSA",
+			"KeyFile": "C:/Users/Pepito/Documents/uva_file_test/keypair_tecnalia_pub.pem"
+		},
 		"Others":{
 			"Cipher": "RSA",
 			"KeyFile": ""
