@@ -322,7 +322,9 @@ WCHAR* getRealPathFromMirrored(WCHAR* orig_path) {
 
 			real_path_len = orig_path_len - 3 + mirr_path_len + 1;					// -3 to remove letter ("X:\") +1 to add '\\'
 			real_path = (WCHAR*)malloc(sizeof(WCHAR) * (real_path_len + 1));		// +1 to add L'\0'
-			if (real_path != NULL) {
+			if (NULL == real_path) {
+				printf("ERROR: could not allocate memory for the real path\n");
+			} else{
 				real_path[0] = L'\0';
 				wcscat_s(real_path, real_path_len + 1, mirr_path);
 				wcscat_s(real_path, real_path_len + 1, L"\\");

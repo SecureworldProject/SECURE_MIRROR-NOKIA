@@ -32,6 +32,7 @@
 #define DATETIME_FORMAT_SIZE 22		// 4+1+2+1+2 +3+ 2+1+2+1+2 +1 for the '\0'
 #define DATE_FORMAT "%d/%m/%Y"
 #define DATE_FORMAT_SIZE 11			// 2+1+2+1+4 +1 for the '\0'
+#define ALLOW_MIRRORED_PATHS_ONLY FALSE // TRUE ensures that the path uses a mirrored letter. FALSE allows also paths starting with "C:\..." and "\\?\C:\..."
 
 
 
@@ -46,8 +47,9 @@ void newRSAKeypairMenu();
 int createDecipheredFileCopy(WCHAR* file_path);
 int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party);
 void setBlockchainTrace(const char* trace);
+char* getBlockchainTimestamp();
 void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_size, uint64_t pdf_key);
-void ensureUvaFileExtensionIconAssociation();
+//void ensureUvaFileExtensionIconAssociation();
 
 
 
@@ -256,15 +258,22 @@ void uvaFileMenu() {
 			fprintf(stderr, "\tError: the specified path does not match a .pdf file.\n");
 			goto UVA_FILE_MENU_CLEANUP;
 		}
-		// TO DO: ENSURE THE PATH IS WRITTEN WITH A LETTER FROM THE SET OF MIRRORED FOLDERS
-		// This way the function createUvaFileCopy can just check the letter on the path to know the corresponding key and protections
+
+
+		// Get the path to the real (non-mirrored and non-surveilled) drive
 		tmp_file_path = getRealPathFromMirrored(file_path);
+#if ALLOW_MIRRORED_PATHS_ONLY
+		if (NULL == tmp_file_path) {
+			fprintf(stderr, "\tError: could not get the real file path.\n");
+			goto UVA_FILE_MENU_CLEANUP;
+		} else {
+#else
 		if (NULL != tmp_file_path) {
+#endif
 			free(file_path);
 			file_path = tmp_file_path;
 			file_path_len = wcslen(file_path);
 		}
-
 		formatPath(&file_path);
 	}
 
@@ -635,14 +644,26 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 	DWORD error_code = ERROR_SUCCESS;
 	DWORD result = ERROR_SUCCESS;
 
+
 	// Get the path to the real (non-mirrored and non-surveilled) drive
 	file_path = getRealPathFromMirrored(input_file_path);
-	if (file_path == NULL) {
+	if (NULL == file_path) {
+#if ALLOW_MIRRORED_PATHS_ONLY
 		error_code = -1;
-		fprintf(stderr, "ERROR in createDecipheredFileCopy: cannot allocate memory for the clean file path.\n");
+		fprintf(stderr, "ERROR in createDecipheredFileCopy: could not get the real file path.\n");
 		goto DECIPHERED_FILE_COPY_CLEANUP;
+#else
+		file_path = malloc((wcslen(input_file_path) + 1) * sizeof(WCHAR));
+		if (NULL == file_path) {
+			error_code = -1;
+			fprintf(stderr, "ERROR in createDecipheredFileCopy: could not allocate memory for the file path.\n");
+			goto DECIPHERED_FILE_COPY_CLEANUP;
+		}
+		wcscpy(file_path, input_file_path);
+#endif
 	}
 	formatPath(&file_path);
+
 
 	// Fill path lengths variables and check if path is short enough to add DECIPHERED_SUFFIX_WCS and still fit in MAX_PATH characters
 	file_path_len = wcslen(file_path);
@@ -1363,7 +1384,56 @@ CREATE_UVA_FILE_COPY_CLEANUP:
 }
 
 void setBlockchainTrace(const char* trace) {
-	printf("THIS HAS TO BE CHANGED WITH A REAL BLOCKCHAIN TRACE --> '%s'\n", trace);
+	char* blockchain_ts = getBlockchainTimestamp();
+	char* username = getenv("USERNAME");
+
+	printf("THIS HAS TO BE CHANGED WITH A REAL BLOCKCHAIN TRACE --> %s;%s;'%s'\n",
+		((NULL != blockchain_ts) ? blockchain_ts : "????-??-?? - ??:??:??"),
+		((NULL != username) ? username : "UNKNOWN USER"),
+		trace);
+
+	if (NULL != blockchain_ts) {
+		free(blockchain_ts);
+	}
+	//if (NULL != username) { //The string pointed to shall not be modified by the program
+	//	free(username);
+	//}
+}
+
+char* getBlockchainTimestamp() {
+	time_t current_time = 0;
+	struct tm* current_time_info = NULL;
+	char* formatted_time = NULL;
+
+	// Get current time
+	if (time(&current_time) == -1) {
+		fprintf(stderr, "ERROR: could not retrieve current time\n");
+		goto GET_BLOCKCHAIN_TIMESTAMP;
+	}
+	current_time_info = localtime(&current_time);
+	if (NULL == current_time_info) {
+		fprintf(stderr, "ERROR: could not convert current time (time_t to time_info)\n");
+		goto GET_BLOCKCHAIN_TIMESTAMP;
+	}
+
+	// Format the timestamp
+	formatted_time = malloc(DATETIME_FORMAT_SIZE * sizeof(char));
+	if (NULL == formatted_time) {
+		fprintf(stderr, "ERROR: could not allocate memory for the formatted time\n");
+		goto GET_BLOCKCHAIN_TIMESTAMP;
+	}
+	strftime(formatted_time, DATETIME_FORMAT_SIZE, DATETIME_FORMAT, current_time_info);
+
+	return formatted_time;
+
+GET_BLOCKCHAIN_TIMESTAMP:
+	//if (NULL != current_time_info) {	// Must not be freed because it is created the first time and reused every other time the function localtime() get called
+	//	free(current_time);
+	//}
+	if (NULL != current_time_info) {
+		free(formatted_time);
+	}
+	return NULL;
 }
 
 void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_size, uint64_t pdf_key) {
