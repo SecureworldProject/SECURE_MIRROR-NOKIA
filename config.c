@@ -1184,6 +1184,7 @@ void convertParentalFolderPaths() {
 DWORD writeParentalFoldersFile() {
 	PRINT("\nWriting parental folders in a file for the minifilter...\n");
 	if (ctx.parentals == NULL) {
+		fprintf(stderr, "WARNING: there are no parental folders\n");
 		return ERROR_SUCCESS;
 	}
 
@@ -1193,10 +1194,33 @@ DWORD writeParentalFoldersFile() {
 	LARGE_INTEGER distanceToMove = { 0 };
 	DWORD bytes_written = 0;
 	DWORD bytes_to_write = 0;
+	LPCVOID buffer_to_write = NULL;
+
+	size_t ch_groups_num = 0;
+	WCHAR* ch_groups_names = NULL;
+	size_t ch_groups_names_len = 0;
+	size_t longest_id_len = 0;
+
+	size_t allowed_users_num = 0;
+	WCHAR* allowed_users = NULL;
+	size_t allowed_users_len = 0;
+	//size_t longest_allowed_user_len = 0;
+
+	WCHAR* tmp_wcs = NULL;
+	size_t tmp_str_size = 0;
+
+	WCHAR* file_path = NULL;
+	WCHAR* default_file_path = L"parental_paths.txt";
+
+	struct ParentalControl *parental_control = NULL;
 	struct ParentalFolder *pf = NULL;
 	WCHAR* pf_path_device_form = NULL;
-	WCHAR* file_path = L"parental_folders.txt";
-	LPCVOID buffer_to_write = NULL;
+
+	// Get the file path or use the default one
+	file_path = _wgetenv(L"SECUREMIROR_MINIFILTER_CONFIG");
+	if (NULL == file_path) {
+		file_path = default_file_path;
+	}
 
 	//PRINT("writeTestFile() function call: buffer_to_write=%p, file_path=%ws, offset=%d, length=%d\n", buffer_to_write, file_path, offset, length);
 	//PRINT_HEX(buffer_to_write, length);
@@ -1220,45 +1244,211 @@ DWORD writeParentalFoldersFile() {
 
 	PRINT("Handle pointer moved\n");
 
-	// Write each parental folder in the file
+	// Iterate over each parental control
 	for (size_t i = 0; i < _msize(ctx.parentals)/sizeof(struct ParentalFolder*); i++) {
+		parental_control = ctx.parentals[i];
+
+		// PARENTAL FOLDER PATH
 		// Get parental folder path translated to /Device/Harddisk/ syntax
-		pf_path_device_form = getDevicePathFromFormattedDosPath(ctx.parentals[i]->folder);
-		if (pf_path_device_form == NULL) {
-			fprintf(stderr, "ERROR: could not transform dos path into device path\n");
+		pf_path_device_form = getDevicePathFromFormattedDosPath(parental_control->folder);
+		if (NULL == pf_path_device_form) {
+			fprintf(stderr, "WARNING: could not transform dos path into device path\n");
 			continue;
 		}
 
-		// Write new content to file
+		// Write parental path to file
 		bytes_written = 0;
 		bytes_to_write = wcslen(pf_path_device_form) * sizeof(WCHAR);
 		buffer_to_write = (LPCVOID)pf_path_device_form;
-
 		PRINT("\t for-loop i=%llu: \tbuffer_to_write = %ws\n", i, (WCHAR*)buffer_to_write);
-
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
-			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
 		}
 		if (bytes_written != bytes_to_write) {
 			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
-			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
 		}
 
-		// Write parental folder path separator
+
+		// SEPARATOR --> L";"
+		// Write separator between parental folder path and required parental challenges
+		bytes_written = 0;
+		bytes_to_write = 1 * sizeof(WCHAR);
+		buffer_to_write = (LPCVOID)L";";
+		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+		if (bytes_written != bytes_to_write) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+
+
+		// CHALLENGE GROUPS
+		// Get the combined string of all challenge groups in the parental control
+		if (NULL == parental_control->challenge_groups || 0 == (ch_groups_num = _msize(parental_control->challenge_groups) / sizeof(char*))) {
+			ch_groups_names_len = 1;
+			ch_groups_names = (WCHAR*)malloc(ch_groups_names_len * sizeof(WCHAR));
+			if (NULL == ch_groups_names) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				fprintf(stderr, "ERROR: could not allocate memory for ch_groups_names.\n");
+				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+			}
+		} else {
+			ch_groups_names_len = 0;
+			longest_id_len = 0;
+			for (size_t j = 0; j < ch_groups_num; j++) {
+				tmp_str_size = strlen(parental_control->challenge_groups[j]->id) + 1; // +1 always due to adding sepparator between them (L':') or adding null (L'\0') at the end
+				ch_groups_names_len += tmp_str_size;
+				longest_id_len = MAX(longest_id_len, tmp_str_size);
+			}
+			ch_groups_names = (WCHAR*)malloc(ch_groups_names_len * sizeof(WCHAR));
+			if (NULL == ch_groups_names) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				fprintf(stderr, "ERROR: could not allocate memory for ch_groups_names.\n");
+				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+			}
+			tmp_wcs = (WCHAR*)malloc((longest_id_len+1) * sizeof(WCHAR));
+			if (NULL == tmp_wcs) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				fprintf(stderr, "ERROR: could not allocate memory for tmp_wcs.\n");
+				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+			}
+
+			for (size_t j = 0; j < ch_groups_num; j++) {
+				mbstowcs(tmp_wcs, parental_control->challenge_groups[j]->id, longest_id_len+1);
+				wcscat(ch_groups_names, tmp_wcs);
+				if (j + 1 < ch_groups_num) {
+					wcscat(ch_groups_names, L":");
+				}
+			}
+		}
+		ch_groups_names[ch_groups_names_len - 1] = L'\0';
+
+		// Write the combined string
+		bytes_written = 0;
+		bytes_to_write = ch_groups_names_len * sizeof(WCHAR);
+		buffer_to_write = (LPCVOID)ch_groups_names;
+		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+		if (bytes_written != bytes_to_write) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+
+
+		// SEPARATOR --> L";"
+		// Write separator between required parental challenges and allowed users
+		bytes_written = 0;
+		bytes_to_write = 1 * sizeof(WCHAR);
+		buffer_to_write = (LPCVOID)L";";
+		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+		if (bytes_written != bytes_to_write) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+
+
+		// ALLOWED USERS
+		// Get the combined string of all allowed users in the parental control
+		if (NULL == parental_control->users || 0 == (allowed_users_num = _msize(parental_control->users) / sizeof(WCHAR*))) {
+			allowed_users_len = 1;
+			allowed_users = (WCHAR*)malloc(allowed_users_len * sizeof(WCHAR));
+			if (NULL == allowed_users) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				fprintf(stderr, "ERROR: could not allocate memory for allowed_users.\n");
+				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+			}
+		} else {
+			allowed_users_len = 0;
+			//longest_allowed_user_len = 0;
+			for (size_t j = 0; j < allowed_users_num; j++) {
+				tmp_str_size = wcslen(parental_control->users[j]) + 1; // +1 always due to adding sepparator between them (L':') or adding null (L'\0') at the end
+				allowed_users_len += tmp_str_size;
+				//longest_allowed_user_len = MAX(longest_allowed_user_len, tmp_str_size);
+			}
+			allowed_users = (WCHAR*)malloc(allowed_users_len * sizeof(WCHAR));
+			if (NULL == allowed_users) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				fprintf(stderr, "ERROR: could not allocate memory for allowed_users.\n");
+				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+			}
+			//tmp_wcs = (WCHAR*)malloc(longest_allowed_user_len * sizeof(WCHAR));
+			//if (NULL == tmp_wcs) {
+			//	error_code = ERROR_NOT_ENOUGH_MEMORY;
+			//	fprintf(stderr, "ERROR: could not allocate memory for tmp_wcs.\n");
+			//	goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+			//}
+
+			for (size_t j = 0; j < allowed_users_num; j++) {
+				//mbstowcs(tmp_wcs, parental_control->users[j], longest_allowed_user_len);
+				//wcscat(allowed_users, tmp_wcs);
+				wcscat(allowed_users, parental_control->users[j]);
+				if (j + 1 < allowed_users_num) {
+					wcscat(allowed_users, L":");
+				}
+			}
+		}
+		allowed_users[allowed_users_len - 1] = L'\0';
+
+		// Write the combined string
+		bytes_written = 0;
+		bytes_to_write = allowed_users_len * sizeof(WCHAR);
+		buffer_to_write = (LPCVOID)allowed_users;
+		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+		if (bytes_written != bytes_to_write) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+
+
+		// SEPARATOR --> L"\n"
+		// Write separator between parental controls
 		bytes_written = 0;
 		bytes_to_write = 1 * sizeof(WCHAR);
 		buffer_to_write = (LPCVOID)L"\n";
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
-			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
-			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
 		}
 		if (bytes_written != bytes_to_write) {
 			error_code = ERROR_WRITE_FAULT;
-			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+
+		// CLEANUP
+	LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP:
+		if (ch_groups_names != NULL) {
+			free(ch_groups_names);
+			ch_groups_names = NULL;
+		}
+		if (tmp_wcs != NULL) {
+			free(tmp_wcs);
+			tmp_wcs = NULL;
+		}
+		if (ERROR_SUCCESS != error_code) {
 			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
 		}
 	}
@@ -1274,7 +1464,7 @@ DWORD writeParentalFoldersFile() {
 		pf_path_device_form = NULL;
 	}
 
-	PRINT("\nParental folders' file %s completed (error_code = %lu)\n", (error_code == ERROR_SUCCESS) ? "" : "could not be", error_code);
+	PRINT("\nParental folders' file %s completed (error_code = %lu)\n", (error_code == ERROR_SUCCESS) ? "was" : "could not be", error_code);
 
 	// Return corresponding error_code or success code
 	return error_code;

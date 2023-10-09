@@ -324,7 +324,7 @@ WCHAR* getRealPathFromMirrored(WCHAR* orig_path) {
 			real_path = (WCHAR*)malloc(sizeof(WCHAR) * (real_path_len + 1));		// +1 to add L'\0'
 			if (NULL == real_path) {
 				printf("ERROR: could not allocate memory for the real path\n");
-			} else{
+			} else {
 				real_path[0] = L'\0';
 				wcscat_s(real_path, real_path_len + 1, mirr_path);
 				wcscat_s(real_path, real_path_len + 1, L"\\");
@@ -383,27 +383,59 @@ __declspec(deprecated) void formatPathOLD(char** full_path) {
 /**
  * Returns a newly allocated WCHAR* with the path in the device form equivalent to the already formatted dos path passed as parameter.
  * Note: remember to free after use.
- * 
+ *
  * @param WCHAR*
- *		The path in the DOS form.
- * 
+ *		The path in the DOS format (including "\\?\" at the beginning, e.g. \\?\C:\
+ *
  * @return WCHAR*
  *		The newly allocated WCHAR* with the path in the device form.
  */
 WCHAR* getDevicePathFromFormattedDosPath(WCHAR* dos_path) {
 	WCHAR* device_path = NULL;
+	WCHAR* wcs_token_ptr = NULL;
+	WCHAR* token_ctx_ptr = NULL;
+	size_t device_path_len = 0;
+	size_t device_path_filled_len = 0;
 	DWORD error_code = ERROR_SUCCESS;
-	if (dos_path == NULL) return NULL;
 
-	// TO DO
+	if (dos_path == NULL || wcslen(dos_path)<7) return NULL;
 
-	GET_DEVICE_PATH_CLEANUP:
-	if (error_code != ERROR_SUCCESS) {
-		free(device_path);
-		device_path = NULL;
+	PRINT("getDevicePathFromFormattedDosPath()\n");
+	PRINT("dos_path = %ws\n", dos_path);
+
+	// Check every drive letter in the table
+	for (size_t i = 0; i < _msize(letter_device_table) / sizeof(struct LetterDeviceMap); i++) {
+		PRINT("letter_device_table[%llu].letter = %wc\n", i, letter_device_table[i].letter);
+		PRINT("letter_device_table[%llu].device = %ws\n", i, letter_device_table[i].device);
+
+		// dos_path is like "\\?\C:\blablabla". The drive letter is in the 5th position (index=4), the next character is a colon and also begin with "\\?\"
+		if (dos_path[4] == letter_device_table[i].letter && dos_path[5] == L':' && wcsstr(dos_path, L"\\\\?\\") == dos_path) {
+
+			wcs_token_ptr = wcstok(letter_device_table[i].device, L";\0", &token_ctx_ptr);
+			while (wcs_token_ptr != NULL) {
+				PRINT1("Token: %ws\n", wcs_token_ptr);
+				if (wcsstr(wcs_token_ptr, L"\\Device") == wcs_token_ptr || wcsstr(wcs_token_ptr, L"\\device") == wcs_token_ptr) {
+					// Allocate space for device_path, which length is: length of the "device name" + (length of the dos_path - 6 (due to removing "\\?\C:")) + 1 for the null character
+					device_path_len = wcslen(wcs_token_ptr) + (wcslen(dos_path) - 6);
+					device_path = malloc((device_path_len + 1) * sizeof(WCHAR));
+					if (NULL == device_path) {
+						printf(stderr, "ERROR: could not allocate memory for the path.\n");
+						return NULL;
+					}
+
+					// Fill the device_path
+					wcsncpy_s(device_path, device_path_len + 1, wcs_token_ptr, wcslen(wcs_token_ptr));
+					wcsncat_s(device_path, device_path_len + 1, &(dos_path[6]), wcslen(&(dos_path[6])));
+					PRINT("device_path --> %ws\n", device_path);
+					return device_path;
+				}
+				wcs_token_ptr = wcstok(NULL, L";\0", &token_ctx_ptr);
+			}
+			break;
+		}
 	}
 
-	return device_path;
+	return NULL;
 }
 
 int fromDeviceToLetter(WCHAR** full_path) {
