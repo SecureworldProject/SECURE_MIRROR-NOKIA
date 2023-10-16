@@ -7,9 +7,19 @@ el comportamiento de la función logic().
 Nokia Febrero 2021
 */
 
-/////  FILE INCLUDES  /////
 
+
+/////  DEFINITIONS  /////
+#define ENVVAR_PARENTAL_PATHS_FILE L"SECUREMIROR_MINIFILTER_CONFIG"
+#define DEFAULT_FILE_PATH_OF_PARENTAL_PATHS_FILE L"parental_paths.txt"
+
+
+
+
+/////  FILE INCLUDES  /////
 #include "context.h"
+
+
 
 
 

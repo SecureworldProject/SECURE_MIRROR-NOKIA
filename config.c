@@ -1197,29 +1197,30 @@ DWORD writeParentalFoldersFile() {
 	LPCVOID buffer_to_write = NULL;
 
 	size_t ch_groups_num = 0;
-	WCHAR* ch_groups_names = NULL;
-	size_t ch_groups_names_len = 0;
-	size_t longest_id_len = 0;
+	char* ch_groups_names = NULL;
+	size_t ch_groups_names_size = 0;
+	//size_t longest_id_len = 0;
 
 	size_t allowed_users_num = 0;
-	WCHAR* allowed_users = NULL;
+	char* allowed_users = NULL;
 	size_t allowed_users_len = 0;
-	//size_t longest_allowed_user_len = 0;
+	size_t longest_allowed_user_len = 0;
 
-	WCHAR* tmp_wcs = NULL;
+	WCHAR* tmp_str = NULL;
 	size_t tmp_str_size = 0;
 
 	WCHAR* file_path = NULL;
-	WCHAR* default_file_path = L"parental_paths.txt";
 
 	struct ParentalControl *parental_control = NULL;
 	struct ParentalFolder *pf = NULL;
 	WCHAR* pf_path_device_form = NULL;
+	char* pf_path_device_form_str = NULL;
+	size_t pf_path_device_form_len = 0;
 
 	// Get the file path or use the default one
-	file_path = _wgetenv(L"SECUREMIROR_MINIFILTER_CONFIG");
+	file_path = _wgetenv(ENVVAR_PARENTAL_PATHS_FILE);
 	if (NULL == file_path) {
-		file_path = default_file_path;
+		file_path = DEFAULT_FILE_PATH_OF_PARENTAL_PATHS_FILE;
 	}
 
 	//PRINT("writeTestFile() function call: buffer_to_write=%p, file_path=%ws, offset=%d, length=%d\n", buffer_to_write, file_path, offset, length);
@@ -1255,12 +1256,20 @@ DWORD writeParentalFoldersFile() {
 			fprintf(stderr, "WARNING: could not transform dos path into device path\n");
 			continue;
 		}
+		pf_path_device_form_len = wcslen(pf_path_device_form);
+		pf_path_device_form_str = (char*)malloc((pf_path_device_form_len + 1) * sizeof(char));
+		if (NULL == pf_path_device_form_str) {
+			error_code = ERROR_NOT_ENOUGH_MEMORY;
+			fprintf(stderr, "ERROR: could not allocate memory for pf_path_device_form_str.\n");
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+		wcstombs(pf_path_device_form_str, pf_path_device_form, pf_path_device_form_len);
 
 		// Write parental path to file
 		bytes_written = 0;
-		bytes_to_write = wcslen(pf_path_device_form) * sizeof(WCHAR);
-		buffer_to_write = (LPCVOID)pf_path_device_form;
-		PRINT("\t for-loop i=%llu: \tbuffer_to_write = %ws\n", i, (WCHAR*)buffer_to_write);
+		bytes_to_write = pf_path_device_form_len * sizeof(char);
+		buffer_to_write = (LPCVOID)pf_path_device_form_str;
+		PRINT("\t for-loop i=%llu: \tbuffer_to_write = %s\n", i, (char*)buffer_to_write);
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write parental folder into file (%ws).\n", file_path);
@@ -1273,11 +1282,11 @@ DWORD writeParentalFoldersFile() {
 		}
 
 
-		// SEPARATOR --> L";"
+		// SEPARATOR --> ";"
 		// Write separator between parental folder path and required parental challenges
 		bytes_written = 0;
-		bytes_to_write = 1 * sizeof(WCHAR);
-		buffer_to_write = (LPCVOID)L";";
+		bytes_to_write = 1 * sizeof(char);
+		buffer_to_write = (LPCVOID)";";
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
@@ -1292,48 +1301,54 @@ DWORD writeParentalFoldersFile() {
 
 		// CHALLENGE GROUPS
 		// Get the combined string of all challenge groups in the parental control
-		if (NULL == parental_control->challenge_groups || 0 == (ch_groups_num = _msize(parental_control->challenge_groups) / sizeof(char*))) {
-			ch_groups_names_len = 1;
-			ch_groups_names = (WCHAR*)malloc(ch_groups_names_len * sizeof(WCHAR));
+		if (NULL == parental_control->challenge_groups || 0 == (ch_groups_num = _msize(parental_control->challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*))) {
+			ch_groups_names_size = 1;
+			ch_groups_names = (char*)malloc(ch_groups_names_size * sizeof(char));
 			if (NULL == ch_groups_names) {
 				error_code = ERROR_NOT_ENOUGH_MEMORY;
 				fprintf(stderr, "ERROR: could not allocate memory for ch_groups_names.\n");
 				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
 			}
 		} else {
-			ch_groups_names_len = 0;
-			longest_id_len = 0;
+			ch_groups_names_size = 0;
+			//longest_id_len = 0;
 			for (size_t j = 0; j < ch_groups_num; j++) {
-				tmp_str_size = strlen(parental_control->challenge_groups[j]->id) + 1; // +1 always due to adding sepparator between them (L':') or adding null (L'\0') at the end
-				ch_groups_names_len += tmp_str_size;
-				longest_id_len = MAX(longest_id_len, tmp_str_size);
+				tmp_str_size = strlen(parental_control->challenge_groups[j]->id) + 1; // +1 always due to adding separator between them (':') or adding null ('\0') at the end
+				ch_groups_names_size += tmp_str_size;
+				//longest_id_len = MAX(longest_id_len, tmp_str_size);
 			}
-			ch_groups_names = (WCHAR*)malloc(ch_groups_names_len * sizeof(WCHAR));
+			ch_groups_names = (char*)malloc(ch_groups_names_size * sizeof(char));
 			if (NULL == ch_groups_names) {
 				error_code = ERROR_NOT_ENOUGH_MEMORY;
 				fprintf(stderr, "ERROR: could not allocate memory for ch_groups_names.\n");
 				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
 			}
-			tmp_wcs = (WCHAR*)malloc((longest_id_len+1) * sizeof(WCHAR));
-			if (NULL == tmp_wcs) {
-				error_code = ERROR_NOT_ENOUGH_MEMORY;
-				fprintf(stderr, "ERROR: could not allocate memory for tmp_wcs.\n");
-				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
-			}
+			//tmp_str = (WCHAR*)malloc((longest_id_len+1) * sizeof(WCHAR));
+			//if (NULL == tmp_str) {
+			//	error_code = ERROR_NOT_ENOUGH_MEMORY;
+			//	fprintf(stderr, "ERROR: could not allocate memory for tmp_str.\n");
+			//	goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+			//}
 
+			//for (size_t j = 0; j < ch_groups_num; j++) {
+			//	mbstowcs(tmp_str, parental_control->challenge_groups[j]->id, longest_id_len+1);
+			//	wcscat(ch_groups_names, tmp_str);
+			//	if (j + 1 < ch_groups_num) {
+			//		wcscat(ch_groups_names, ":");
+			//	}
+			//}
 			for (size_t j = 0; j < ch_groups_num; j++) {
-				mbstowcs(tmp_wcs, parental_control->challenge_groups[j]->id, longest_id_len+1);
-				wcscat(ch_groups_names, tmp_wcs);
+				strcat(ch_groups_names, parental_control->challenge_groups[j]->id);
 				if (j + 1 < ch_groups_num) {
-					wcscat(ch_groups_names, L":");
+					strcat(ch_groups_names, ":");
 				}
 			}
 		}
-		ch_groups_names[ch_groups_names_len - 1] = L'\0';
+		ch_groups_names[ch_groups_names_size - 1] = '\0'; // Only needed if no challenges because strcat ensures ending in '\0'
 
 		// Write the combined string
 		bytes_written = 0;
-		bytes_to_write = ch_groups_names_len * sizeof(WCHAR);
+		bytes_to_write = (ch_groups_names_size - 1) * sizeof(char);
 		buffer_to_write = (LPCVOID)ch_groups_names;
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
@@ -1347,11 +1362,11 @@ DWORD writeParentalFoldersFile() {
 		}
 
 
-		// SEPARATOR --> L";"
+		// SEPARATOR --> ";"
 		// Write separator between required parental challenges and allowed users
 		bytes_written = 0;
-		bytes_to_write = 1 * sizeof(WCHAR);
-		buffer_to_write = (LPCVOID)L";";
+		bytes_to_write = 1 * sizeof(char);
+		buffer_to_write = (LPCVOID)";";
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
@@ -1368,7 +1383,7 @@ DWORD writeParentalFoldersFile() {
 		// Get the combined string of all allowed users in the parental control
 		if (NULL == parental_control->users || 0 == (allowed_users_num = _msize(parental_control->users) / sizeof(WCHAR*))) {
 			allowed_users_len = 1;
-			allowed_users = (WCHAR*)malloc(allowed_users_len * sizeof(WCHAR));
+			allowed_users = (char*)malloc(allowed_users_len * sizeof(char));
 			if (NULL == allowed_users) {
 				error_code = ERROR_NOT_ENOUGH_MEMORY;
 				fprintf(stderr, "ERROR: could not allocate memory for allowed_users.\n");
@@ -1376,39 +1391,42 @@ DWORD writeParentalFoldersFile() {
 			}
 		} else {
 			allowed_users_len = 0;
-			//longest_allowed_user_len = 0;
+			longest_allowed_user_len = 0;
 			for (size_t j = 0; j < allowed_users_num; j++) {
-				tmp_str_size = wcslen(parental_control->users[j]) + 1; // +1 always due to adding sepparator between them (L':') or adding null (L'\0') at the end
+				tmp_str_size = wcslen(parental_control->users[j]) + 1; // +1 always due to adding separator between them (':') or adding null ('\0') at the end
 				allowed_users_len += tmp_str_size;
-				//longest_allowed_user_len = MAX(longest_allowed_user_len, tmp_str_size);
+				longest_allowed_user_len = MAX(longest_allowed_user_len, tmp_str_size);
 			}
-			allowed_users = (WCHAR*)malloc(allowed_users_len * sizeof(WCHAR));
+			allowed_users = (char*)malloc(allowed_users_len * sizeof(char));
 			if (NULL == allowed_users) {
 				error_code = ERROR_NOT_ENOUGH_MEMORY;
 				fprintf(stderr, "ERROR: could not allocate memory for allowed_users.\n");
 				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
 			}
-			//tmp_wcs = (WCHAR*)malloc(longest_allowed_user_len * sizeof(WCHAR));
-			//if (NULL == tmp_wcs) {
-			//	error_code = ERROR_NOT_ENOUGH_MEMORY;
-			//	fprintf(stderr, "ERROR: could not allocate memory for tmp_wcs.\n");
-			//	goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
-			//}
+			tmp_str = (char*)malloc(longest_allowed_user_len * sizeof(char));
+			if (NULL == tmp_str) {
+				error_code = ERROR_NOT_ENOUGH_MEMORY;
+				fprintf(stderr, "ERROR: could not allocate memory for tmp_str.\n");
+				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+			}
 
 			for (size_t j = 0; j < allowed_users_num; j++) {
-				//mbstowcs(tmp_wcs, parental_control->users[j], longest_allowed_user_len);
-				//wcscat(allowed_users, tmp_wcs);
-				wcscat(allowed_users, parental_control->users[j]);
+				//mbstowcs(tmp_str, parental_control->users[j], longest_allowed_user_len);
+				//wcscat(allowed_users, tmp_str);
+				wcstombs(tmp_str, parental_control->users[j], longest_allowed_user_len);
+				strcat(allowed_users, tmp_str);
+				//wcscat(allowed_users, parental_control->users[j]);
 				if (j + 1 < allowed_users_num) {
-					wcscat(allowed_users, L":");
+					//wcscat(allowed_users, ":");
+					strcat(allowed_users, ":");
 				}
 			}
 		}
-		allowed_users[allowed_users_len - 1] = L'\0';
+		allowed_users[allowed_users_len - 1] = '\0';
 
 		// Write the combined string
 		bytes_written = 0;
-		bytes_to_write = allowed_users_len * sizeof(WCHAR);
+		bytes_to_write = (allowed_users_len - 1) * sizeof(char);
 		buffer_to_write = (LPCVOID)allowed_users;
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
@@ -1422,11 +1440,11 @@ DWORD writeParentalFoldersFile() {
 		}
 
 
-		// SEPARATOR --> L"\n"
+		// SEPARATOR --> "\n"
 		// Write separator between parental controls
 		bytes_written = 0;
-		bytes_to_write = 1 * sizeof(WCHAR);
-		buffer_to_write = (LPCVOID)L"\n";
+		bytes_to_write = 1 * sizeof(char);
+		buffer_to_write = (LPCVOID)"\n";
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
@@ -1444,9 +1462,9 @@ DWORD writeParentalFoldersFile() {
 			free(ch_groups_names);
 			ch_groups_names = NULL;
 		}
-		if (tmp_wcs != NULL) {
-			free(tmp_wcs);
-			tmp_wcs = NULL;
+		if (tmp_str != NULL) {
+			free(tmp_str);
+			tmp_str = NULL;
 		}
 		if (ERROR_SUCCESS != error_code) {
 			goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
