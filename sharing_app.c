@@ -12,7 +12,6 @@
 #include "logic.h"
 #include "keymaker.h"
 #include "system_test.h"
-//#include "qrcodegen.h"
 #include "securemirror_rsa.h"
 
 
@@ -42,8 +41,6 @@ void printMenuHelp();
 void decipherFileMenu();
 void uvaFileMenu();
 void newRSAKeypairMenu();
-//void printQr(const uint8_t qrcode[]);
-//void showQRDeepLink();
 int createDecipheredFileCopy(WCHAR* file_path);
 int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party);
 void setBlockchainTrace(const char* trace);
@@ -56,7 +53,7 @@ void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_siz
 /////  FUNCTION IMPLEMENTATIONS  /////
 
 /**
-* Shows a text-based interactive menu which allows sereral options like exitting, deciphering files, showing a QR code to link the challenge capturer app, etc.
+* Shows a text-based interactive menu which allows sereral options like exitting, deciphering files, creating an uva file, etc.
 *
 * @return
 **/
@@ -72,7 +69,6 @@ void sharingMainMenu() {
 		printf("  0) Exit (also closes mirrored disks)\n");
 		printf("  1) Decipher mode (share with anyone)\n");
 		printf("  2) Create .uva file (share with third party)\n");
-		//printf("  3) Show QR code (link android device)\n");
 		printf("  3) Generate and save third party RSA keypair\n");
 		#ifdef SECUREMIRROR_DEBUG_MODE
 		printf("  4) (Debug only) Print the File Mark Info Table\n");
@@ -96,9 +92,6 @@ void sharingMainMenu() {
 					case 2:
 						uvaFileMenu();
 						break;
-					//case 3:
-					//	showQRDeepLink();
-					//	break;
 					case 3:
 						newRSAKeypairMenu();
 						break;
@@ -142,7 +135,7 @@ void sharingMainMenu() {
 }
 
 /**
-* Shows the menu help for each of the options allowed like exitting, deciphering files, showing a QR code to link the challenge capturer app, etc.
+* Shows the menu help for each of the options allowed like exitting, deciphering files, creating uva files, etc.
 *
 * @return
 **/
@@ -556,46 +549,6 @@ NEW_RSA_KEY_PAIR_MENU_CLEANUP:
 
 	return;
 }
-
-
-/**
-* Prints the given QR Code to the console.
-*
-* @param const uint8_t qrcode[]
-*		The QR code (in uint8_t array format) to be printed.
-* @return
-**/
-//void printQr(const uint8_t qrcode[]) {
-//	int size = qrcodegen_getSize(qrcode);
-//	int border = 4;
-//	char str_filled_block[2] = { 219, 219 };
-//	for (int y = -border; y < size + border; y++) {
-//		for (int x = -border; x < size + border; x++) {
-//			fputs((qrcodegen_getModule(qrcode, x, y) ? str_filled_block : "  "), stdout);
-//		}
-//		fputs("\n", stdout);
-//	}
-//	fputs("\n", stdout);
-//}
-
-/**
-* Creates and shows in the console the QR code generated from the necessary data (API key, client ID, app ID, etc.)
-*
-* @return
-**/
-//void showQRDeepLink() {
-//	const char* text = "secureworld://test/esto_es_un_qr_de_la_cmd";	// TO DO: change this with the real code including all necessary data
-//
-//	printf("\n\tYou have entered the QR linking option.\n");
-//
-//	// Make and print the QR Code symbol
-//	uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX] = { 0 };
-//	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX] = { 0 };
-//	BOOL ok = qrcodegen_encodeText(text, tempBuffer, qrcode, qrcodegen_Ecc_LOW,
-//		qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
-//	if (ok)
-//		printQr(qrcode);
-//}
 
 
 /**
