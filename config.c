@@ -1209,7 +1209,12 @@ DWORD writeParentalFoldersFile() {
 	WCHAR* tmp_str = NULL;
 	size_t tmp_str_size = 0;
 
+	WCHAR* folder_path = NULL;
 	WCHAR* file_path = NULL;
+	size_t folder_path_len = 0;
+	size_t file_path_len = 0;
+	size_t filename_len = 0;
+	size_t add_extra_char = 0;
 
 	struct ParentalControl *parental_control = NULL;
 	struct ParentalFolder *pf = NULL;
@@ -1217,11 +1222,37 @@ DWORD writeParentalFoldersFile() {
 	char* pf_path_device_form_str = NULL;
 	size_t pf_path_device_form_len = 0;
 
-	// Get the file path or use the default one
-	file_path = _wgetenv(ENVVAR_PARENTAL_PATHS_FILE);
-	if (NULL == file_path) {
-		file_path = DEFAULT_FILE_PATH_OF_PARENTAL_PATHS_FILE;
+	// Get the folder path from the environment variable
+	folder_path = _wgetenv(ENVVAR_MINIFILTER_CONFIG_FOLDER);
+	if (NULL == folder_path) {
+		folder_path = L"";
 	}
+
+	// Get full filepath length
+	folder_path_len = wcslen(folder_path);
+	filename_len = wcslen(MINIFILTER_CONFIG_PARENTAL_PATHS_FILENAME);
+	file_path_len = folder_path_len + filename_len;
+	if (0 != folder_path_len) {
+		if (L'\\' != folder_path[folder_path_len - 1] && L'/' != folder_path[folder_path_len - 1]) {
+			add_extra_char = 1;
+			file_path_len++; // Adds 1 to the length for putting together folder and filename if needed
+		}
+	}
+
+	// Allocate full filepath
+	file_path = malloc((file_path_len + 1) * sizeof(WCHAR));
+	if (NULL == file_path) {
+		fprintf(stderr, "ERROR: could not allocate memory for the filepath.\n");
+		goto WRITE_PARENTAL_FOLDERS_FILE_CLEANUP;
+	}
+
+	// Compose the full filepath
+	wcscpy(file_path, folder_path);
+	if (add_extra_char) {
+		wcscat(file_path, L"/");
+	}
+	wcscat(file_path, MINIFILTER_CONFIG_PARENTAL_PATHS_FILENAME);
+
 
 	//PRINT("writeTestFile() function call: buffer_to_write=%p, file_path=%ws, offset=%d, length=%d\n", buffer_to_write, file_path, offset, length);
 	//PRINT_HEX(buffer_to_write, length);
@@ -1300,48 +1331,37 @@ DWORD writeParentalFoldersFile() {
 
 
 		// CHALLENGE GROUPS
-		// Get the combined string of all challenge groups in the parental control
-		if (NULL == parental_control->challenge_groups || 0 == (ch_groups_num = _msize(parental_control->challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*))) {
-			ch_groups_names_size = 1;
-			ch_groups_names = (char*)malloc(ch_groups_names_size * sizeof(char));
-			if (NULL == ch_groups_names) {
-				error_code = ERROR_NOT_ENOUGH_MEMORY;
-				fprintf(stderr, "ERROR: could not allocate memory for ch_groups_names.\n");
-				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
-			}
+		// Get the number of challenge groups
+		if (NULL == parental_control->challenge_groups) {
+			ch_groups_num = 0;
+		} else {
+			ch_groups_num = _msize(parental_control->challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*);
+		}
+
+		// Get the combined string length of all challenge groups in the parental control
+		if (0 == ch_groups_num) {
+			ch_groups_names_size = 1; // 1 for '\0'
 		} else {
 			ch_groups_names_size = 0;
-			//longest_id_len = 0;
 			for (size_t j = 0; j < ch_groups_num; j++) {
 				tmp_str_size = strlen(parental_control->challenge_groups[j]->id) + 1; // +1 always due to adding separator between them (':') or adding null ('\0') at the end
 				ch_groups_names_size += tmp_str_size;
-				//longest_id_len = MAX(longest_id_len, tmp_str_size);
 			}
-			ch_groups_names = (char*)malloc(ch_groups_names_size * sizeof(char));
-			if (NULL == ch_groups_names) {
-				error_code = ERROR_NOT_ENOUGH_MEMORY;
-				fprintf(stderr, "ERROR: could not allocate memory for ch_groups_names.\n");
-				goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
-			}
-			//tmp_str = (WCHAR*)malloc((longest_id_len+1) * sizeof(WCHAR));
-			//if (NULL == tmp_str) {
-			//	error_code = ERROR_NOT_ENOUGH_MEMORY;
-			//	fprintf(stderr, "ERROR: could not allocate memory for tmp_str.\n");
-			//	goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
-			//}
+		}
 
-			//for (size_t j = 0; j < ch_groups_num; j++) {
-			//	mbstowcs(tmp_str, parental_control->challenge_groups[j]->id, longest_id_len+1);
-			//	wcscat(ch_groups_names, tmp_str);
-			//	if (j + 1 < ch_groups_num) {
-			//		wcscat(ch_groups_names, ":");
-			//	}
-			//}
-			for (size_t j = 0; j < ch_groups_num; j++) {
-				strcat(ch_groups_names, parental_control->challenge_groups[j]->id);
-				if (j + 1 < ch_groups_num) {
-					strcat(ch_groups_names, ":");
-				}
+		// Allocate memory for the combined string
+		ch_groups_names = (char*)malloc(ch_groups_names_size * sizeof(char));
+		if (NULL == ch_groups_names) {
+			error_code = ERROR_NOT_ENOUGH_MEMORY;
+			fprintf(stderr, "ERROR: could not allocate memory for ch_groups_names.\n");
+			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
+		}
+
+		// Get the combined string of all challenge groups in the parental control
+		for (size_t j = 0; j < ch_groups_num; j++) {
+			strcat(ch_groups_names, parental_control->challenge_groups[j]->id);
+			if (j + 1 < ch_groups_num) {
+				strcat(ch_groups_names, ":");
 			}
 		}
 		ch_groups_names[ch_groups_names_size - 1] = '\0'; // Only needed if no challenges because strcat ensures ending in '\0'
@@ -1472,12 +1492,15 @@ DWORD writeParentalFoldersFile() {
 	}
 
 	// Close file handle if necessary and return corresponding error_code
-	WRITE_PARENTAL_FOLDERS_FILE_CLEANUP:
+WRITE_PARENTAL_FOLDERS_FILE_CLEANUP:
+	if (NULL != file_path) {
+		free(file_path);
+	}
 	if (handle != INVALID_HANDLE_VALUE) {
 		CloseHandle(handle);
 		handle = INVALID_HANDLE_VALUE;
 	}
-	if (pf_path_device_form != NULL) {
+	if (NULL != pf_path_device_form) {
 		free(pf_path_device_form);
 		pf_path_device_form = NULL;
 	}

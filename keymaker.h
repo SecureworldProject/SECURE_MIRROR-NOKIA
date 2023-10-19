@@ -15,4 +15,6 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 
 int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL* block_access);
 
+void updateParentalChSuccessFile(struct ChallengeEquivalenceGroup* ch_group, byte ch_result);
+
 #endif //!KEYMAKER_H

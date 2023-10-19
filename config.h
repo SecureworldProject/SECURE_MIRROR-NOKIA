@@ -7,11 +7,13 @@ el comportamiento de la función logic().
 Nokia Febrero 2021
 */
 
+#ifndef CONFIG_H
+#define CONFIG_H
 
 
 /////  DEFINITIONS  /////
-#define ENVVAR_PARENTAL_PATHS_FILE L"SECUREMIROR_MINIFILTER_CONFIG"
-#define DEFAULT_FILE_PATH_OF_PARENTAL_PATHS_FILE L"parental_paths.txt"
+#define ENVVAR_MINIFILTER_CONFIG_FOLDER L"SECUREMIRROR_MINIFILTER_CONFIG"
+#define MINIFILTER_CONFIG_PARENTAL_PATHS_FILENAME L"parental_paths.txt"
 
 
 
@@ -80,3 +82,5 @@ void convertSyncFolderPaths();
 void convertParentalFolderPaths();
 
 DWORD writeParentalFoldersFile();
+
+#endif // !CONFIG_H

@@ -48,8 +48,8 @@
 	"ParentalControl": [
 		{
 			"Folder": "C:/Users/Pepito/Documents/playboy_files/",
-			"Users": ["Pepito", "Admin"],
-			"ChallengeEqGroups": ["GroupParental1", "GroupParental2"]
+			"Users": ["Sergio", "Pepito", "Admin"],
+			"ChallengeEqGroups": ["GroupParental1"]
 		},
 		{
 			"Folder": "C:/Users/Pepito/Documents/TOP_SECRET/",
@@ -218,28 +218,12 @@
 		"GroupParental1": {
 			"ChallengeList": [
 				{
-					"FileName": "challenge_loader_python5.dll--------",
+					"FileName": "challenge_loader_python5.dll",
 					"Description": "Loads a python challenge.",
 					"Props": {
 						"module_python": "chpass",
-						"validity_time": 3600,
-						"refresh_time": 3000,
-						"mode": "parental",
-						"parental_key": "1234"
-					},
-					"Requirements": "none"
-				}
-			]
-		},
-		"GroupParental2": {
-			"ChallengeList": [
-				{
-					"FileName": "challenge_loader_python5.dll--------",
-					"Description": "Loads a python challenge.",
-					"Props": {
-						"module_python": "chpass",
-						"validity_time": 3600,
-						"refresh_time": 3000,
+						"validity_time": 20,
+						"refresh_time": 0,
 						"mode": "parental",
 						"parental_key": "1234"
 					},

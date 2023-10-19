@@ -214,9 +214,79 @@ int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *b
 	for (size_t i = 0; i < num_groups; i++) {
 		PRINT("challenge_group->id = %s\n", challenge_groups[i]->id);
 		curr_key = getSubkey(challenge_groups[i]);
+		updateParentalChSuccessFile(challenge_groups[i], curr_key.data[0]);
 		PRINT("curr_key = %d \n", curr_key.data[0]);
 		*block_access |= curr_key.data[0];
 	}
 
 	return ERROR_SUCCESS;	// Success
+}
+
+
+void updateParentalChSuccessFile(struct ChallengeEquivalenceGroup* ch_group, byte ch_result) {
+	WCHAR* file_path = NULL;
+	WCHAR* folder_path = NULL;
+	HANDLE handle = INVALID_HANDLE_VALUE;
+	size_t folder_path_len = 0;
+	size_t ch_group_id_len = 0;
+	size_t file_path_len = 0;
+	size_t add_extra_char = 0;
+
+	// Get the folder path from the environment variable
+	folder_path = _wgetenv(ENVVAR_MINIFILTER_CONFIG_FOLDER);
+	if (NULL == folder_path) {
+		folder_path = L"";
+	}
+
+	// Get full filepath length
+	folder_path_len = wcslen(folder_path);
+	ch_group_id_len = strlen(ch_group->id);
+	file_path_len = folder_path_len + ch_group_id_len;
+	if (0 != folder_path_len) {
+		if (L'\\' != folder_path[folder_path_len - 1] && L'/' != folder_path[folder_path_len - 1]) {
+			add_extra_char = 1;
+			file_path_len++; // Adds 1 to the length for putting together folder and filename if needed
+		}
+	}
+
+	// Allocate full filepath
+	file_path = malloc((file_path_len + 1) * sizeof(WCHAR));
+	if (NULL == file_path) {
+		fprintf(stderr, "ERROR: could not allocate memory for the filepath.\n");
+		goto UPDATE_PARENTAL_CH_SUCCESS_FILE_CLEANUP;
+	}
+
+	// Compose the full filepath
+	wcscpy(file_path, folder_path);
+	if (add_extra_char) {
+		wcscat(file_path, L"/");
+	}
+	mbstowcs(&(file_path[folder_path_len + add_extra_char]), ch_group->id, strlen(ch_group->id));
+
+
+	// Create or remove the file accordingly to the result
+	if (0 == ch_result) { // no block --> create file
+		// Open the file with a wide character path/filename. Creates a new empty file always
+		handle = CreateFileW(file_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (INVALID_HANDLE_VALUE == handle) {
+			fprintf(stderr, "ERROR: could not create empty file (%ws).\n", file_path);
+			goto UPDATE_PARENTAL_CH_SUCCESS_FILE_CLEANUP;
+		}
+		PRINT("File %ws created\n", file_path);
+	} else { // block --> delete file
+		if (!(DeleteFileW(file_path))) {
+			fprintf(stderr, "ERROR: could not delete empty file (%ws).\n", file_path);
+			goto UPDATE_PARENTAL_CH_SUCCESS_FILE_CLEANUP;
+		}
+	}
+
+UPDATE_PARENTAL_CH_SUCCESS_FILE_CLEANUP:
+	if (NULL != file_path) {
+		free(file_path);
+	}
+	if (INVALID_HANDLE_VALUE != handle) {
+		CloseHandle(handle);
+	}
+
+	return; // Just return with no retry/waiting. This will make minifilter have undesired behaviour, but it is a secondary service.
 }
