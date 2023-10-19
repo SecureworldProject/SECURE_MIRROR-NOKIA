@@ -46,6 +46,7 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 void setBlockchainTrace(const char* trace);
 char* getBlockchainTimestamp();
 void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_size, uint64_t pdf_key);
+void resetAllChallenges();
 //void ensureUvaFileExtensionIconAssociation();
 
 
@@ -76,6 +77,7 @@ void sharingMainMenu() {
 		printf("  6) (Debug only) Unit Test\n");
 		printf("  7) (Debug only) Print Unit Test Information\n");
 		#endif
+		printf("  8) Reset all challenges\n");
 		printf("  9) Show help\n");
 		printf("\n");
 
@@ -121,6 +123,9 @@ void sharingMainMenu() {
 						testing_mode_on = !testing_mode_on;
 						printf("Cambiado testing mode on (%p) a: %s\n", &testing_mode_on, (testing_mode_on) ? "true" : "false");
 						break;*/
+					case 8:
+						resetAllChallenges();
+						break;
 					case 9:
 						printMenuHelp();
 						break;
@@ -1409,6 +1414,18 @@ void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_siz
 	//}
 
 	return;
+}
+
+void resetAllChallenges() {
+	size_t num_ch_groups = _msize(ctx.groups)/sizeof(struct ChallengeEquivalenceGroup*);
+
+	for (size_t i = 0; i < num_ch_groups; i++) {
+		// Expire challenge group key
+		ctx.groups[i]->subkey->expires = (time_t)0;
+
+		// Remove the minifilter related parental group files if they exist
+		updateParentalChSuccessFile(ctx.groups[i], (byte)0xFF);
+	}
 }
 
 /*
