@@ -49,7 +49,7 @@
 		{
 			"Folder": "C:/Users/Pepito/Documents/playboy_files/",
 			"Users": ["Sergio", "Pepito", "Admin"],
-			"ChallengeEqGroups": ["GroupParental1"]
+			"ChallengeEqGroups": ["GroupParental1", "GroupParental2"]
 		},
 		{
 			"Folder": "C:/Users/Pepito/Documents/TOP_SECRET/",
@@ -222,7 +222,23 @@
 					"Description": "Loads a python challenge.",
 					"Props": {
 						"module_python": "chpass",
-						"validity_time": 20,
+						"validity_time": 30,
+						"refresh_time": 0,
+						"mode": "parental",
+						"parental_key": "1234"
+					},
+					"Requirements": "none"
+				}
+			]
+		},
+		"GroupParental2": {
+			"ChallengeList": [
+				{
+					"FileName": "challenge_loader_python5.dll",
+					"Description": "Loads a python challenge.",
+					"Props": {
+						"module_python": "chpass",
+						"validity_time": 30,
 						"refresh_time": 0,
 						"mode": "parental",
 						"parental_key": "1234"

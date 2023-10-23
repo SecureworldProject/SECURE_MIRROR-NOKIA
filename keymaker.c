@@ -15,7 +15,7 @@ Nokia mayo 2021
 
 /////  FUNCTION PROTOTYPES  /////
 
-struct KeyData getSubkey(struct ChallengeEquivalenceGroup* challenge_group);
+struct KeyData getSubkey(struct ChallengeEquivalenceGroup* challenge_group, BOOL* had_expired);
 
 
 
@@ -59,7 +59,7 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 
 	// Get composed key size and allocate corresponding memory in data member
 	for (size_t i = 0; i < num_groups; i++) {
-		keys[i] = getSubkey(challenge_groups[i]);
+		keys[i] = getSubkey(challenge_groups[i], NULL);
 		composed_key->size += keys[i].size;
 	}
 	composed_key->data = calloc(composed_key->size, sizeof(byte));
@@ -83,7 +83,7 @@ int makeComposedKey(struct ChallengeEquivalenceGroup** challenge_groups, struct 
 /**
  Returns a time-valid subkey for the given challenge group. In case key expired, forces computation at the moment.
  */
-struct KeyData getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
+struct KeyData getSubkey(struct ChallengeEquivalenceGroup* challenge_group, BOOL* had_expired) {
 	struct KeyData keydata = { 0 };
 	time_t current_time = 0;
 	int group_length = 0;
@@ -116,6 +116,9 @@ struct KeyData getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
 	printf("Difftime(a, b): %f\n", difftime(current_time, keydata.expires));
 	// Check if key expired and needs to be computed now
 	if (difftime(current_time, keydata.expires) > 0) {		// Means: current_time > keydata.expires
+		if (NULL != had_expired) {
+			*had_expired = TRUE;
+		}
 
 		// TODO: start on the challenge that executed correctly on the init() instead of always starting on index 0
 
@@ -198,6 +201,7 @@ struct KeyData getSubkey(struct ChallengeEquivalenceGroup* challenge_group) {
   Updates the block_access variable depending on the given challenge groups.
  */
 int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *block_access) {
+	BOOL had_expired = TRUE;
 	int num_groups = 0;
 	int index = 0;
 	struct KeyData curr_key = { 0 };
@@ -212,9 +216,12 @@ int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *b
 
 	// Make the key
 	for (size_t i = 0; i < num_groups; i++) {
+		had_expired = FALSE;
 		PRINT("challenge_group->id = %s\n", challenge_groups[i]->id);
-		curr_key = getSubkey(challenge_groups[i]);
-		updateParentalChSuccessFile(challenge_groups[i], curr_key.data[0]);
+		curr_key = getSubkey(challenge_groups[i], &had_expired);
+		if (had_expired) {
+			updateParentalChSuccessFile(challenge_groups[i], curr_key.data[0]);
+		}
 		PRINT("curr_key = %d \n", curr_key.data[0]);
 		*block_access |= curr_key.data[0];
 	}
@@ -259,9 +266,10 @@ void updateParentalChSuccessFile(struct ChallengeEquivalenceGroup* ch_group, byt
 	// Compose the full filepath
 	wcscpy(file_path, folder_path);
 	if (add_extra_char) {
-		wcscat(file_path, L"/");
+		wcscat(file_path, L"\\");
 	}
-	mbstowcs(&(file_path[folder_path_len + add_extra_char]), ch_group->id, strlen(ch_group->id));
+	mbstowcs(&(file_path[folder_path_len + add_extra_char]), ch_group->id, ch_group_id_len + 1);
+	PRINT("Ch equivalent group file: %ws\n", file_path);
 
 
 	// Create or remove the file accordingly to the result
@@ -269,13 +277,13 @@ void updateParentalChSuccessFile(struct ChallengeEquivalenceGroup* ch_group, byt
 		// Open the file with a wide character path/filename. Creates a new empty file always
 		handle = CreateFileW(file_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (INVALID_HANDLE_VALUE == handle) {
-			fprintf(stderr, "ERROR: could not create empty file (%ws).\n", file_path);
+			fprintf(stderr, "WARNING: could not create empty file (%ws).\n", file_path);
 			goto UPDATE_PARENTAL_CH_SUCCESS_FILE_CLEANUP;
 		}
 		PRINT("File %ws created\n", file_path);
 	} else { // block --> delete file
 		if (!(DeleteFileW(file_path))) {
-			fprintf(stderr, "ERROR: could not delete empty file (%ws).\n", file_path);
+			fprintf(stderr, "WARNING: could not delete empty file (%ws).\n", file_path);
 			goto UPDATE_PARENTAL_CH_SUCCESS_FILE_CLEANUP;
 		}
 	}

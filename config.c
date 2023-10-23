@@ -7,6 +7,12 @@ el comportamiento de la función logic().
 Nokia Febrero 2021
 */
 
+/////  DEFINITIONS  /////
+#define MINIFILTER_USES_USERNAMES FALSE // TRUE
+
+
+
+
 /////  FILE INCLUDES  /////
 
 #include "main.h"
@@ -1249,7 +1255,7 @@ DWORD writeParentalFoldersFile() {
 	// Compose the full filepath
 	wcscpy(file_path, folder_path);
 	if (add_extra_char) {
-		wcscat(file_path, L"/");
+		wcscat(file_path, L"\\");
 	}
 	wcscat(file_path, MINIFILTER_CONFIG_PARENTAL_PATHS_FILENAME);
 
@@ -1277,7 +1283,7 @@ DWORD writeParentalFoldersFile() {
 	PRINT("Handle pointer moved\n");
 
 	// Iterate over each parental control
-	for (size_t i = 0; i < _msize(ctx.parentals)/sizeof(struct ParentalFolder*); i++) {
+	for (size_t i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalFolder*); i++) {
 		parental_control = ctx.parentals[i];
 
 		// PARENTAL FOLDER PATH
@@ -1313,11 +1319,16 @@ DWORD writeParentalFoldersFile() {
 		}
 
 
-		// SEPARATOR --> ";"
+		// OUTER SEPARATOR
 		// Write separator between parental folder path and required parental challenges
 		bytes_written = 0;
 		bytes_to_write = 1 * sizeof(char);
+#if MINIFILTER_USES_USERNAMES
 		buffer_to_write = (LPCVOID)";";
+#else
+		if (NULL != parental_control->challenge_groups && 0 != _msize(parental_control->challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*)) { // Write only if there are parental groups
+		buffer_to_write = (LPCVOID)":";
+#endif
 		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
 			error_code = ERROR_WRITE_FAULT;
 			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
@@ -1328,7 +1339,9 @@ DWORD writeParentalFoldersFile() {
 			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
 			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
 		}
-
+#if !MINIFILTER_USES_USERNAMES
+		}
+#endif
 
 		// CHALLENGE GROUPS
 		// Get the number of challenge groups
@@ -1358,9 +1371,11 @@ DWORD writeParentalFoldersFile() {
 		}
 
 		// Get the combined string of all challenge groups in the parental control
+		ch_groups_names[0] = '\0';
 		for (size_t j = 0; j < ch_groups_num; j++) {
 			strcat(ch_groups_names, parental_control->challenge_groups[j]->id);
 			if (j + 1 < ch_groups_num) {
+				// INNER SEPARATOR
 				strcat(ch_groups_names, ":");
 			}
 		}
@@ -1382,7 +1397,8 @@ DWORD writeParentalFoldersFile() {
 		}
 
 
-		// SEPARATOR --> ";"
+#if MINIFILTER_USES_USERNAMES
+		// OUTER SEPARATOR
 		// Write separator between required parental challenges and allowed users
 		bytes_written = 0;
 		bytes_to_write = 1 * sizeof(char);
@@ -1431,13 +1447,10 @@ DWORD writeParentalFoldersFile() {
 			}
 
 			for (size_t j = 0; j < allowed_users_num; j++) {
-				//mbstowcs(tmp_str, parental_control->users[j], longest_allowed_user_len);
-				//wcscat(allowed_users, tmp_str);
 				wcstombs(tmp_str, parental_control->users[j], longest_allowed_user_len);
 				strcat(allowed_users, tmp_str);
-				//wcscat(allowed_users, parental_control->users[j]);
 				if (j + 1 < allowed_users_num) {
-					//wcscat(allowed_users, ":");
+					// INNER SEPARATOR
 					strcat(allowed_users, ":");
 				}
 			}
@@ -1458,7 +1471,7 @@ DWORD writeParentalFoldersFile() {
 			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
 			goto LOOP_IN_WRITEPARENTALFOLDERSFILE_CLEANUP;
 		}
-
+#endif
 
 		// SEPARATOR --> "\n"
 		// Write separator between parental controls
