@@ -23,15 +23,25 @@
 #define READ_BUF_SIZE (1024 * 1024)		// 1 MB
 #define DECIPHERED_SUFFIX_WCS L"_deciphered"
 #define DECIPHERED_SUFFIX_WCS_LEN wcslen(DECIPHERED_SUFFIX_WCS)
-#define MAX_LINK_LENGTH 500
+
 #define PRIV_KEY_PEM_SUFFIX L"_priv.pem"
 #define PUB_KEY_PEM_SUFFIX L"_pub.pem"
 #define UVA_FILE_VERSION 1
-#define DATETIME_FORMAT "%Y-%m-%d - %H:%M:%S"
-#define DATETIME_FORMAT_SIZE 22		// 4+1+2+1+2 +3+ 2+1+2+1+2 +1 for the '\0'
-#define DATE_FORMAT "%d/%m/%Y"
-#define DATE_FORMAT_SIZE 11			// 2+1+2+1+4 +1 for the '\0'
-#define ALLOW_MIRRORED_PATHS_ONLY FALSE // TRUE ensures that the path uses a mirrored letter. FALSE allows also paths starting with "C:\..." and "\\?\C:\..."
+#define DATETIME_FORMAT "%Y-%m-%d - %H:%M:%S"		// "YYYY-MM-DD - hh:mm:ss"
+#define DATETIME_FORMAT_SIZE 22						// 4+1+2+1+2 +3+ 2+1+2+1+2 +1 for the '\0'
+#define DATE_FORMAT "%d/%m/%Y"						// YYYY/MM/DD
+#define DATE_FORMAT_SIZE 11							// 2+1+2+1+4 +1 for the '\0'
+#define ALLOW_MIRRORED_PATHS_ONLY FALSE				// TRUE ensures that the path uses a mirrored letter. FALSE allows also paths starting with "C:\..." and "\\?\C:\..."
+
+#define BLOCKCHAIN_JSON_FIELD_TIMESTAMP		"timestamp"
+#define BLOCKCHAIN_JSON_FIELD_USERNAME		"usuario"
+#define BLOCKCHAIN_JSON_FIELD_FILE			"file_name"
+#define BLOCKCHAIN_JSON_FIELD_OPTYPE		"operation_type"
+
+#define ENVVAR_BLOCKCHAIN_TRACE_FOLDER "SECUREMIRROR_BLOCKCHAIN_TRACE_FOLDER"
+#define BLOCKCHAIN_TRACE_BASE_FILENAME "blockchainTask"
+#define BLOCKCHAIN_DATETIME_FORMAT "%Y-%m-%d_%H%M%S"	// "YYYY-MM-DD_hhmmss"
+#define BLOCKCHAIN_DATETIME_FORMAT_SIZE 18				// 4+1+2+1+2 +1+ 2+2+2 +1 (for '\0') = 18
 
 
 
@@ -43,11 +53,10 @@ void uvaFileMenu();
 void newRSAKeypairMenu();
 int createDecipheredFileCopy(WCHAR* file_path);
 int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, struct tm* access_period_end, struct ThirdParty* third_party);
-void setBlockchainTrace(const char* trace);
+void setBlockchainTrace(const WCHAR* wcs_sharable_file_name, const char* operation_type);
 char* getBlockchainTimestamp();
 void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_size, uint64_t pdf_key);
 void resetAllChallenges();
-//void ensureUvaFileExtensionIconAssociation();
 
 
 
@@ -598,7 +607,6 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 
 	LARGE_INTEGER distance_to_move = { 0 };
 
-	char blockchain_trace[300] = "";
 	DWORD error_code = ERROR_SUCCESS;
 	DWORD result = ERROR_SUCCESS;
 
@@ -807,8 +815,7 @@ int createDecipheredFileCopy(WCHAR* input_file_path) {
 	}
 
 	// Register the potentially harmful operation in blockchain
-	sprintf_s(blockchain_trace, 300, "New unprotected file created (%ws)", file_path_write);
-	setBlockchainTrace(blockchain_trace);
+	setBlockchainTrace(file_path_write, "Deciphered copy created");
 
 
 	// Make sure of freeing everything before leaving the function
@@ -922,8 +929,6 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 	DWORD bytes_written = 0;
 	uint32_t unsused_frn = 0;
 
-
-	char blockchain_trace[300] = "";
 	size_t result = 0;
 	DWORD err_code = ERROR_SUCCESS;
 
@@ -1286,8 +1291,7 @@ int createUvaFileCopy(WCHAR* pdf_file_path, struct tm* access_period_start, stru
 
 
 	// Register the potentially harmful operation in blockchain
-	sprintf_s(blockchain_trace, 300, "New uva file created (%ws)", uva_file_path);
-	setBlockchainTrace(blockchain_trace);
+	setBlockchainTrace(uva_file_path, "UVA file creation");
 	err_code = ERROR_SUCCESS;
 
 
@@ -1341,24 +1345,154 @@ CREATE_UVA_FILE_COPY_CLEANUP:
 	return err_code;
 }
 
-void setBlockchainTrace(const char* trace) {
+void setBlockchainTrace(const WCHAR* wcs_sharable_file_name, const char* operation_type) {
+	LPCVOID write_buf = NULL;
+	DWORD err_code = ERROR_SUCCESS;
+	char* file_path = NULL;
+	size_t file_path_len = 0;
+	int extra_byte = 0; // for the slash between the folder and filename
+
+	FILE *fptr = NULL;
+
 	char* blockchain_ts = getBlockchainTimestamp();
+
 	char* username = getenv("USERNAME");
+	char* default_trace_folder = getenv(ENVVAR_BLOCKCHAIN_TRACE_FOLDER);
+	char* base_filename = BLOCKCHAIN_TRACE_BASE_FILENAME;
+	char* sharable_file_name = NULL;
+	size_t sharable_file_name_len = 0;
 
-	printf("THIS HAS TO BE CHANGED WITH A REAL BLOCKCHAIN TRACE --> %s;%s;'%s'\n",
-		((NULL != blockchain_ts) ? blockchain_ts : "????-??-?? - ??:??:??"),
+	// Crete a char version of the WCHAR sharable file name
+	sharable_file_name_len = wcslen(wcs_sharable_file_name);
+	sharable_file_name = malloc((sharable_file_name_len + 1) * sizeof(char));
+	if (NULL == sharable_file_name) {
+		fprintf(stderr, "ERROR: could not allocate memory for the sharable filepath.\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+	wcstombs(sharable_file_name, wcs_sharable_file_name, sharable_file_name_len);
+	// Clean backward slashes
+	for (size_t i = 0; i < sharable_file_name_len; i++) {
+		if ('\\' == sharable_file_name[i]) {
+			sharable_file_name[i] = '/';
+		}
+	}
+
+	printf("GENERATING BLOCKCHAIN TRACE WITH THE FOLLOWING DATA:\n\t%s\n\t%s\n\t'%s'\n\t%s\n",
+		((NULL != blockchain_ts) ? blockchain_ts : "????-??-??_??????"),
 		((NULL != username) ? username : "UNKNOWN USER"),
-		trace);
+		sharable_file_name,
+		operation_type);
 
+
+	if (NULL == blockchain_ts) {
+		fprintf(stderr, "ERROR: could get timestamp.\n");
+		err_code = -1;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+	if (NULL == default_trace_folder) {
+		fprintf(stderr, "ERROR: could find environment variable %s.\n", ENVVAR_BLOCKCHAIN_TRACE_FOLDER);
+		err_code = ERROR_ENVVAR_NOT_FOUND;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+
+	// Concatenate base file path
+	if (default_trace_folder[strlen(default_trace_folder) - 1] != '/' &&
+		default_trace_folder[strlen(default_trace_folder) - 1] != '\\') {
+		extra_byte = 1;
+	}
+	file_path_len = strlen(default_trace_folder) + extra_byte + strlen(base_filename) + 1 + (BLOCKCHAIN_DATETIME_FORMAT_SIZE - 1) + 4;
+	file_path = calloc(file_path_len + 1, sizeof(char));
+	if (NULL == file_path) {
+		fprintf(stderr, "ERROR: could not allocate memory for the file path.\n");
+		err_code = ERROR_NOT_ENOUGH_MEMORY;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+	strcpy(file_path, default_trace_folder);
+	if (1 == extra_byte) {
+		strcat(file_path, "\\");
+	}
+	strcat(file_path, base_filename);
+	strcat(file_path, "_");
+	strcat(file_path, blockchain_ts);
+	strcat(file_path, ".json");
+
+
+	// Size is basically:
+	//		1 for the curly brace opening ('{')
+	//		1 for every line feed ('\n')
+	//		1 for every tab ('\t') or space (' ')
+	//		1 for every colon (':')
+	//		1 for every quotation marks ('"')
+	//		1 for every comma (',')
+	//		1 for the curly brace closing ('}')
+	//		Note: ending '\0' will NOT be included, due to variable being writing size of a binary file, not a string
+
+
+	// Open a file in writing mode
+	PRINT("file_path: '%s'\n", file_path);
+	//char* file_path_test = "C:\\blockchain_traces/blockchainTask adf 00";
+	fptr = fopen(file_path, "w");
+	if (NULL == fptr) {
+		fprintf(stderr, "ERROR in setBlockchainTrace: opening file for writing (fopen: %s)\n", strerror(errno));
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+
+	/*{
+		"timestamp":"2023-11-07 - 12:05:00",
+		"username":"Sergio",
+		"file_name":"C:\Users\Pepito\Trabajo\Router_Model_R12A1_Specs.uva"
+		"operation_type":"UVA creation",
+	}*/
+
+
+	// Write
+	if (0 >= fprintf(fptr, "{\n")) {
+		fprintf(stderr, "ERROR: could not write the data\n");
+		err_code = ERROR_WRITE_FAULT;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+	if (0 >= fprintf(fptr, "\t\"%s\":\"%s\",\n", BLOCKCHAIN_JSON_FIELD_TIMESTAMP, blockchain_ts)) {
+		fprintf(stderr, "ERROR: could not write the data\n");
+		err_code = ERROR_WRITE_FAULT;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+	if (0 >= fprintf(fptr, "\t\"%s\":\"%s\",\n", BLOCKCHAIN_JSON_FIELD_USERNAME, username)) {
+		fprintf(stderr, "ERROR: could not write the data\n");
+		err_code = ERROR_WRITE_FAULT;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+	if (0 >= fprintf(fptr, "\t\"%s\":\"%s\",\n", BLOCKCHAIN_JSON_FIELD_FILE, sharable_file_name)) {
+		fprintf(stderr, "ERROR: could not write the data\n");
+		err_code = ERROR_WRITE_FAULT;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+	if (0 >= fprintf(fptr, "\t\"%s\":\"%s\"\n", BLOCKCHAIN_JSON_FIELD_OPTYPE, operation_type)) {
+		fprintf(stderr, "ERROR: could not write the data\n");
+		err_code = ERROR_WRITE_FAULT;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+	if (0 >= fprintf(fptr, "}\n")) {
+		fprintf(stderr, "ERROR: could not write the data\n");
+		err_code = ERROR_WRITE_FAULT;
+		goto SET_BLOCKCHAIN_TRACE_CLEANUP;
+	}
+
+
+	SET_BLOCKCHAIN_TRACE_CLEANUP:
 	if (NULL != blockchain_ts) {
 		free(blockchain_ts);
+	}
+	if (NULL != fptr) {
+		fclose(fptr);
+		free(fptr);
 	}
 	//if (NULL != username) { //The string pointed to shall not be modified by the program
 	//	free(username);
 	//}
 }
 
-char* getBlockchainTimestamp() {
+char* getBlockchainTimestampOLD() {
 	time_t current_time = 0;
 	struct tm* current_time_info = NULL;
 	char* formatted_time = NULL;
@@ -1393,6 +1527,42 @@ GET_BLOCKCHAIN_TIMESTAMP:
 	}
 	return NULL;
 }
+char* getBlockchainTimestamp() {
+	time_t current_time = 0;
+	struct tm* current_time_info = NULL;
+	char* formatted_time = NULL;
+
+	// Get current time
+	if (time(&current_time) == -1) {
+		fprintf(stderr, "ERROR: could not retrieve current time\n");
+		goto GET_BLOCKCHAIN_TIMESTAMP;
+	}
+	current_time_info = localtime(&current_time);
+	if (NULL == current_time_info) {
+		fprintf(stderr, "ERROR: could not convert current time (time_t to time_info)\n");
+		goto GET_BLOCKCHAIN_TIMESTAMP;
+	}
+
+	// Format the timestamp
+	formatted_time = malloc(BLOCKCHAIN_DATETIME_FORMAT_SIZE * sizeof(char));
+	if (NULL == formatted_time) {
+		fprintf(stderr, "ERROR: could not allocate memory for the formatted time\n");
+		goto GET_BLOCKCHAIN_TIMESTAMP;
+	}
+	strftime(formatted_time, BLOCKCHAIN_DATETIME_FORMAT_SIZE, BLOCKCHAIN_DATETIME_FORMAT, current_time_info);
+
+	return formatted_time;
+
+GET_BLOCKCHAIN_TIMESTAMP:
+	//if (NULL != current_time_info) {	// Must not be freed because it is created the first time and reused every other time the function localtime() get called
+	//	free(current_time);
+	//}
+	if (NULL != current_time_info) {
+		free(formatted_time);
+	}
+	return NULL;
+}
+
 
 void thirdPartyPdfBufferCipher(LPVOID* dst_buf, LPCVOID* src_buf, size_t buf_size, uint64_t pdf_key) {
 	uint64_t* u64_buff = NULL;
@@ -1427,69 +1597,3 @@ void resetAllChallenges() {
 		updateParentalChSuccessFile(ctx.groups[i], (byte)0xFF);
 	}
 }
-
-/*
-BOOL ensureUvaFileExtensionIconAssociation() {
-
-	Open the registry : RegOpenKeyEx
-	Query the value : RegQueryValueEx
-	// do something with value
-	Set the value back : RegSetValueEx
-	close the registry : RegCloseKey
-
-
-	HKEY hkey = NULL;
-	DWORD result = ERROR_SUCCESS;
-
-	result = RegOpenKeyExW(HKEY_CLASSES_ROOT, L".uva", 0, KEY_READ, &hkey);
-	if (ERROR_SUCCESS != result) {
-
-	}
-	RegQueryValueExW(hkey, )
-		//    if (RegSetValueExW(hKey, _T("AllowRemoteDASD"), 0, REG_DWORD, (LPBYTE)&data1, sizeof(DWORD)))
-
-	LSTATUS RegCreateKeyExA(
-		[in]            HKEY                        hKey,
-		[in]            LPCSTR                      lpSubKey,
-		DWORD                       Reserved,
-		[in, optional]  LPSTR                       lpClass,
-		[in]            DWORD                       dwOptions,
-		[in]            REGSAM                      samDesired,
-		[in, optional]  const LPSECURITY_ATTRIBUTES lpSecurityAttributes,
-		[out]           PHKEY                       phkResult,
-		[out, optional] LPDWORD                     lpdwDisposition
-	);
-
-
-
-	HKEY hKey;
-	HKEY resKey;
-	DWORD dataLen;
-	hKey = HKEY_LOCAL_MACHINE;
-
-	LPCTSTR subKey = ".uva";;
-	LPCTSTR subValue = ;
-
-	long key = RegOpenKeyExA(hKey, subKey, 0, KEY_READ | KEY_WRITE, &resKey);
-	if (key == ERROR_SUCCESS) {
-		subValue = "ProgramData";
-		long key = RegQueryValueExA(resKey, subValue, NULL, NULL, NULL, NULL);
-		if (key == ERROR_FILE_NOT_FOUND) {
-			return FALSE;
-		} else {
-			std::string data = "C:\\WINDOWS\\system32\\program.exe";
-			DWORD dataLen = data.size() + 1;
-
-			long key = RegSetValueExA(resKey, subValue, 0, REG_SZ, (const BYTE*)data.c_str(), dataLen);
-			if (key == ERROR_SUCCESS) {
-				return TRUE;
-			} else {
-				return FALSE;
-			}
-		}
-	} else {
-		return FALSE;
-	}
-
-
-}*/
