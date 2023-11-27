@@ -11,13 +11,6 @@ Nokia Febrero 2021
 #define CONFIG_H
 
 
-/////  DEFINITIONS  /////
-#define ENVVAR_MINIFILTER_CONFIG_FOLDER L"SECUREMIRROR_MINIFILTER_CONFIG"
-#define MINIFILTER_CONFIG_PARENTAL_PATHS_FILENAME L"parental_paths.txt"
-
-
-
-
 /////  FILE INCLUDES  /////
 #include "context.h"
 
@@ -80,7 +73,5 @@ void formatCtxPaths();
 void convertSyncFolderPaths();
 
 void convertParentalFolderPaths();
-
-DWORD writeParentalFoldersFile();
 
 #endif // !CONFIG_H

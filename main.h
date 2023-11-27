@@ -18,7 +18,16 @@
 // Uncomment to start debug mode (includes debugging options in the sharing menu and not quitting when dll fails to load)
 #define SECUREMIRROR_DEBUG_MODE
 
+// Uncomment to add usernames in the parental paths json file that the minifilter uses
+//#define MINIFILTER_USES_USERNAMES
 
+// The name of the environment variable that contains the path to the folder where the parental_paths file used by the minifilter will be written
+#define ENVVAR_MINIFILTER_CONFIG_FOLDER L"SECUREMIRROR_MINIFILTER_CONFIG"
+
+// The name of the file which contains the parental_paths
+#define MINIFILTER_CONFIG_PARENTAL_PATHS_FILENAME L"parental_paths.txt"
+
+// Number of drive letters (positions that the letters array has)
 #define NUM_LETTERS 26
 
 // Returns the index (position in the alphabet starting at 0) associated to the letter (allows lower/upper case and char/WCHAR types)
@@ -29,6 +38,8 @@
 									-1)
 // Returns the upper case (char type) letter associated to the index (position in the alphabet starting at 0)
 #define INDEX_TO_DEVICE_LETTER(IND) (IND)+'A'
+
+
 
 
 
@@ -106,6 +117,7 @@ void initCiphers();
 void challengeExecutorLoop();
 int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, struct Challenge* ch);
 int configureExecChFromMain(struct Challenge);
+DWORD writeParentalFoldersFile();
 
 
 #endif // !__MAIN_H

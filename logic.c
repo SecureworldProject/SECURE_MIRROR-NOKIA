@@ -320,7 +320,7 @@ void threadPurge() {
 	PRINT("FMI Table purging thread started...\n");
 	while (1) {
 		Sleep(THREAD_PURGE_SLEEP);
-		PRINT("Purging FMI Table...\n");
+		//PRINT("Purging FMI Table...\n");
 		purgeFMITable();
 	}
 }

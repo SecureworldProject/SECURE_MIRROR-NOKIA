@@ -211,7 +211,6 @@ void decipherFileMenu() {
 		printf("\tThere was an error while trying to create the deciphered copy. (errcode: %d)\n", result);
 	} else {
 		printf("\tThe deciphered copy was successfully created.\n");
-		printf("\tGENERATING TRACES FOR POTENTIALLY DANGEROUS ACTIVITIES.\n");
 	}
 
 	return;
