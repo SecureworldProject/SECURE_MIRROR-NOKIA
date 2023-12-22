@@ -205,9 +205,9 @@ int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *b
 	int num_groups = 0;
 	int index = 0;
 	struct KeyData curr_key = { 0 };
-	*block_access = FALSE;
 
 	if (block_access == NULL)		return ERROR_INVALID_PARAMETER;	// block_access is NULL
+	*block_access = FALSE;
 
 	if (challenge_groups == NULL)	return ERROR_SUCCESS;	// No challenge groups (same as if all challenges are passed)
 
@@ -216,6 +216,9 @@ int makeParentalKey(struct ChallengeEquivalenceGroup** challenge_groups, BOOL *b
 
 	// Make the key
 	for (size_t i = 0; i < num_groups; i++) {
+		if (NULL == challenge_groups[i]) {
+			continue;
+		}
 		had_expired = FALSE;
 		PRINT("challenge_group->id = %s\n", challenge_groups[i]->id);
 		curr_key = getSubkey(challenge_groups[i], &had_expired);
@@ -277,13 +280,13 @@ void updateParentalChSuccessFile(struct ChallengeEquivalenceGroup* ch_group, byt
 		// Open the file with a wide character path/filename. Creates a new empty file always
 		handle = CreateFileW(file_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (INVALID_HANDLE_VALUE == handle) {
-			fprintf(stderr, "WARNING: could not create empty file (%ws).\n", file_path);
+			fprintf(stderr, "WARNING: could not create empty file (%ws). Error: %lu\n", file_path, GetLastError());
 			goto UPDATE_PARENTAL_CH_SUCCESS_FILE_CLEANUP;
 		}
 		PRINT("File %ws created\n", file_path);
 	} else { // block --> delete file
 		if (!(DeleteFileW(file_path))) {
-			fprintf(stderr, "WARNING: could not delete empty file (%ws).\n", file_path);
+			fprintf(stderr, "WARNING: could not delete empty file (%ws). Error: %lu\n", file_path, GetLastError());
 			goto UPDATE_PARENTAL_CH_SUCCESS_FILE_CLEANUP;
 		}
 	}

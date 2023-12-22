@@ -15,6 +15,8 @@
 	#include "winfsp/wrapper_winfsp.h"
 #endif ENABLE_WINFSP
 
+#include "keymaker.h"
+
 
 
 
@@ -77,6 +79,23 @@ int main(int argc, char* argv[]) {
 		printContext();
 	#endif //RUN_PRINT_CONTEXT
 
+	// Initialize the critical section associated to the challenge executions
+	InitializeCriticalSection(&main_thread_ch_exec_data.critical_section);
+	main_thread_ch_exec_data.ch_group = NULL;
+	main_thread_ch_exec_data.ch = NULL;
+	main_thread_ch_exec_data.request_running = FALSE;
+	main_thread_ch_exec_data.result = 0;
+
+	// Initialize the parameters for the challenges
+	initChallenges();
+
+	// Initialize the parameters for the ciphers
+	initCiphers();
+
+#ifdef SECUREMIRROR_PARENTAL_MODE
+		printf("\nSECUREMIRROR LAUNCHED IN PARENTAL MODE\n\n");
+	CreateThread(NULL, 0, threadParentalModeKeyRefresh, NULL, 0, NULL);;
+#else
 	// Launch purge thread
 	HANDLE purge_thread;
 	purge_thread = CreateThread(NULL, 0, threadPurge, NULL, 0, NULL);
@@ -119,22 +138,7 @@ int main(int argc, char* argv[]) {
 
 		volume_mounter_thread = CreateThread(NULL, 0, volumeMounterThread, &vol_mount_th_data, 0, NULL);
 	#endif //RUN_VOLUME_MOUNTER
-
-	// Initialize the critical section associated to the challenge executions
-	InitializeCriticalSection(&main_thread_ch_exec_data.critical_section);
-	main_thread_ch_exec_data.ch_group = NULL;
-	main_thread_ch_exec_data.ch = NULL;
-	main_thread_ch_exec_data.request_running = FALSE;
-	main_thread_ch_exec_data.result = 0;
-
-	// Initialize the parameters for the challenges
-	initChallenges();
-
-	// Initialize the parameters for the ciphers
-	initCiphers();
-
-	// Forever loop checking for new pendrives
-	//Sleep(2000);
+#endif //SECUREMIRROR_PARENTAL_MODE
 
 	// Sharing menu
 	CreateThread(NULL, 0, sharingMainMenu, NULL, 0, NULL);
@@ -189,18 +193,22 @@ void challengeExecutorLoop() {
 
 int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, struct Challenge* ch) {
 
-	printf("execChallengeFromMainThread --> Entering critical section\n");
+	//printf("execChallengeFromMainThread --> Entering critical section\n");
 	EnterCriticalSection(&main_thread_ch_exec_data.critical_section);
-	printf("execChallengeFromMainThread --> Entered critical section\n");
+	//printf("execChallengeFromMainThread --> Entered critical section\n");
 	main_thread_ch_exec_data.ch_group = ch_group;
 	main_thread_ch_exec_data.ch = ch;
 	main_thread_ch_exec_data.request_running = TRUE;
-	printf("execChallengeFromMainThread --> Challenge execution requested\n");
+	printf("execChallengeFromMainThread --> Challenge execution requested (%ws)\n", ch->file_name);
+	if (!main_thread_ch_exec_data.request_running) {
+		printf("execChallengeFromMainThread --> Still waiting...");
+	}
 	while (main_thread_ch_exec_data.request_running) {
-		printf("execChallengeFromMainThread --> Still waiting...\n");
+		printf(".");
 		Sleep(100);
 	}
-	printf("execChallengeFromMainThread --> Leaving critical section\n");
+	printf("\n");
+	//printf("execChallengeFromMainThread --> Leaving critical section\n");
 	LeaveCriticalSection(&main_thread_ch_exec_data.critical_section);
 
 	printf("execChallengeFromMainThread --> Challenge execution result: %d\n", main_thread_ch_exec_data.result);
@@ -325,6 +333,57 @@ void initCiphers() {
 		}
 	}
 }
+
+void threadParentalModeKeyRefresh() {
+	int num_max_unique_ch_groups = 0;
+	int num_actual_unique_ch_groups = 0;
+	struct ChallengeEquivalenceGroup** unique_ch_groups = NULL;
+	BOOL already_included = FALSE;
+	BOOL unused_result = FALSE;
+
+	// Count all parental challenge groups used (max possible number of unique parental challenge groups)
+	for (size_t i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
+		num_max_unique_ch_groups += _msize(ctx.parentals[i]->challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*);
+	}
+
+	// Allocate and initialize to NULL. Inner pointers don't have to be allocated, due to they will just be "borrowed"
+	unique_ch_groups = (struct ChallengeEquivalenceGroup**) malloc(num_max_unique_ch_groups * sizeof(struct ChallengeEquivalenceGroup*));
+	if (NULL == unique_ch_groups) {
+		printf(stderr, "ERROR: could not start threadParentalModeKeyRefresh() due to not enought memory for allocating unique_ch_groups pointer");
+		return ERROR_NOT_ENOUGH_MEMORY;
+	}
+	for (size_t i = 0; i < num_max_unique_ch_groups; i++) {
+		unique_ch_groups[i] = NULL;
+	}
+
+	// Count actual number of unique parental challenge groups while filling the unique_ch_groups
+	for (size_t i = 0; i < _msize(ctx.parentals) / sizeof(struct ParentalControl*); i++) {
+		for (size_t j = 0; j < _msize(ctx.parentals[i]->challenge_groups) / sizeof(struct ChallengeEquivalenceGroup*); j++) {
+			// Check if the challenge group has already been included in the array
+			already_included = FALSE;
+			for (size_t k = 0; k < num_actual_unique_ch_groups; k++) {
+				if (ctx.parentals[i]->challenge_groups[j] == unique_ch_groups[k]) {
+					already_included = TRUE;
+					break;
+				}
+			}
+			if (!already_included) {
+				unique_ch_groups[num_actual_unique_ch_groups] = ctx.parentals[i]->challenge_groups[j];
+				num_actual_unique_ch_groups++;
+			}
+		}
+	}
+
+	// TODO (improvement): realloc to actual size to use less memory space?
+
+	// Keep in a forever loop waking up every THREAD_PARENTAL_MODE_SLEEP seconds to ensure the keys are up to date (not expired)
+	while (TRUE) {
+		PRINT("Ensuring keys are fresh...\n");
+		makeParentalKey(unique_ch_groups, &unused_result);
+		Sleep(THREAD_PARENTAL_MODE_SLEEP*1000);
+	}
+}
+
 
 DWORD writeParentalFoldersFile() {
 	PRINT("\nWriting parental folders in a file for the minifilter...\n");

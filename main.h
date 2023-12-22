@@ -21,6 +21,13 @@
 // Uncomment to add usernames in the parental paths json file that the minifilter uses
 //#define MINIFILTER_USES_USERNAMES
 
+// Uncomment to activate Parental Mode (no wrappers will be launched and system will ensure to have fresh keys every THREAD_PARENTAL_MODE_SLEEP seconds)
+#define SECUREMIRROR_PARENTAL_MODE
+
+// Time in seconds of key expiration check when Parental Mode is active. Challenge is only executed if the key has expired.
+// It is a good idea to keep it low to recover fast after using the 'Reset all challenges' menu option
+#define THREAD_PARENTAL_MODE_SLEEP 10
+
 // The name of the environment variable that contains the path to the folder where the parental_paths file used by the minifilter will be written
 #define ENVVAR_MINIFILTER_CONFIG_FOLDER L"SECUREMIRROR_MINIFILTER_CONFIG"
 
@@ -117,6 +124,7 @@ void initCiphers();
 void challengeExecutorLoop();
 int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, struct Challenge* ch);
 int configureExecChFromMain(struct Challenge);
+void threadParentalModeKeyRefresh();
 DWORD writeParentalFoldersFile();
 
 
