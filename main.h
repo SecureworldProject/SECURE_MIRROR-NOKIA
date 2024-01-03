@@ -22,7 +22,7 @@
 //#define MINIFILTER_USES_USERNAMES
 
 // Uncomment to activate Parental Mode (no wrappers will be launched and system will ensure to have fresh keys every THREAD_PARENTAL_MODE_SLEEP seconds)
-#define SECUREMIRROR_PARENTAL_MODE
+//#define SECUREMIRROR_PARENTAL_MODE
 
 // Time in seconds of key expiration check when Parental Mode is active. Challenge is only executed if the key has expired.
 // It is a good idea to keep it low to recover fast after using the 'Reset all challenges' menu option
@@ -33,6 +33,9 @@
 
 // The name of the file which contains the parental_paths
 #define MINIFILTER_CONFIG_PARENTAL_PATHS_FILENAME L"parental_paths.txt"
+
+// The name of the file which contains the mirrored_paths
+#define MINIFILTER_CONFIG_MIRRORED_PATHS_FILENAME L"mirrored_paths.txt"
 
 // Number of drive letters (positions that the letters array has)
 #define NUM_LETTERS 26
@@ -126,6 +129,6 @@ int execChallengeFromMainThread(struct ChallengeEquivalenceGroup* ch_group, stru
 int configureExecChFromMain(struct Challenge);
 void threadParentalModeKeyRefresh();
 DWORD writeParentalFoldersFile();
-
+DWORD writeMirroredFoldersFile();
 
 #endif // !__MAIN_H

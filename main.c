@@ -71,8 +71,11 @@ int main(int argc, char* argv[]) {
 	// Load context from config.json
 	loadContext();
 
-	// Write a file with the parental folders for the minifilter
+	// Write a file with the parental folders for the "parental" minifilter
 	writeParentalFoldersFile();
+
+	// Write a file with the mirrored folders for the "business" minifilter
+	writeMirroredFoldersFile();
 
 	// Print the context
 	#ifdef RUN_PRINT_CONTEXT
@@ -384,6 +387,167 @@ void threadParentalModeKeyRefresh() {
 	}
 }
 
+DWORD writeMirroredFoldersFile() {
+	PRINT("\nWriting mirrored folders in a file for the minifilter...\n");
+	if (ctx.folders == NULL) {
+		fprintf(stderr, "WARNING: there are no mirrored folders\n");
+		return ERROR_SUCCESS;
+	}
+
+
+	HANDLE handle = INVALID_HANDLE_VALUE;
+	size_t result = 0;
+	DWORD error_code = ERROR_SUCCESS;
+	LARGE_INTEGER distanceToMove = { 0 };
+	DWORD bytes_written = 0;
+	DWORD bytes_to_write = 0;
+	LPCVOID buffer_to_write = NULL;
+
+	WCHAR* folder_path = NULL;
+	WCHAR* file_path = NULL;
+	size_t folder_path_len = 0;
+	size_t file_path_len = 0;
+	size_t filename_len = 0;
+	size_t add_extra_char = 0;
+
+	struct Folder* mirrored_folder = NULL;
+	WCHAR* mf_path_device_form = NULL;
+	char* mf_path_device_form_str = NULL;
+	size_t mf_path_device_form_len = 0;
+
+
+	// Get the folder path from the environment variable
+	folder_path = _wgetenv(ENVVAR_MINIFILTER_CONFIG_FOLDER);
+	if (NULL == folder_path) {
+		folder_path = L"";
+	}
+
+	// Get full filepath length
+	folder_path_len = wcslen(folder_path);
+	filename_len = wcslen(MINIFILTER_CONFIG_MIRRORED_PATHS_FILENAME);
+	file_path_len = folder_path_len + filename_len;
+	if (0 != folder_path_len) {
+		if (L'\\' != folder_path[folder_path_len - 1] && L'/' != folder_path[folder_path_len - 1]) {
+			add_extra_char = 1;
+			file_path_len++; // Adds 1 to the length for putting together folder and filename if needed
+		}
+	}
+
+	// Allocate full filepath
+	file_path = malloc((file_path_len + 1) * sizeof(WCHAR));
+	if (NULL == file_path) {
+		fprintf(stderr, "ERROR: could not allocate memory for the filepath.\n");
+		goto WRITE_MIRRORED_FOLDERS_FILE_CLEANUP;
+	}
+
+	// Compose the full filepath
+	wcscpy(file_path, folder_path);
+	if (add_extra_char) {
+		wcscat(file_path, L"\\");
+	}
+	wcscat(file_path, MINIFILTER_CONFIG_MIRRORED_PATHS_FILENAME);
+
+	// Open the file with a wide character path/filename. Creates a new file always (replaces if exists)
+	handle = CreateFileW(file_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (handle == INVALID_HANDLE_VALUE) {
+		error_code = ERROR_OPEN_FAILED;
+		fprintf(stderr, "ERROR: could not create (write) file (%ws) (error_code=%lu).\n", file_path, error_code);
+		goto WRITE_MIRRORED_FOLDERS_FILE_CLEANUP;
+	}
+	PRINT("File %ws created\n", file_path);
+
+	// Point to desired offset (0)
+	distanceToMove.QuadPart = 0;
+	if (!SetFilePointerEx(handle, distanceToMove, NULL, FILE_BEGIN)) {
+		error_code = GetLastError();
+		fprintf(stderr, "ERROR: could not point handle to the desired offset for writting file (%ws) (error_code=%lu).\n", file_path, error_code);
+		goto WRITE_MIRRORED_FOLDERS_FILE_CLEANUP;
+	}
+
+	PRINT("Handle pointer moved\n");
+
+
+	// Iterate over each mirrored folder
+	for (size_t i = 0; i < _msize(ctx.folders) / sizeof(struct Folder*); i++) {
+		mirrored_folder = ctx.folders[i];
+
+		// PARENTAL FOLDER PATH
+		// Get parental folder path translated to /Device/Harddisk/ syntax
+		mf_path_device_form = getDevicePathFromFormattedDosPath(mirrored_folder->path);
+		if (NULL == mf_path_device_form) {
+			fprintf(stderr, "WARNING: could not transform dos path into device path\n");
+			continue;
+		}
+		mf_path_device_form_len = wcslen(mf_path_device_form);
+		mf_path_device_form_str = (char*)malloc((mf_path_device_form_len + 1) * sizeof(char));
+		if (NULL == mf_path_device_form_str) {
+			error_code = ERROR_NOT_ENOUGH_MEMORY;
+			fprintf(stderr, "ERROR: could not allocate memory for mf_path_device_form_str.\n");
+			goto LOOP_IN_WRITEMIRROREDFOLDERSFILE_CLEANUP;
+		}
+		wcstombs(mf_path_device_form_str, mf_path_device_form, mf_path_device_form_len);
+
+		// Write mirrored path to file
+		bytes_written = 0;
+		bytes_to_write = mf_path_device_form_len * sizeof(char);
+		buffer_to_write = (LPCVOID)mf_path_device_form_str;
+		PRINT("\t for-loop i=%llu: \tbuffer_to_write = %s\n", i, (char*)buffer_to_write);
+		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write mirrored folder into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEMIRROREDFOLDERSFILE_CLEANUP;
+		}
+		if (bytes_written != bytes_to_write) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write mirrored folder into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEMIRROREDFOLDERSFILE_CLEANUP;
+		}
+
+
+		// SEPARATOR --> "\n"
+		// Write separator between parental controls
+		bytes_written = 0;
+		bytes_to_write = 1 * sizeof(char);
+		buffer_to_write = (LPCVOID)"\n";
+		if (!WriteFile(handle, buffer_to_write, bytes_to_write, &bytes_written, NULL)) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEMIRROREDFOLDERSFILE_CLEANUP;
+		}
+		if (bytes_written != bytes_to_write) {
+			error_code = ERROR_WRITE_FAULT;
+			fprintf(stderr, "ERROR: could not write into file (%ws).\n", file_path);
+			goto LOOP_IN_WRITEMIRROREDFOLDERSFILE_CLEANUP;
+		}
+
+		// CLEANUP
+	LOOP_IN_WRITEMIRROREDFOLDERSFILE_CLEANUP:
+		if (ERROR_SUCCESS != error_code) {
+			goto WRITE_MIRRORED_FOLDERS_FILE_CLEANUP;
+		}
+	}
+
+
+
+	// Close file handle if necessary and return corresponding error_code
+WRITE_MIRRORED_FOLDERS_FILE_CLEANUP:
+	if (NULL != file_path) {
+		free(file_path);
+	}
+	if (handle != INVALID_HANDLE_VALUE) {
+		CloseHandle(handle);
+		handle = INVALID_HANDLE_VALUE;
+	}
+	if (NULL != mf_path_device_form) {
+		free(mf_path_device_form);
+		mf_path_device_form = NULL;
+	}
+
+	PRINT("\nMirrored folders' file %s completed (error_code = %lu)\n", (error_code == ERROR_SUCCESS) ? "was" : "could not be", error_code);
+
+	// Return corresponding error_code or success code
+	return error_code;
+}
 
 DWORD writeParentalFoldersFile() {
 	PRINT("\nWriting parental folders in a file for the minifilter...\n");
@@ -421,7 +585,6 @@ DWORD writeParentalFoldersFile() {
 	size_t add_extra_char = 0;
 
 	struct ParentalControl* parental_control = NULL;
-	struct ParentalFolder* pf = NULL;
 	WCHAR* pf_path_device_form = NULL;
 	char* pf_path_device_form_str = NULL;
 	size_t pf_path_device_form_len = 0;
